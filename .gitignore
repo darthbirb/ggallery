@@ -1,0 +1,14 @@
+# sidecar binaries — fetched on first run with pinned versions + checksums
+tools/
+
+# machine-local config
+gallery.config.json
+
+# spike output
+spike/generated/
+
+node_modules/
+dist/
+target/
+*.log
+Thumbs.db

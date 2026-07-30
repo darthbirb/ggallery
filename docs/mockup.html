@@ -1,0 +1,987 @@
+<title>Gallery — Interface Mockup</title>
+
+<style>
+  :root {
+    --page-bg:    #eceef1;
+    --page-fg:    #1b1e23;
+    --page-dim:   #5d646e;
+    --page-line:  #d3d7dd;
+    --page-card:  #f7f8fa;
+
+    /* App chrome is always dark — the app is dark by design, because media
+       must be the brightest thing on screen. Cool-biased neutrals so photo
+       colour reads true, the reason Lightroom and Capture One do the same. */
+    --ground:  #15171b;
+    --panel:   #1b1e23;
+    --raised:  #22262d;
+    --hover:   #2a2f37;
+    --line:    #2f353e;
+    --line-soft:#262b32;
+    --fg:      #e3e6ec;
+    --fg-mid:  #a2a9b4;
+    --fg-dim:  #6f7783;
+
+    --accent:  #d9954b;   /* amber — darkroom safelight, film leader */
+    --accent-d:#8a5c26;
+    --good:    #5f9e6e;
+    --info:    #5b8fc9;
+    --danger:  #c25a4a;
+
+    --r: 5px;
+    --mono: "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+    --ui: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page-bg:   #0e1013;
+      --page-fg:   #dfe3e9;
+      --page-dim:  #8e96a1;
+      --page-line: #262b33;
+      --page-card: #16191e;
+    }
+  }
+  :root[data-theme="dark"] {
+    --page-bg:   #0e1013;
+    --page-fg:   #dfe3e9;
+    --page-dim:  #8e96a1;
+    --page-line: #262b33;
+    --page-card: #16191e;
+  }
+  :root[data-theme="light"] {
+    --page-bg:   #eceef1;
+    --page-fg:   #1b1e23;
+    --page-dim:  #5d646e;
+    --page-line: #d3d7dd;
+    --page-card: #f7f8fa;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--page-bg);
+    color: var(--page-fg);
+    font-family: var(--ui);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  /* ---------- page header ---------- */
+
+  .masthead { display: flex; flex-direction: column; gap: 10px; margin-bottom: 26px; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--page-dim);
+  }
+  h1 { margin: 0; font-size: 30px; font-weight: 650; letter-spacing: -.02em; text-wrap: balance; }
+  .lede { margin: 0; max-width: 65ch; color: var(--page-dim); }
+
+  /* ---------- view tabs ---------- */
+
+  .tabs {
+    display: flex; flex-wrap: wrap; gap: 4px;
+    border-bottom: 1px solid var(--page-line);
+    margin-bottom: 18px;
+  }
+  .tab {
+    appearance: none; background: none; border: 0;
+    border-bottom: 2px solid transparent;
+    font: inherit; font-size: 14px; color: var(--page-dim);
+    padding: 9px 14px; cursor: pointer; margin-bottom: -1px;
+    transition: color .12s, border-color .12s;
+  }
+  .tab:hover { color: var(--page-fg); }
+  .tab[aria-selected="true"] { color: var(--page-fg); border-bottom-color: var(--accent); font-weight: 600; }
+  .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+  .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .ghost-btn {
+    appearance: none; font: inherit; font-size: 13px;
+    background: var(--page-card); color: var(--page-fg);
+    border: 1px solid var(--page-line); border-radius: var(--r);
+    padding: 5px 11px; cursor: pointer;
+  }
+  .ghost-btn:hover { border-color: var(--accent); }
+  .ghost-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .hint { font-size: 13px; color: var(--page-dim); }
+
+  /* ---------- app window ---------- */
+
+  .stage { overflow-x: auto; padding-bottom: 6px; }
+
+  .app {
+    min-width: 1120px;
+    height: 700px;
+    display: grid;
+    grid-template-rows: 38px 1fr;
+    background: var(--ground);
+    color: var(--fg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 18px 50px -18px rgba(0,0,0,.55);
+    font-size: 13px;
+  }
+
+  .titlebar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 12px; background: var(--panel);
+    border-bottom: 1px solid var(--line);
+  }
+  .dot-row { display: flex; gap: 6px; }
+  .wdot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+  .titlebar .name { font-size: 12px; color: var(--fg-dim); }
+
+  .body { display: grid; grid-template-columns: 214px 1fr; min-height: 0; }
+  .body.with-inspector { grid-template-columns: 214px 1fr 258px; }
+  .body.solo { grid-template-columns: 1fr; }
+
+  /* ---------- sidebar ---------- */
+
+  .sidebar {
+    background: var(--panel); border-right: 1px solid var(--line);
+    overflow-y: auto; padding: 10px 0 20px;
+  }
+  .sb-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--fg-dim);
+    padding: 12px 14px 5px;
+  }
+  .sb-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 14px; cursor: pointer; color: var(--fg-mid);
+    border-left: 2px solid transparent;
+  }
+  .sb-item:hover { background: var(--hover); color: var(--fg); }
+  .sb-item.active { background: var(--hover); color: var(--fg); border-left-color: var(--accent); font-weight: 600; }
+  .sb-item.indent { padding-left: 28px; }
+  .sb-item.indent2 { padding-left: 42px; }
+  .sb-item .count {
+    margin-left: auto; font-family: var(--mono); font-size: 11px;
+    color: var(--fg-dim); font-variant-numeric: tabular-nums;
+  }
+  .sb-item .badge {
+    margin-left: auto; font-family: var(--mono); font-size: 11px;
+    background: var(--accent); color: #1a1206; font-weight: 700;
+    border-radius: 9px; padding: 0 6px; font-variant-numeric: tabular-nums;
+  }
+  .sb-item .badge.quiet { background: var(--line); color: var(--fg-mid); }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .s-active { background: #5f6b7a; }
+  .s-wip    { background: var(--accent); }
+  .s-done   { background: var(--good); }
+  .s-arch   { background: #3a4049; }
+  .swatch { width: 16px; height: 16px; border-radius: 3px; flex: none; }
+  .star { color: var(--accent); font-size: 11px; }
+  .divider { height: 1px; background: var(--line); margin: 12px 14px; }
+
+  /* ---------- main column ---------- */
+
+  .main { display: grid; grid-template-rows: 46px auto 1fr; min-height: 0; min-width: 0; }
+  .main.no-header { grid-template-rows: 46px 1fr; }
+
+  .searchbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 12px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  .query {
+    flex: 1; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    background: var(--ground); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 5px 9px; min-height: 30px;
+  }
+  .query .mag { color: var(--fg-dim); }
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 11px;
+    background: var(--raised); border: 1px solid var(--line);
+    border-radius: 3px; padding: 1px 6px; color: var(--fg-mid);
+  }
+  .chip.neg { color: var(--danger); border-color: #4a2c27; }
+  .chip .x { color: var(--fg-dim); }
+  .caret { width: 1px; height: 14px; background: var(--accent); animation: blink 1.1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .caret { animation: none; } }
+  .tool-group { display: flex; align-items: center; gap: 8px; color: var(--fg-dim); font-size: 12px; }
+  .kbd {
+    font-family: var(--mono); font-size: 10px; border: 1px solid var(--line);
+    border-bottom-width: 2px; border-radius: 3px; padding: 1px 5px; color: var(--fg-mid);
+  }
+
+  /* ---------- folder header ---------- */
+
+  .folder-head {
+    display: flex; gap: 16px; padding: 16px 18px;
+    border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  .cover {
+    width: 92px; height: 92px; border-radius: var(--r); flex: none;
+    border: 1px solid var(--line);
+  }
+  .fh-body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 9px; }
+  .fh-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .fh-title { font-size: 21px; font-weight: 650; letter-spacing: -.01em; }
+  .pill {
+    font-size: 11px; border: 1px solid var(--line); border-radius: 20px;
+    padding: 1px 9px; color: var(--fg-mid);
+  }
+  .pill.wip { border-color: var(--accent-d); color: var(--accent); }
+  .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 260px)); gap: 3px 28px; }
+  .field { display: flex; gap: 10px; font-size: 12px; align-items: baseline; }
+  .field .k {
+    font-family: var(--mono); font-size: 11px; color: var(--fg-dim);
+    width: 74px; flex: none; text-align: right;
+  }
+  .field .v { color: var(--fg); }
+  .field .v.empty { color: var(--fg-dim); }
+  .field .v.link { color: var(--info); }
+  .flags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .flag {
+    font-size: 11px; background: var(--raised); border: 1px solid var(--line);
+    border-radius: 3px; padding: 1px 7px; color: var(--fg-mid);
+  }
+  .fh-meta {
+    font-family: var(--mono); font-size: 11px; color: var(--fg-dim);
+    display: flex; gap: 14px; flex-wrap: wrap; font-variant-numeric: tabular-nums;
+  }
+  .fh-meta .stale { color: var(--accent); }
+
+  /* ---------- grid ---------- */
+
+  .grid-area { display: grid; grid-template-columns: 1fr 26px; min-height: 0; }
+  .grid-scroll { overflow-y: auto; padding: 8px; }
+  .grid { display: flex; flex-wrap: wrap; gap: 4px; }
+  .grid::after { content: ""; flex-grow: 99999; }
+  .tile {
+    position: relative; height: 132px; border-radius: 3px; overflow: hidden;
+    cursor: pointer; border: 2px solid transparent; flex-shrink: 1;
+  }
+  .tile .img { width: 100%; height: 100%; }
+  .tile:hover { border-color: var(--fg-dim); }
+  .tile.sel { border-color: var(--accent); }
+  .tile .dur, .tile .fav {
+    position: absolute; font-family: var(--mono); font-size: 10px;
+    background: rgba(8,9,11,.78); border-radius: 3px; padding: 0 4px;
+    color: #fff; font-variant-numeric: tabular-nums;
+  }
+  .tile .dur { bottom: 4px; right: 4px; }
+  .tile .fav { top: 4px; right: 4px; color: var(--accent); padding: 0 3px; }
+  .day-head {
+    width: 100%; font-family: var(--mono); font-size: 11px; color: var(--fg-dim);
+    padding: 12px 2px 4px; letter-spacing: .06em;
+  }
+  .day-head:first-child { padding-top: 2px; }
+
+  .scrubber {
+    border-left: 1px solid var(--line-soft); background: var(--panel);
+    display: flex; flex-direction: column; align-items: center;
+    padding: 10px 0; gap: 2px; font-family: var(--mono); font-size: 9px;
+    color: var(--fg-dim); position: relative;
+  }
+  .scrubber .yr { color: var(--fg-mid); margin-top: 8px; }
+  .scrubber .mo { opacity: .5; }
+  .scrub-thumb {
+    position: absolute; left: 2px; right: 2px; top: 88px; height: 22px;
+    background: var(--accent); opacity: .22; border-radius: 3px;
+  }
+
+  /* ---------- inspector ---------- */
+
+  .inspector {
+    background: var(--panel); border-left: 1px solid var(--line);
+    overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 16px;
+  }
+  .insp-preview { width: 100%; height: 148px; border-radius: var(--r); border: 1px solid var(--line); }
+  .insp-title { font-size: 14px; font-weight: 600; }
+  .insp-sub { font-family: var(--mono); font-size: 11px; color: var(--fg-dim); word-break: break-all; }
+  .meta-list { display: flex; flex-direction: column; gap: 3px; }
+  .meta-row { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+  .meta-row .k { color: var(--fg-dim); }
+  .meta-row .v { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--fg-mid); }
+  .tag-set { display: flex; gap: 5px; flex-wrap: wrap; }
+  .tag {
+    font-size: 11px; border-radius: 3px; padding: 1px 7px;
+    border: 1px solid var(--line); background: var(--raised); color: var(--fg);
+  }
+  .tag.inherited { background: transparent; color: var(--fg-dim); border-style: dashed; }
+  .tag.add { color: var(--fg-dim); border-style: dashed; background: transparent; cursor: pointer; }
+  .act-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .act {
+    font-size: 12px; border: 1px solid var(--line); background: var(--raised);
+    border-radius: var(--r); padding: 4px 9px; color: var(--fg-mid); cursor: pointer;
+  }
+  .act:hover { border-color: var(--accent); color: var(--fg); }
+  .act.primary { border-color: var(--accent-d); color: var(--accent); }
+
+  /* ---------- search results ---------- */
+
+  .results { overflow-y: auto; padding: 16px 18px; }
+  .res-head {
+    display: flex; align-items: baseline; gap: 10px; margin: 4px 0 10px;
+  }
+  .res-head h3 { margin: 0; font-size: 13px; font-weight: 650; letter-spacing: .01em; }
+  .res-head .n { font-family: var(--mono); font-size: 11px; color: var(--fg-dim); }
+  .res-head .rule { flex: 1; height: 1px; background: var(--line-soft); }
+  .folder-cards { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 22px; }
+  .fcard {
+    width: 168px; background: var(--raised); border: 1px solid var(--line);
+    border-radius: var(--r); overflow: hidden; cursor: pointer;
+  }
+  .fcard:hover { border-color: var(--accent-d); }
+  .fcard .thumb { height: 92px; }
+  .fcard .fc-body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 3px; }
+  .fcard .fc-title { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .fcard .fc-match { font-family: var(--mono); font-size: 11px; color: var(--accent); }
+  .fcard .fc-count { font-family: var(--mono); font-size: 10px; color: var(--fg-dim); font-variant-numeric: tabular-nums; }
+
+  /* ---------- triage ---------- */
+
+  .triage { display: grid; grid-template-rows: 1fr auto; background: #0c0d10; min-height: 0; }
+  .stagearea { position: relative; display: grid; place-items: center; padding: 20px; min-height: 0; }
+  .hero-media {
+    max-height: 100%; aspect-ratio: 3 / 2; width: min(660px, 100%);
+    border-radius: var(--r); border: 1px solid var(--line);
+  }
+  .counter {
+    position: absolute; top: 16px; right: 20px; font-family: var(--mono);
+    font-size: 12px; color: var(--fg-mid); background: rgba(20,22,26,.85);
+    border: 1px solid var(--line); border-radius: 20px; padding: 3px 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .hero-caption {
+    position: absolute; top: 16px; left: 20px; font-family: var(--mono);
+    font-size: 11px; color: var(--fg-dim);
+  }
+  .destbar {
+    border-top: 1px solid var(--line); background: var(--panel);
+    padding: 12px 18px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .dests { display: flex; gap: 7px; flex-wrap: wrap; }
+  .dest {
+    display: flex; align-items: center; gap: 7px;
+    background: var(--raised); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 5px 11px; cursor: pointer; color: var(--fg-mid);
+  }
+  .dest:hover { border-color: var(--accent); color: var(--fg); }
+  .dest .key {
+    font-family: var(--mono); font-size: 11px; font-weight: 700;
+    background: var(--accent); color: #1a1206; border-radius: 3px;
+    width: 17px; height: 17px; display: grid; place-items: center;
+  }
+  .dest.muted .key { background: var(--line); color: var(--fg-mid); }
+  .triage-foot { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .tagline-input {
+    flex: 1; min-width: 200px; background: var(--ground);
+    border: 1px solid var(--line); border-radius: var(--r);
+    padding: 5px 10px; color: var(--fg-dim); font-family: var(--mono); font-size: 11px;
+  }
+  .keyhint { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fg-dim); }
+
+  /* ---------- review table ---------- */
+
+  .review { overflow-y: auto; padding: 16px 18px; }
+  .review-top {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 20px; flex-wrap: wrap; margin-bottom: 16px;
+  }
+  .big-stat { display: flex; flex-direction: column; gap: 1px; }
+  .big-stat .k {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--fg-dim);
+  }
+  .big-stat .v {
+    font-family: var(--mono); font-size: 27px; font-weight: 600;
+    color: var(--good); font-variant-numeric: tabular-nums; line-height: 1.1;
+  }
+  table.rev { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.rev th {
+    text-align: left; font-family: var(--mono); font-size: 10px;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--fg-dim);
+    font-weight: 500; padding: 0 10px 7px; border-bottom: 1px solid var(--line);
+  }
+  table.rev th.num, table.rev td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.rev td { padding: 7px 10px; border-bottom: 1px solid var(--line-soft); }
+  table.rev tr:hover td { background: var(--hover); }
+  .rev-name { display: flex; align-items: center; gap: 9px; }
+  .rev-thumb { width: 40px; height: 26px; border-radius: 3px; flex: none; }
+  .rev-name .t { color: var(--fg); }
+  .rev-name .sub { font-family: var(--mono); font-size: 10px; color: var(--fg-dim); }
+  td.mono { font-family: var(--mono); color: var(--fg-mid); }
+  .savings { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+  .savings .bar { width: 62px; height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; }
+  .savings .fill { height: 100%; background: var(--good); }
+  .savings .pct { font-family: var(--mono); color: var(--good); width: 42px; text-align: right; }
+  .savings .pct.low { color: var(--fg-dim); }
+  .row-acts { display: flex; gap: 5px; justify-content: flex-end; }
+  .mini {
+    font-size: 11px; border: 1px solid var(--line); background: var(--raised);
+    border-radius: 3px; padding: 2px 7px; color: var(--fg-mid); cursor: pointer; white-space: nowrap;
+  }
+  .mini:hover { border-color: var(--accent); color: var(--fg); }
+  .mini.keep:hover { border-color: var(--good); color: var(--good); }
+
+  /* ---------- storage ---------- */
+
+  .storage { overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 20px; }
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .tile-card {
+    background: var(--raised); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 12px 14px; display: flex; flex-direction: column; gap: 3px;
+  }
+  .tile-card .k {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--fg-dim);
+  }
+  .tile-card .v {
+    font-family: var(--mono); font-size: 22px; font-weight: 600;
+    font-variant-numeric: tabular-nums; line-height: 1.2;
+  }
+  .tile-card .sub { font-size: 11px; color: var(--fg-dim); }
+  .v.accent { color: var(--accent); }
+  .v.good { color: var(--good); }
+  .panel-block {
+    background: var(--raised); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 14px 16px;
+  }
+  .panel-block h4 {
+    margin: 0 0 12px; font-size: 12px; font-weight: 650;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .panel-block h4 .rule { flex: 1; height: 1px; background: var(--line); }
+  .barlist { display: flex; flex-direction: column; gap: 8px; }
+  .barrow { display: grid; grid-template-columns: 130px 1fr 64px; gap: 12px; align-items: center; font-size: 12px; }
+  .barrow .lbl { display: flex; align-items: center; gap: 7px; color: var(--fg-mid); }
+  .barrow .track { height: 8px; background: var(--ground); border-radius: 3px; overflow: hidden; }
+  .barrow .fill { height: 100%; border-radius: 3px; }
+  .barrow .amt { font-family: var(--mono); text-align: right; color: var(--fg-mid); font-variant-numeric: tabular-nums; }
+  .two-col { display: grid; grid-template-columns: 1.35fr 1fr; gap: 14px; }
+  .cta-strip {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap;
+    border: 1px solid var(--accent-d); background: rgba(217,149,75,.07);
+    border-radius: var(--r); padding: 12px 16px;
+  }
+  .cta-strip .txt { font-size: 13px; }
+  .cta-strip .txt strong { color: var(--accent); }
+  .btn-accent {
+    background: var(--accent); color: #1a1206; border: 0; border-radius: var(--r);
+    font: inherit; font-size: 12px; font-weight: 650; padding: 6px 14px; cursor: pointer;
+  }
+  .btn-accent:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
+  /* blur demo */
+  .app.blurred .img,
+  .app.blurred .cover,
+  .app.blurred .thumb,
+  .app.blurred .hero-media,
+  .app.blurred .insp-preview,
+  .app.blurred .rev-thumb { filter: blur(14px); }
+
+  /* ---------- annotations ---------- */
+
+  .notes { margin-top: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; }
+  .note {
+    background: var(--page-card); border: 1px solid var(--page-line);
+    border-radius: 6px; padding: 13px 15px;
+  }
+  .note h4 {
+    margin: 0 0 5px; font-size: 12px; font-weight: 650;
+    font-family: var(--mono); letter-spacing: .04em; text-transform: uppercase;
+  }
+  .note p { margin: 0; font-size: 13.5px; color: var(--page-dim); }
+  .view-note { display: none; }
+  .view-note.on { display: contents; }
+
+  .footnote {
+    margin-top: 30px; padding-top: 16px; border-top: 1px solid var(--page-line);
+    font-size: 13px; color: var(--page-dim); max-width: 68ch;
+  }
+  @media (max-width: 900px) {
+    .wrap { padding: 28px 14px 60px; }
+    h1 { font-size: 24px; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">Interface mockup · static, no logic behind it</div>
+    <h1>Gallery</h1>
+    <p class="lede">
+      Five screens from the app described in <strong>PLAN.md</strong>. Layout, density and
+      hierarchy are real; the media is generated placeholder. Switch views below, click
+      thumbnails to select them, and use the blur key to see the panic toggle work.
+    </p>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="Screens">
+    <button class="tab" role="tab" aria-selected="true" data-view="library">Library</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="search">Search results</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="triage">Sorting Box</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="review">Pending Review</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="storage">Storage</button>
+  </div>
+
+  <div class="toolbar">
+    <button class="ghost-btn" id="blurBtn">Toggle blur</button>
+    <span class="hint">The one privacy affordance in the app — instant, no PIN, nothing stored.</span>
+  </div>
+
+  <div class="stage">
+    <div class="app" id="app">
+      <div class="titlebar">
+        <div class="dot-row"><span class="wdot"></span><span class="wdot"></span><span class="wdot"></span></div>
+        <span class="name" id="winTitle">Gallery — D:\Media</span>
+      </div>
+      <div class="body" id="appBody"><!-- injected --></div>
+    </div>
+  </div>
+
+  <div class="notes" id="notes"></div>
+
+  <p class="footnote">
+    Everything here is placeholder content standing in for a real library. If a panel is in
+    the wrong place, a number is the wrong number, or something you need every day is buried
+    three clicks deep — that is exactly what this is for. Say so before any of it gets built.
+  </p>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* deterministic pseudo-random so the layout never reshuffles between renders */
+  var seed = 20260731;
+  function rnd() { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; }
+
+  /* placeholder "photographs": layered gradients, cool-to-warm, slightly desaturated
+     so they read as imagery rather than as UI colour */
+  function shot() {
+    var h = Math.floor(rnd() * 360);
+    var h2 = (h + 25 + Math.floor(rnd() * 60)) % 360;
+    var l1 = 26 + Math.floor(rnd() * 22);
+    var l2 = 52 + Math.floor(rnd() * 26);
+    var ang = Math.floor(rnd() * 360);
+    var px = 20 + Math.floor(rnd() * 60), py = 15 + Math.floor(rnd() * 55);
+    return "background:" +
+      "radial-gradient(70% 80% at " + px + "% " + py + "%, hsl(" + h2 + " 42% " + l2 + "% / .95), transparent 68%)," +
+      "linear-gradient(" + ang + "deg, hsl(" + h + " 32% " + l1 + "%), hsl(" + ((h + 190) % 360) + " 26% " + (l1 + 14) + "%));";
+  }
+  function ar() { var v = [0.67, 0.75, 1, 1.33, 1.5, 1.78, 1.78, 0.56]; return v[Math.floor(rnd() * v.length)]; }
+  function dur() {
+    var s = 8 + Math.floor(rnd() * 600);
+    return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+  }
+
+  function tiles(n, opts) {
+    opts = opts || {};
+    var out = "";
+    for (var i = 0; i < n; i++) {
+      var a = ar(), isVid = rnd() < (opts.videoRate || 0.4), isFav = rnd() < 0.11;
+      out += '<div class="tile" style="flex:' + a.toFixed(2) + ' 1 ' + Math.round(a * 150) + 'px" tabindex="0">' +
+             '<div class="img" style="' + shot() + '"></div>' +
+             (isFav ? '<span class="fav">\u2605</span>' : '') +
+             (isVid ? '<span class="dur">' + dur() + '</span>' : '') +
+             '</div>';
+    }
+    return out;
+  }
+
+  /* ------------------------------------------------------------------ */
+
+  var sidebar = function (active) {
+    function row(cls, html) { return '<div class="sb-item ' + cls + '">' + html + '</div>'; }
+    return '' +
+      '<div class="sidebar">' +
+        '<div class="sb-label">Pinned</div>' +
+        row('indent', '<span class="star">\u2605</span> Ana Ruiz <span class="count">2,481</span>') +
+        row('indent', '<span class="star">\u2605</span> Lisbon 2024 <span class="count">612</span>') +
+
+        '<div class="sb-label">Library</div>' +
+        row('', '<span>\u25be</span> People <span class="count">18,204</span>') +
+        row('indent2 ' + (active === 'ana' ? 'active' : ''), '<span class="status-dot s-wip"></span> Ana Ruiz <span class="count">2,481</span>') +
+        row('indent2', '<span class="status-dot s-done"></span> Sara Okafor <span class="count">1,930</span>') +
+        row('indent2', '<span class="status-dot s-wip"></span> Mira Vale <span class="count">884</span>') +
+        row('indent2', '<span class="status-dot s-active"></span> Unknown <span class="count">3,117</span>') +
+        row('', '<span>\u25b8</span> Places <span class="count">7,442</span>') +
+        row('', '<span>\u25b8</span> Events <span class="count">3,908</span>') +
+        row('', '<span>\u25b8</span> Reference <span class="count">1,204</span>') +
+
+        '<div class="sb-label">Tags</div>' +
+        row('indent', '<span class="swatch" style="background:#3f4a5a"></span> instagram <span class="count">142</span>') +
+        row('indent', '<span class="swatch" style="background:#4a3f52"></span> tiktok <span class="count">96</span>') +
+        row('indent', '<span class="swatch" style="background:#3f5248"></span> city <span class="count">31</span>') +
+        row('indent', '<span class="swatch" style="background:#524b3f"></span> beach <span class="count">1,880</span>') +
+
+        '<div class="sb-label">Saved</div>' +
+        row('indent', '\u2605 Favorites <span class="count">1,204</span>') +
+        row('indent', 'Untagged video <span class="count">318</span>') +
+        row('indent', 'WIP, stale 90d+ <span class="count">11</span>') +
+
+        '<div class="divider"></div>' +
+        row(active === 'sort' ? 'active' : '', 'Sorting Box <span class="badge">142</span>') +
+        row(active === 'rev' ? 'active' : '', 'Pending Review <span class="badge">48</span>') +
+        row('', 'Trash <span class="badge quiet">62</span>') +
+        row(active === 'store' ? 'active' : '', 'Storage') +
+      '</div>';
+  };
+
+  var searchbar = function (inner) {
+    return '<div class="searchbar">' +
+      '<div class="query"><span class="mag">\u2315</span>' + inner + '</div>' +
+      '<div class="tool-group"><span>Size</span><span class="kbd">\u2013\u2500\u2500\u2500+</span></div>' +
+      '<div class="tool-group"><span>Captured \u25be</span></div>' +
+      '<div class="tool-group"><span class="kbd">Ctrl K</span></div>' +
+    '</div>';
+  };
+
+  var scrubber = '' +
+    '<div class="scrubber">' +
+      '<div class="scrub-thumb"></div>' +
+      '<span class="yr">2026</span><span class="mo">jul</span><span class="mo">apr</span><span class="mo">jan</span>' +
+      '<span class="yr">2025</span><span class="mo">oct</span><span class="mo">jul</span><span class="mo">apr</span><span class="mo">jan</span>' +
+      '<span class="yr">2024</span><span class="mo">sep</span><span class="mo">may</span><span class="mo">feb</span>' +
+      '<span class="yr">2023</span><span class="mo">nov</span><span class="mo">jun</span>' +
+      '<span class="yr">2022</span>' +
+    '</div>';
+
+  /* ---------------------------- views ------------------------------- */
+
+  var views = {};
+
+  views.library = function () {
+    return '<div class="body with-inspector">' + sidebar('ana') +
+      '<div class="main">' +
+        searchbar('<span class="chip">path:People/Ana <span class="x">\u00d7</span></span><span class="caret"></span>') +
+        '<div class="folder-head">' +
+          '<div class="cover" style="' + shot() + '"></div>' +
+          '<div class="fh-body">' +
+            '<div class="fh-top">' +
+              '<span class="fh-title">Ana Ruiz</span>' +
+              '<span class="pill">Person</span>' +
+              '<span class="pill wip">\u25cf WIP</span>' +
+              '<span class="star">\u2605</span>' +
+            '</div>' +
+            '<div class="fields">' +
+              '<div class="field"><span class="k">instagram</span><span class="v link">@anaruiz</span></div>' +
+              '<div class="field"><span class="k">tiktok</span><span class="v link">@ana.ruiz</span></div>' +
+              '<div class="field"><span class="k">youtube</span><span class="v empty">\u2014</span></div>' +
+              '<div class="field"><span class="k">twitter</span><span class="v empty">\u2014</span></div>' +
+            '</div>' +
+            '<div class="flags"><span class="flag">beach</span><span class="flag">portrait</span><span class="flag">2024 trip</span></div>' +
+            '<div class="fh-meta">' +
+              '<span>2,481 items</span><span>14 subfolders</span><span>41.2 GB</span>' +
+              '<span class="stale">last added 5 months ago</span>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="grid-area">' +
+          '<div class="grid-scroll"><div class="grid">' +
+            '<div class="day-head">FRIDAY 14 JUNE 2024 \u00b7 38 items</div>' + tiles(11) +
+            '<div class="day-head">THURSDAY 13 JUNE 2024 \u00b7 22 items</div>' + tiles(9) +
+            '<div class="day-head">SUNDAY 2 JUNE 2024 \u00b7 61 items</div>' + tiles(12) +
+          '</div></div>' +
+          scrubber +
+        '</div>' +
+      '</div>' +
+      '<div class="inspector">' +
+        '<div class="insp-preview" style="' + shot() + '"></div>' +
+        '<div>' +
+          '<div class="insp-title">Video \u00b7 1:24</div>' +
+          '<div class="insp-sub">was: VID_20240614_2213.mp4</div>' +
+        '</div>' +
+        '<div class="meta-list">' +
+          '<div class="meta-row"><span class="k">Captured</span><span class="v">14 Jun 2024, 22:13</span></div>' +
+          '<div class="meta-row"><span class="k">Resolution</span><span class="v">1920 \u00d7 1080</span></div>' +
+          '<div class="meta-row"><span class="k">Codec</span><span class="v">h264 \u00b7 18.4 Mb/s</span></div>' +
+          '<div class="meta-row"><span class="k">Size</span><span class="v">184 MB</span></div>' +
+          '<div class="meta-row"><span class="k">Added</span><span class="v">02 Mar 2026</span></div>' +
+          '<div class="meta-row"><span class="k">Source</span><span class="v">instagram</span></div>' +
+        '</div>' +
+        '<div>' +
+          '<div class="sb-label" style="padding:0 0 6px">Tags</div>' +
+          '<div class="tag-set">' +
+            '<span class="tag inherited">People</span>' +
+            '<span class="tag inherited">Ana Ruiz</span>' +
+            '<span class="tag inherited">instagram: @anaruiz</span>' +
+            '<span class="tag inherited">beach</span>' +
+            '<span class="tag">golden hour</span>' +
+            '<span class="tag add">+ add</span>' +
+          '</div>' +
+          '<div class="hint" style="font-size:11px;color:var(--fg-dim);margin-top:7px">' +
+            'Dashed = inherited from folders. Solid = set on this item.' +
+          '</div>' +
+        '</div>' +
+        '<div class="act-row">' +
+          '<button class="act primary">\u2605 Favorite</button>' +
+          '<button class="act">Compress</button>' +
+          '<button class="act">Move\u2026</button>' +
+          '<button class="act">Export</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  };
+
+  views.search = function () {
+    function fcard(title, match, count, wip) {
+      return '<div class="fcard">' +
+        '<div class="thumb" style="' + shot() + '"></div>' +
+        '<div class="fc-body">' +
+          '<div class="fc-title">' + (wip ? '<span class="status-dot s-wip"></span>' : '<span class="status-dot s-done"></span>') + title + '</div>' +
+          '<div class="fc-match">' + match + '</div>' +
+          '<div class="fc-count">' + count + ' items</div>' +
+        '</div></div>';
+    }
+    return '<div class="body">' + sidebar('') +
+      '<div class="main no-header">' +
+        searchbar('<span style="font-family:var(--mono);font-size:12px;color:var(--fg)">@ana</span><span class="caret"></span>') +
+        '<div class="results">' +
+          '<div class="res-head"><h3>Folders</h3><span class="n">3</span><span class="rule"></span></div>' +
+          '<div class="folder-cards">' +
+            fcard('Ana Ruiz', 'instagram: @anaruiz', '2,481', true) +
+            fcard('Ana Bell', 'tiktok: @ana.bell', '308', false) +
+            fcard('Analog film', 'title match', '1,142', false) +
+          '</div>' +
+          '<div class="res-head"><h3>Media</h3><span class="n">2,789</span><span class="rule"></span>' +
+            '<span class="n">Captured \u25be</span></div>' +
+          '<div class="grid">' + tiles(26) + '</div>' +
+          '<div style="text-align:center;padding:18px;font-family:var(--mono);font-size:11px;color:var(--fg-dim)">' +
+            'loading more\u2026' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  };
+
+  views.triage = function () {
+    function dest(k, name, muted) {
+      return '<div class="dest' + (muted ? ' muted' : '') + '"><span class="key">' + k + '</span>' + name + '</div>';
+    }
+    return '<div class="body">' + sidebar('sort') +
+      '<div class="main no-header">' +
+        searchbar('<span style="font-family:var(--mono);font-size:12px;color:var(--fg-dim)">Sorting Box \u2014 fullscreen triage</span>') +
+        '<div class="triage">' +
+          '<div class="stagearea">' +
+            '<div class="hero-caption">video \u00b7 0:42 \u00b7 148 MB \u00b7 from @anaruiz</div>' +
+            '<div class="counter">142 left</div>' +
+            '<div class="hero-media" style="' + shot() + '"></div>' +
+          '</div>' +
+          '<div class="destbar">' +
+            '<div class="dests">' +
+              dest('a', 'Ana Ruiz') + dest('s', 'Sara Okafor') + dest('d', 'Mira Vale') +
+              dest('f', 'Lisbon 2024') + dest('g', 'Reference') +
+              dest('\u2315', 'find folder\u2026', true) + dest('n', 'new folder\u2026', true) +
+            '</div>' +
+            '<div class="triage-foot">' +
+              '<div class="tagline-input">t \u2014 add tags to this item\u2026</div>' +
+              '<div class="keyhint"><span class="kbd">Space</span> skip</div>' +
+              '<div class="keyhint"><span class="kbd">F</span> favorite</div>' +
+              '<div class="keyhint"><span class="kbd">X</span> trash</div>' +
+              '<div class="keyhint"><span class="kbd">Ctrl Z</span> undo</div>' +
+              '<div class="keyhint"><span class="kbd">Tab</span> grid mode</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  };
+
+  views.review = function () {
+    var rows = [
+      ["clip_2024_06.mp4", "video \u00b7 12:04", "4.2 GB", "380 MB", 91],
+      ["beach_walk.mp4", "video \u00b7 6:31", "1.8 GB", "240 MB", 87],
+      ["rooftop_night.mp4", "video \u00b7 3:12", "980 MB", "162 MB", 83],
+      ["studio_raw.mov", "video \u00b7 1:48", "2.1 GB", "410 MB", 80],
+      ["market_pan.mp4", "video \u00b7 0:54", "620 MB", "188 MB", 70],
+      ["portrait_set.png", "image \u00b7 6000\u00d74000", "88 MB", "71 MB", 19],
+      ["scan_003.tiff", "image \u00b7 8192\u00d75464", "142 MB", "121 MB", 15]
+    ];
+    var body = rows.map(function (r) {
+      return '<tr>' +
+        '<td><div class="rev-name"><div class="rev-thumb" style="' + shot() + '"></div>' +
+          '<div><div class="t">' + r[0] + '</div><div class="sub">' + r[1] + '</div></div></div></td>' +
+        '<td class="num mono">' + r[2] + '</td>' +
+        '<td class="num mono">' + r[3] + '</td>' +
+        '<td class="num"><div class="savings"><div class="bar"><div class="fill" style="width:' + r[4] + '%"></div></div>' +
+          '<span class="pct' + (r[4] < 40 ? ' low' : '') + '">\u2212' + r[4] + '%</span></div></td>' +
+        '<td><div class="row-acts">' +
+          '<button class="mini keep">Keep new</button>' +
+          '<button class="mini">Keep original</button>' +
+          '<button class="mini">Compare</button>' +
+        '</div></td>' +
+      '</tr>';
+    }).join("");
+
+    return '<div class="body">' + sidebar('rev') +
+      '<div class="main no-header">' +
+        searchbar('<span style="font-family:var(--mono);font-size:12px;color:var(--fg-dim)">Pending Review \u2014 48 waiting</span>') +
+        '<div class="review">' +
+          '<div class="review-top">' +
+            '<div class="big-stat"><span class="k">Reclaimable if all kept</span><span class="v">61.2 GB</span></div>' +
+            '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+              '<span class="hint" style="font-size:12px;color:var(--fg-dim)">Sort</span>' +
+              '<button class="mini">Savings \u25be</button>' +
+              '<button class="mini">Select all \u2265 60%</button>' +
+              '<button class="btn-accent">Keep 31 selected</button>' +
+            '</div>' +
+          '</div>' +
+          '<table class="rev">' +
+            '<thead><tr>' +
+              '<th>File</th><th class="num">Original</th><th class="num">Compressed</th>' +
+              '<th class="num">Saved</th><th></th>' +
+            '</tr></thead>' +
+            '<tbody>' + body + '</tbody>' +
+          '</table>' +
+          '<div style="margin-top:14px;font-size:12px;color:var(--fg-dim)">' +
+            'Nothing is replaced until you choose. Originals move to trash and space is not ' +
+            'freed until you purge.' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  };
+
+  views.storage = function () {
+    var folders = [
+      ["People / Ana Ruiz", 41.2, 100, "#5b8fc9"],
+      ["Places / Lisbon 2024", 28.7, 70, "#5b8fc9"],
+      ["People / Sara Okafor", 24.1, 58, "#5b8fc9"],
+      ["Events / Festival", 19.4, 47, "#5b8fc9"],
+      ["People / Unknown", 15.8, 38, "#5b8fc9"]
+    ];
+    var big = [
+      ["studio_raw.mov", 2.1, 100],
+      ["clip_2024_06.mp4", 1.9, 90],
+      ["concert_full.mkv", 1.4, 66],
+      ["drone_pass.mp4", 1.1, 52]
+    ];
+    function bars(list, unit) {
+      return list.map(function (r) {
+        return '<div class="barrow">' +
+          '<span class="lbl">' + r[0] + '</span>' +
+          '<span class="track"><span class="fill" style="width:' + r[2] + '%;background:' + (r[3] || 'var(--accent)') + '"></span></span>' +
+          '<span class="amt">' + r[1] + ' ' + unit + '</span>' +
+        '</div>';
+      }).join("");
+    }
+
+    return '<div class="body">' + sidebar('store') +
+      '<div class="main no-header">' +
+        searchbar('<span style="font-family:var(--mono);font-size:12px;color:var(--fg-dim)">Storage</span>') +
+        '<div class="storage">' +
+          '<div class="tiles">' +
+            '<div class="tile-card"><span class="k">Library size</span><span class="v">312 GB</span><span class="sub">39,841 items</span></div>' +
+            '<div class="tile-card"><span class="k">Never compressed</span><span class="v accent">184 GB</span><span class="sub">4,102 videos</span></div>' +
+            '<div class="tile-card"><span class="k">Est. savings</span><span class="v good">~121 GB</span><span class="sub">at current presets</span></div>' +
+            '<div class="tile-card"><span class="k">In trash</span><span class="v">62 GB</span><span class="sub">purge to reclaim</span></div>' +
+          '</div>' +
+
+          '<div class="cta-strip">' +
+            '<span class="txt">The 40 largest uncompressed videos account for <strong>96 GB</strong> \u2014 about a third of the library.</span>' +
+            '<button class="btn-accent">Queue them for compression</button>' +
+          '</div>' +
+
+          '<div class="two-col">' +
+            '<div class="panel-block"><h4>Largest folders<span class="rule"></span></h4>' +
+              '<div class="barlist">' + bars(folders, "GB") + '</div></div>' +
+            '<div class="panel-block"><h4>Largest files<span class="rule"></span></h4>' +
+              '<div class="barlist">' + bars(big, "GB") + '</div></div>' +
+          '</div>' +
+
+          '<div class="panel-block"><h4>Health<span class="rule"></span></h4>' +
+            '<div class="meta-list">' +
+              '<div class="meta-row"><span class="k">Last integrity check</span><span class="v">28 Jul 2026 \u00b7 all clean</span></div>' +
+              '<div class="meta-row"><span class="k">Items with no manual tags</span><span class="v">1,884</span></div>' +
+              '<div class="meta-row"><span class="k">Unresolved duplicate pairs</span><span class="v">37</span></div>' +
+              '<div class="meta-row"><span class="k">WIP folders, stale 90d+</span><span class="v">11</span></div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  };
+
+  /* --------------------------- annotations -------------------------- */
+
+  var notes = {
+    library: [
+      ["One grid, always", "Folders, tags and searches are all just filters feeding the same grid. There is no separate \u201cfolder mode\u201d to switch into."],
+      ["The folder is a record", "Title, archetype, handles, status and staleness live in the header. Click a dash to fill a field in place."],
+      ["Inherited vs. owned", "Dashed tags in the inspector came from a parent folder. Solid ones are on the item. Move it and the dashed ones recompute."],
+      ["Timeline on the edge", "The strip at the right of the grid jumps to any month. Without it, 40k items is an endless scroll."]
+    ],
+    search: [
+      ["Folders first, then media", "Searching a handle surfaces the person before their photos \u2014 usually the thing you actually wanted."],
+      ["Why folders match at all", "The folder holds instagram: @anaruiz as a label, so it matches directly. Every item beneath it matches by inheritance."],
+      ["Sidebar composes, not replaces", "Clicking a folder while a search is open adds path: to the bar instead of wiping it."]
+    ],
+    triage: [
+      ["Hotkeys, not dragging", "Press the letter, the item files itself, the next one is already up. This replaces the two-window drag-and-drop entirely."],
+      ["Grid is one key away", "Tab drops to multi-select when forty photos obviously belong together. Tab back for anything needing a look."],
+      ["Undo survives restarts", "Ctrl+Z walks back through the journal even after closing the app, and treats a batch as one step."],
+      ["Anything can arrive here", "The app\u2019s picker, dragging from Explorer, downloads, or just pasting files into the folder."]
+    ],
+    review: [
+      ["Sorted by what matters", "Savings first. The 90% wins clear in one bulk action; your attention goes to the marginal rows."],
+      ["Compare on demand", "Clicking a row opens side-by-side \u2014 synced pan and zoom for images, one shared timeline with frame-stepping for video."],
+      ["Nothing auto-replaces", "You chose manual review, so every file waits here. Accepted originals go to trash, not oblivion."]
+    ],
+    storage: [
+      ["Leads with the number", "Compression exists to reclaim space, so the screen opens with how much there is to reclaim."],
+      ["Every list is actionable", "Largest folders and files aren\u2019t just a report \u2014 select rows and queue them straight into compression."],
+      ["Health in one place", "Integrity, untagged counts, unresolved duplicates and stale WIP folders \u2014 the four things that quietly rot."]
+    ]
+  };
+
+  /* ----------------------------- wiring ----------------------------- */
+
+  var appBody = document.getElementById("appBody");
+  var notesEl = document.getElementById("notes");
+  var titleEl = document.getElementById("winTitle");
+  var titles = {
+    library: "Gallery — D:\\Media — People \\ Ana Ruiz",
+    search:  "Gallery — D:\\Media — Search: @ana",
+    triage:  "Gallery — D:\\Media — Sorting Box",
+    review:  "Gallery — D:\\Media — Pending Review",
+    storage: "Gallery — D:\\Media — Storage"
+  };
+
+  function render(view) {
+    seed = 20260731;
+    appBody.outerHTML = views[view]();
+    appBody = document.getElementById("appBody") || document.querySelector("#app .body");
+    appBody.id = "appBody";
+    titleEl.textContent = titles[view];
+
+    notesEl.innerHTML = notes[view].map(function (n) {
+      return '<div class="note"><h4>' + n[0] + '</h4><p>' + n[1] + '</p></div>';
+    }).join("");
+
+    Array.prototype.forEach.call(document.querySelectorAll(".tile"), function (t) {
+      t.addEventListener("click", function () { t.classList.toggle("sel"); });
+      t.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); t.classList.toggle("sel"); }
+      });
+    });
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (tab) {
+    tab.addEventListener("click", function () {
+      Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (t) {
+        t.setAttribute("aria-selected", String(t === tab));
+      });
+      render(tab.dataset.view);
+    });
+  });
+
+  document.getElementById("blurBtn").addEventListener("click", function () {
+    document.getElementById("app").classList.toggle("blurred");
+  });
+
+  render("library");
+})();
+</script>
