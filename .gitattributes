@@ -1,0 +1,14 @@
+# Normalise line endings so the repo stores LF regardless of who checks it out.
+# Without this, a Windows checkout commits CRLF and every cross-platform diff is noise.
+* text=auto eol=lf
+
+# Binary — never touched
+*.png  binary
+*.ico  binary
+*.webp binary
+*.jpg  binary
+*.mp4  binary
+
+# Generated; collapse in diffs and exclude from language stats
+package-lock.json    linguist-generated=true
+src-tauri/Cargo.lock linguist-generated=true

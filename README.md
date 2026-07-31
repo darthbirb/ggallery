@@ -198,19 +198,9 @@ still apply. It is a second net, not the only one.
 
 ---
 
-## Renaming
+## Status
 
-This repository is still named `gallery` on disk. To finish the rename:
+Pre-alpha and moving. M0 and M1 are done, the app indexes and browses a real library, and
+nothing renames or deletes anything yet. See the roadmap above for where it goes next.
 
-```bash
-git -C D:/Projects/gallery remote -v
-```
-
-Then close all editors and terminals pointing at it, and:
-
-```bash
-mv /d/Projects/gallery /d/Projects/GGallery
-```
-
-Nothing inside the repo hardcodes the folder name — the Claude hook resolves through
-`$env:USERPROFILE`, and the docs use relative links — so the rename is the only step.
+Not accepting contributions — this is a personal tool built in the open.
