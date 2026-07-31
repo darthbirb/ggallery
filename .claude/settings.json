@@ -98,13 +98,15 @@
       "Bash(git filter-repo *)",
       "Bash(git reset --hard *)",
       "Bash(git push --force *)",
+      "Bash(git push --force-with-lease *)",
       "Bash(git push -f *)",
+      "PowerShell(git push --force *)",
+      "PowerShell(git push --force-with-lease *)",
+      "PowerShell(git push -f *)",
       "PowerShell(git clean *)",
       "PowerShell(git filter-branch *)",
       "PowerShell(git filter-repo *)",
-      "PowerShell(git reset --hard *)",
-      "PowerShell(git push --force *)",
-      "PowerShell(git push -f *)"
+      "PowerShell(git reset --hard *)"
     ]
   }
 }
