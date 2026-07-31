@@ -1,0 +1,165 @@
+@import "tailwindcss";
+
+/* Palette from docs/mockup.html. The app chrome is always dark by design —
+   media must be the brightest thing on screen — with cool-biased neutrals so
+   photo colour reads true. */
+@theme {
+  --color-ground: #15171b;
+  --color-panel: #1b1e23;
+  --color-raised: #22262d;
+  --color-hover: #2a2f37;
+  --color-line: #2f353e;
+  --color-line-soft: #262b32;
+  --color-fg: #e3e6ec;
+  --color-fg-mid: #a2a9b4;
+  --color-fg-dim: #6f7783;
+  --color-accent: #d9954b;
+  --color-accent-d: #8a5c26;
+  --color-good: #5f9e6e;
+  --color-info: #5b8fc9;
+  --color-danger: #c25a4a;
+
+  --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system,
+    sans-serif;
+  --font-mono: "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace,
+    monospace;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-ground);
+    color: var(--color-fg);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+    user-select: none;
+    cursor: default;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-ground);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-line);
+    border-radius: 5px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-fg-dim);
+  }
+}
+
+/* The grid scrolls, but the timeline scrubber is its affordance — a native
+   scrollbar beside it is a second one for the same content. The container
+   stays fully scrollable: wheel, keyboard and programmatic scrolling are
+   untouched, only the bar is gone. */
+.grid-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.grid-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+/* --- recycled grid tiles -------------------------------------------------
+   These nodes are created once by TilePool and repositioned for the life of
+   the window, so their styling lives here rather than in utility classes on a
+   component that never re-renders. */
+
+.tile {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  border-radius: 3px;
+  border: 2px solid transparent;
+  background: var(--color-raised);
+  cursor: pointer;
+  contain: strict;
+}
+
+.tile:hover {
+  border-color: var(--color-fg-dim);
+}
+
+.tile.is-selected {
+  border-color: var(--color-accent);
+}
+
+.tile-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  opacity: 1;
+  transition: opacity 90ms linear;
+}
+
+.tile-img.is-empty {
+  opacity: 0;
+}
+
+/* Scrub strip: ten frames tiled horizontally, revealed on hover over a video
+   tile and moved by background-position. One already-decoded image, no player,
+   no allocation per frame. */
+.tile-scrub {
+  position: absolute;
+  inset: 0;
+  background-size: 1000% 100%;
+  background-repeat: no-repeat;
+  display: none;
+}
+
+.tile.is-scrubbing .tile-scrub {
+  display: block;
+}
+
+.tile-badge {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 15px;
+  background: rgba(8, 9, 11, 0.78);
+  border-radius: 3px;
+  padding: 0 4px;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.tile-dur {
+  bottom: 4px;
+  right: 4px;
+  display: none;
+}
+
+.tile.is-video .tile-dur {
+  display: block;
+}
+
+.tile-fav {
+  top: 4px;
+  right: 4px;
+  color: var(--color-accent);
+  padding: 0 3px;
+  display: none;
+}
+
+.tile.is-favorite .tile-fav {
+  display: block;
+}
