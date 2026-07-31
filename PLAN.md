@@ -184,6 +184,11 @@ menus.
 
 Theatre view in M2 holds **one item at a time**. Multi-view is M10.
 
+Also carries one gap left open by M1.1: `media/mod.rs` classifies every GIF as
+`kind = image`. Locked decision 17 requires animated GIF, WebP and APNG to index as
+`kind = video`. Small backend change, correctly out of scope at the time, not to be
+forgotten.
+
 **M2 is also where the interface stops looking like a prototype.** Adopt `shadcn/ui` and
 bring the window to the standard set by [docs/mockup.html](docs/mockup.html) — density,
 type scale, the amber accent used sparingly, panel chrome. Every milestone after this one
