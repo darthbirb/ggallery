@@ -113,7 +113,7 @@ docs/
 
 | | Milestone | State |
 | --- | --- | --- |
-| M0 | Grid performance spike | Complete — passed with 2–100x margins |
+| M0 | Grid performance spike | Complete — architecture validated, two defects located |
 | M1 | Core library — index, hash, thumbnails, job queue, grid. Read-only | Next |
 | M1.5 | First-import wizard — the UUID rename, with dry run and reversal | |
 | M2 | Folders as entities — archetypes, labels, tag inheritance | |

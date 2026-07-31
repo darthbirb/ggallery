@@ -76,32 +76,67 @@ Full 100k-item layout computes in 7–18ms, so incremental or partial relayout i
 unnecessary at this scale. Keep it in the worker regardless — it decouples relayout from
 image decode and React commits on the main thread, and costs nothing.
 
-**Two known follow-ups:**
-
-- **Coalesce pointer-drag input.** Single scrubber jumps paint in 0.7ms (p50). A
-  *continuous stream* of them during a fast drag saturates the frame budget and produces
-  40–110ms hitches. Debounce or coalesce drag-driven relayout specifically; the discrete
-  jump case needs nothing.
-- **React reconciliation is the ceiling, not layout.** The visible-range recompute is
-  React-state-driven, which is fine at 100k with light tiles. Once tiles carry favorite
-  badges, selection state and hover-scrub, watch for it — imperative DOM recycling is the
-  escape hatch if it degrades.
-
 ---
 
-## Open from M0
+## The two things M0 found that M1 must fix
 
-Two measurements were not cleanly obtained and should be redone before the frame-time
-target is treated as fully proven:
+Interaction-tagged re-testing (§1a of [M0-RESULTS.md](M0-RESULTS.md)) turned the earlier
+vague "frame times are mostly fine" into two specific, located defects. Neither
+invalidates the layout architecture above — first paint, relayout and scrubber-jump
+latency all pass with wide margins. Both live in the tile component and the scrubber.
 
-1. **Re-run with AMD Adrenalin's overlay disabled.** Isolated 85–110ms stalls recurred
-   every 20–60 seconds *including at idle* with a flat heap — not GC. `AMDRSServ.exe` hooks
-   the present/swap-chain path, and WebView2 is a normal Chromium GPU client. Probable
-   cause, unconfirmed.
-2. **Tag frametime samples by interaction type.** The M0 session mixed slow scroll, fling,
-   slider drag and scrubber drag without labelling which window belonged to which, so the
-   "no blank frame >100ms during a top-to-bottom fling" criterion was never checked against
-   a fling specifically.
+### 1. Tile churn triggers GC pauses during fast scrolling — fling fails its target
 
-Excluding the uncorrelated stalls, interaction-driven frame times were comfortably inside
-budget at p95 16.9ms.
+| Interaction | p50 worst-frame | p95 | Max | Windows >32ms |
+| --- | --- | --- | --- | --- |
+| idle | 4.5ms | 4.7ms | 104.2ms | 0.8% |
+| slow-scroll (1200px/s) | 4.4ms | 100.0ms | 100.0ms | 9% |
+| **fling** | **16.7ms** | **104.2ms** | **104.2ms** | **33%** |
+| slider-drag | 4.4ms | 16.6ms | 16.6ms | 0% |
+| **scrubber-drag** | **33.5ms** | **108.3ms** | **108.3ms** | **58%** |
+
+**Fling does not meet "no blank frame held over 100ms," and one pass is enough to trip
+it** — the first burst of a run produced consecutive worst-frames of 88.8ms, 91.7ms,
+100.0ms. This is not a sustained-flinging artifact.
+
+The mechanism is visible directly in the logs and is not speculation: heap climbs from
+~26MB to 40–60MB across several frames as rapidly-entering tiles decode, then a
+100–105ms spike lands *exactly* as heap drops back to baseline. That is a major GC
+collection, and it distinguishes cleanly from the idle stalls below, which spike with
+heap *flat*.
+
+**What this means for the production tile component.** Mounting and unmounting a React
+component per tile — each creating a fresh `<img>` and decode object — generates enough
+garbage per fast-scroll frame to force a collection. The fix is to stop allocating per
+tile:
+
+- **Recycle a fixed pool of tile DOM nodes.** Reposition and repopulate them as the
+  visible range moves instead of mounting and unmounting components. This is the
+  imperative-recycling escape hatch flagged earlier; it is no longer optional.
+- **Reuse `<img>` elements**, setting `src` on pooled nodes rather than creating new ones.
+- Keep per-tile decoration (favorite badge, selection ring, duration) as reused nodes
+  toggled by class, not conditionally rendered children.
+
+Do this in M1 when the tile component is first written. Retrofitting recycling onto a
+mount/unmount grid means rewriting it.
+
+### 2. Scrubber drag repaints per jump
+
+58% of scrubber-drag windows exceed 32ms, several past 100ms, reproduced across both
+runs. Slider-drag over the same relayout path stays clean (max 16.6ms, zero windows over
+32ms), which isolates the cause precisely: **the worker relayout is not the bottleneck —
+the scrubber's per-jump repaint is.** Coalesce drag-driven jumps to one repaint per
+animation frame. Discrete jumps need nothing; they already paint in 0.7ms.
+
+### Not a defect: idle stalls
+
+Isolated single-frame spikes of 33–125ms recur every 10–90 seconds at idle with heap flat
+at ~26MB — not GC. Consistent with AMD Adrenalin's overlay hooking the swap-chain path;
+WebView2 is a normal Chromium GPU client. The re-test deliberately left the overlay
+running because that is the real end-user condition on an AMD machine, and equivalent
+overlays ship for NVIDIA and Intel.
+
+Treat this as an environmental characteristic of the target machine class, not something
+to chase in the app. Note that the causal attribution is by elimination — the overlay was
+never toggled off for a clean control — but the heap-flat signature rules out GC, which
+is what matters for deciding it is not ours.

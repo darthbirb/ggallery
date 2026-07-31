@@ -129,6 +129,12 @@ it is the only real technical risk in the project, and it is cheap to test.
 
 Full brief with measurable pass criteria: [docs/M0-SPIKE.md](docs/M0-SPIKE.md).
 
+**Outcome:** the layout architecture is validated — first paint, relayout and
+scrubber-jump latency all pass with wide margins. Two defects were located and are **M1's
+responsibility to design around, not rediscover**: tile mount/unmount churn triggers GC
+pauses that make fling fail its target, and scrubber drag repaints per jump. Both are
+specified in [docs/ENGINEERING-NOTES.md](docs/ENGINEERING-NOTES.md).
+
 ### M1 — Core library (strictly read-only)
 
 Root picker, filesystem walk, BLAKE3 hashing, metadata extraction, thumbnail and sprite
