@@ -1,14 +1,23 @@
-# sidecar binaries — fetched on first run with pinned versions + checksums
+# Sidecar binaries — fetched on first run with pinned versions + checksums.
+# ffmpeg, HandBrakeCLI, yt-dlp, gallery-dl. ~140MB, deliberately not in git.
 tools/
 
-# machine-local config
+# Machine-local config, including the path to this machine's library root.
+# Never committed — the whole point is that it differs per machine.
 gallery.config.json
 
-# spike output
-spike/generated/
+# Personal Claude Code overrides and runtime state
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
 
+# Build output
 node_modules/
 dist/
 target/
 *.log
+
+# Throwaway M0 spike — results preserved at docs/M0-RESULTS.md
+spike/
+
 Thumbs.db
+desktop.ini
