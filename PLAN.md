@@ -54,6 +54,13 @@ tags, labels and search live on top. One root folder holds everything, so backup
 16. **WebView2's data directory must be redirected into the app directory.** Tauri
     defaults it to `%LOCALAPPDATA%\<bundle-id>\`, which silently breaks rule 11. Found
     in M0; must be configured before anything else ships.
+17. **Animated GIFs are video; nothing is converted at import.** GIF, WebP and APNG stay
+    in their original format on disk. Converting to MP4 is a compression preset in M6,
+    reviewed like any other. Import never rewrites an original.
+18. **Every milestone ships at the mockup's visual standard.** There is no polish phase.
+    [docs/mockup.html](docs/mockup.html) is the spec, and `shadcn/ui` — React, Tailwind
+    and Radix, exactly this stack — is the component source. Deferred polish is abandoned
+    polish.
 
 ## Non-goals
 
@@ -156,11 +163,31 @@ writing the reversal map continuously, then verification.
 
 Build the reversal script **before** the rename runs for real. Assume it will be needed.
 
+### M1.1 — M1 defects
+
+Small, and worth clearing before M2 builds on top:
+
+- **12 items out of 2016 fail to index.** Find out why, per item, and either handle the
+  cause or report it in a way that says which files and what went wrong. Thumbnails
+  otherwise render correctly — this is about the failures specifically.
+- Failure count and retry affordance persist after a re-index that had no failures.
+- Two scrollbars. Hide the native one; the scrubber is the affordance.
+- The WebView default context menu appears on right-click. Suppress it.
+- No way to change the library folder once chosen.
+
 ### M2 — Folders as entities
 
 Folder records, titles, archetypes, labels, flags, tag inheritance and the materialised
-effective-tag cache. Folder header UI and the inspector panel. Favorites, folder status,
-notes. Lightbox viewer and the timeline scrubber.
+effective-tag cache. Folder header UI. Favorites, folder status, notes. The resizable
+preview panel and theatre view with left/right navigation. Resizable sidebar. Right-click
+menus.
+
+Theatre view in M2 holds **one item at a time**. Multi-view is M10.
+
+**M2 is also where the interface stops looking like a prototype.** Adopt `shadcn/ui` and
+bring the window to the standard set by [docs/mockup.html](docs/mockup.html) — density,
+type scale, the amber accent used sparingly, panel chrome. Every milestone after this one
+ships at that standard.
 
 ### M3 — Search
 
@@ -198,3 +225,17 @@ reconstructed filenames, integrity check.
 
 Command palette, settings, keyboard reference, blur toggle, `library.jsonl` export and
 rebuild, backup verification.
+
+### M10 — Multi-view
+
+Up to twelve items in theatre view at once, all playing, adaptive layout, one audio solo.
+Specified in [docs/DESIGN.md](docs/DESIGN.md).
+
+**Starts with a measurement, not a build.** Find out how many concurrent video streams
+actually hold frame rate on the target machine before committing to twelve — hardware
+decode sessions are finite and the fallback to software decode is silent. If the real
+number is six, the cap is six.
+
+Separated from M2 deliberately: the theatre view itself is cheap, this is not, and the
+risk belongs where it can be abandoned without taking the viewer down with it. Can be
+pulled forward once M4 lands if it turns out to be wanted sooner.

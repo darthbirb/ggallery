@@ -145,6 +145,20 @@ cover, set status.
 and months. Dragging it jumps to that point in the sort order. At 40k+ items this is the
 difference between a browsable library and an endless scroll.
 
+**There is exactly one scrollbar.** The scrubber *is* the scroll affordance — the native
+scrollbar is hidden with `scrollbar-width: none` while the scroll container stays fully
+functional (wheel, keyboard, and programmatic scrolling all work unchanged). Showing both
+is redundant and looks unfinished.
+
+**Panels are resizable.** The sidebar and the preview panel both have drag handles, with
+a sensible minimum width and a maximum of roughly half the window. Widths persist between
+sessions alongside window geometry. Double-clicking a handle resets that panel to its
+default width.
+
+**The native context menu is suppressed everywhere.** Right-click opens the app's own menu
+appropriate to what was clicked — a folder, an item, a selection, or empty space. A
+WebView's default menu appearing in a desktop app is a bug, not a placeholder.
+
 **Folder header** — appears when viewing a folder. Cover thumbnail, title, archetype
 badge, labelled fields edited inline (click the dash, type, done), flags as chips, counts.
 This is where you fill in Instagram handles. Collapsible; collapsed state is remembered.
@@ -154,21 +168,76 @@ scrub through their sprite strip on hover. Selection is click, shift-click for r
 ctrl-click to toggle, drag for marquee. Sort by captured date, added date, size,
 duration, or random.
 
-**Inspector** — toggled with `I`. Shows the selected item's metadata and tags, or the
-folder's when nothing is selected. Inherited tags render greyed, manual tags solid, so
-it is always obvious which came from where. Multi-selection shows shared tags and allows
-bulk add/remove. Tag entry is a combobox with autocomplete over existing keys and values.
+**Preview panel** — the right panel, toggled with `I`. Single-clicking an item shows it
+here at a usable size, roughly a third to a half of the window and drag-resizable. This is
+the primary way media gets looked at: the workflow is comparing and triaging against the
+grid, not presenting one image at a time, so the grid must stay visible while you inspect.
 
-### Viewer
+The panel is preview on top, details below:
 
-Double-click, or `Enter`, opens the lightbox. Media fills the window; arrows move through
-the current selection or filter; a filmstrip runs along the bottom; `Esc` returns to the
-grid positioned on the item you were viewing.
+- **Preview** — the image or video, fit to the panel. Video plays inline, muted, **looping
+  by default**. Click the preview to go fullscreen.
+- **Details** — filename, dimensions, duration, codec, size, dates, source URL if it came
+  from a download.
+- **Tags** — inherited render greyed, manual render solid, so it is always obvious which
+  came from where. Multi-selection shows shared tags and allows bulk add/remove. Tag entry
+  is a combobox with autocomplete over existing keys and values.
+- With nothing selected, the panel shows the current folder instead.
 
+### Theatre view
+
+A large view rendered **inside the app window** — not OS fullscreen, no display mode
+change, no window chrome disappearing. It is a view that takes over the window, with a
+back button, and `Esc` also returns.
+
+Opened by double-clicking an item, pressing `Enter`, or the **Fullscreen** button in the
+preview panel. Returning puts the grid back exactly where it was, scrolled to the item you
+were looking at.
+
+- Left and right arrows, or on-screen chevrons, move through the current filter — the same
+  set the grid is showing, in the same order.
+- A filmstrip along the bottom shows position and allows jumping.
 - *Images* — scroll to zoom, drag to pan, `1` for 1:1 pixels, `0` to fit.
-- *Video* — play/pause, scrub, frame-step with arrows, speed control, loop toggle, and
-  volume that persists between items.
-- `F` favorites, `T` tags, `I` toggles the inspector alongside, `Del` trashes.
+- *Video* — play/pause, scrub, frame-step with arrows, speed control, **loop on by
+  default**, and volume that persists between items.
+- `F` favorites, `T` tags, `Del` trashes, `A` adds to multi-view.
+
+### Multi-view
+
+Theatre view holds **one item by default and up to twelve**. An **Add** control appends
+the current item to the set; each pane has its own remove control. The layout adapts to
+the count:
+
+```
+ 1 → full         2 → side by side      3–4 → 2×2
+ 5–6 → 3×2        7–9 → 3×3            10–12 → 4×3
+```
+
+Every video in the set plays simultaneously, looping, muted. Clicking a pane solos its
+audio — one unmuted at a time, because twelve soundtracks at once is noise, not a feature.
+Clicking a pane's expand control drops back to that item alone.
+
+**This carries a real performance risk and must be measured before it is built.** Twelve
+concurrent video elements can exhaust the GPU's hardware decode sessions and silently fall
+back to software decode; twelve 1080p software-decoded streams will saturate the CPU. The
+milestone starts with a throwaway check of how many concurrent streams actually hold frame
+rate on the target machine.
+
+If the honest number is lower than twelve, the cap becomes that number rather than the
+design being forced. Panes beyond whatever decodes cleanly show a poster frame with a
+click-to-play control instead of failing silently.
+
+### Animated media
+
+GIFs are indexed as `kind = video` when animated and `image` when static. They stay GIFs
+on disk — browsers animate them natively in an `<img>`, so no conversion is needed to view
+them, and converting at import would be a silent destructive rewrite of an original.
+
+Converting GIF to MP4 is a **compression preset** (M6), which means it goes through the
+same Pending Review queue as everything else: you see the size saving, compare the result,
+and choose. Never automatic, never silent.
+
+WebP and APNG follow the same rule.
 
 ---
 

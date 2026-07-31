@@ -57,6 +57,25 @@ happily driving the encoder. Treat AVIF as closed unless something changes upstr
 
 ---
 
+## Decoding
+
+**`image::open` and `image::image_dimensions` choose the decoder from the file
+extension, and extensions lie.** The first real library this was pointed at held six
+JPEGs named `.PNG`, straight off a phone. Every one failed with `Format error decoding
+Png: Invalid PNG signature` and indexed with no dimensions, while opening fine in every
+other program on the machine.
+
+Always go through `media::open_image_reader`, which is
+`ImageReader::open(..).with_guessed_format()` — magic bytes first, extension only as the
+fallback when sniffing is inconclusive. It costs one small read.
+
+The failure is silent in two directions worth knowing about: probing swallows the error
+(a file the app cannot parse is still a real file and must still appear in the grid), so
+the only visible symptom was a missing thumbnail and a square tile. Anything that decodes
+by extension will reproduce this, and a camera roll is where it shows up.
+
+---
+
 ## Grid architecture (validated in M0)
 
 The approach below hit every target with 2–100x margin at 100k items. M1 should reuse it

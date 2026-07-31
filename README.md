@@ -7,9 +7,14 @@ It exists because nothing else does all of this at once: folder-based *and* tag-
 organisation, one portable library folder, integrated downloads, a compression pipeline,
 duplicate detection, and a triage flow fast enough to actually use.
 
-> **Status: pre-alpha. There is nothing to run yet.**
-> M0 (the grid performance spike) is complete and its findings are recorded. M1 is the
-> first milestone that produces a usable application.
+> **Status: pre-alpha, but it runs.**
+> M0 (the grid performance spike) is complete and its findings are recorded. M1 is built:
+> the app opens a library folder, indexes it with progress, and scrolls the grid.
+>
+> **M1 is strictly read-only over your library.** It reads and indexes; it writes only
+> into `.gallery/` inside the library root. Nothing is renamed, moved or deleted — which
+> is exactly why it is safe to point at a real 300GB library today. The UUID rename is
+> M1.5, and it ships with a dry run and a reversal path.
 
 ---
 
@@ -70,9 +75,11 @@ verification on first run.
 That same mechanism drives the **Update tools** button, which is a routine action rather
 than a rare one: yt-dlp breaks against sites every few weeks and needs updating often.
 
-### Building
+The fetcher itself lands with the downloads milestone (M5). Until then, M1 looks for
+`ffmpeg` and `ffprobe` in `tools/` and then on `PATH`, and says so in the window when it
+finds neither: videos are still indexed, they just get no poster frame and no scrub strip.
 
-Nothing to build yet. Once M1 lands:
+### Building
 
 ```bash
 npm ci
@@ -82,9 +89,29 @@ npm ci
 npx tauri dev
 ```
 
+For a release binary:
+
+```bash
+npx tauri build --no-bundle
+```
+
 Always build and measure through the `tauri` CLI. `cargo build --release` on its own
 produces a binary that still points at the dev server — see
 [docs/ENGINEERING-NOTES.md](docs/ENGINEERING-NOTES.md).
+
+Backend tests, including an end-to-end index of a scratch library:
+
+```bash
+cargo test --manifest-path src-tauri/Cargo.toml
+```
+
+### First run
+
+Launch the exe and choose your library folder. The app creates `.gallery/` inside it,
+walks the tree, and starts indexing: hashing each file, reading its dimensions and
+capture date, and generating a thumbnail. The grid fills in as it goes, and the folder
+tree and counts appear alongside it. Re-running the index later is incremental —
+unchanged files are skipped by size and mtime.
 
 ---
 
@@ -94,6 +121,18 @@ produces a binary that still points at the dev server — see
 CLAUDE.md                  instructions for Claude Code — read first
 PLAN.md                    stack, locked decisions, non-goals, roadmap
 README.md                  this file
+src/                       frontend — React + TypeScript
+  features/grid/           the justified virtualized grid and its layout worker
+  features/sidebar/        folder tree
+  lib/                     ipc wrappers, shared types, formatting
+  state/                   library and UI state
+src-tauri/                 backend — Rust
+  src/commands/            every #[tauri::command], and nothing else
+  src/db/                  all SQL, plus numbered migrations
+  src/fs/                  path normalisation and the library indexer
+  src/media/               hashing, probing, thumbnails, scrub strips
+  src/jobs/                the persistent job queue and its workers
+  src/sidecar/             ffmpeg — the only thing that spawns processes
 .claude/
   settings.json            permission rules (committed)
   hooks/guard.ps1          blocks destructive git, confirms commits and pushes
@@ -114,9 +153,10 @@ docs/
 | | Milestone | State |
 | --- | --- | --- |
 | M0 | Grid performance spike | Complete — architecture validated, two defects located |
-| M1 | Core library — index, hash, thumbnails, job queue, grid. Read-only | Next |
-| M1.5 | First-import wizard — the UUID rename, with dry run and reversal | |
-| M2 | Folders as entities — archetypes, labels, tag inheritance | |
+| M1 | Core library — index, hash, thumbnails, job queue, grid. Read-only | Built |
+| M1.1 | M1 defects — index failures, stale state, scrollbars, context menu | Built |
+| M1.5 | First-import wizard — the UUID rename, with dry run and reversal | Next |
+| M2 | Folders as entities — archetypes, labels, tag inheritance, real UI | |
 | M3 | Search — query parser, sectioned results | |
 | M4 | Sorting Box and triage — hotkey culling, undo, trash | |
 | M5 | Downloads — yt-dlp and gallery-dl integration | |
@@ -124,6 +164,7 @@ docs/
 | M7 | Duplicates — perceptual hashing, tag merging | |
 | M8 | Utility screens — storage, tag management, export, integrity | |
 | M9 | Polish — command palette, settings, blur toggle | |
+| M10 | Multi-view — up to twelve items playing at once in theatre view | |
 
 M4 is the milestone that replaces the manual drag-and-drop sorting this project exists to
 kill. Everything before it is groundwork.

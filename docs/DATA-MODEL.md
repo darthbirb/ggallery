@@ -50,8 +50,9 @@ in paths.
 ```sql
 CREATE TABLE item (
   id           INTEGER PRIMARY KEY,
-  uuid         TEXT    NOT NULL UNIQUE,     -- filename stem on disk
+  uuid         TEXT    NOT NULL UNIQUE,     -- identity, and the cache key
   folder_id    INTEGER NOT NULL REFERENCES folder(id),
+  disk_name    TEXT    NOT NULL,            -- actual filename on disk
   ext          TEXT    NOT NULL,
   orig_name    TEXT,                        -- searchable, pre-import name
   hash         TEXT    NOT NULL,            -- blake3 of content
@@ -73,6 +74,7 @@ CREATE TABLE item (
   derived_from INTEGER REFERENCES item(id), -- compression lineage
   download_id  INTEGER REFERENCES download(id)
 );
+CREATE UNIQUE INDEX idx_item_disk ON item(folder_id, disk_name COLLATE NOCASE);
 CREATE INDEX idx_item_folder   ON item(folder_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_item_hash     ON item(hash);
 CREATE INDEX idx_item_captured ON item(captured_at);
@@ -85,8 +87,15 @@ badge, and its own sidebar entry, and it should never appear in the tag vocabula
 alongside `beach` and `blurry`. `captured_src` keeps a manual override visibly distinct
 from real metadata.
 
-The file on disk is `<folder.rel_path>/<uuid>.<ext>`. Path is derived, never stored on
+The file on disk is `<folder.rel_path>/<disk_name>`. Path is derived, never stored on
 the item — so moving a folder is a single row update, not a rewrite of every child.
+
+`disk_name` exists because M1 is strictly read-only over the library: files keep whatever
+names they already have, so the app has to remember them. After M1.5 renames everything,
+`disk_name` is exactly `<uuid>.<ext>` and the two agree. `uuid` is the item's identity
+from the moment it is first indexed and is what the thumbnail and sprite caches are keyed
+by, so it is issued at index time rather than at rename time — otherwise the rename would
+orphan every cached thumbnail.
 
 ### Tags
 
@@ -203,6 +212,9 @@ CREATE TABLE job (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX idx_job_queue ON job(status, priority DESC, id);
+-- Completed jobs are deleted rather than left as `done` rows: a full index
+-- queues three jobs per item, and 300k tombstones would sit in front of this
+-- index forever. Failures are kept, with their error, so they can be retried.
 
 CREATE TABLE journal (         -- undo stack, survives restarts
   id         INTEGER PRIMARY KEY,
