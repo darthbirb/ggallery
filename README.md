@@ -156,7 +156,7 @@ docs/
 | M1 | Core library — index, hash, thumbnails, job queue, grid. Read-only | Built |
 | M1.1 | M1 defects — index failures, stale state, scrollbars, context menu | Built |
 | M1.5 | First-import wizard — the UUID rename, with dry run and reversal | Next |
-| M2 | Folders as entities — archetypes, labels, tag inheritance, real UI | |
+| M2 | Folders as entities — archetypes, tag inheritance, preview panel, real UI | |
 | M3 | Search — query parser, sectioned results | |
 | M4 | Sorting Box and triage — hotkey culling, undo, trash | |
 | M5 | Downloads — yt-dlp and gallery-dl integration | |

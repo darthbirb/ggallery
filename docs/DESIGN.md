@@ -476,6 +476,9 @@ The first-run wizard:
    `title: Ana` with `instagram: @ana` extracted into a label, using the Person
    archetype. Show the proposed mapping as a table and let it be edited or rejected
    per-row. This is a one-time payoff for the naming convention already in use.
+
+   *This step lands with M2, not M1.5 — it needs archetypes to exist. M1.5 ships the
+   rename alone.*
 3. **Dry run** — show exactly what will be renamed, with a sample. Nothing has been
    written yet.
 4. **Backup prompt** — refuse to proceed without an explicit acknowledgement that a copy

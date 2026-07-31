@@ -61,6 +61,15 @@ tags, labels and search live on top. One root folder holds everything, so backup
     [docs/mockup.html](docs/mockup.html) is the spec, and `shadcn/ui` — React, Tailwind
     and Radix, exactly this stack — is the component source. Deferred polish is abandoned
     polish.
+19. **Anything that adds a query path is verified against a synthetic library at scale,
+    not just the test folder.** The working library is a few hundred files and will stay
+    that way for a while, so nothing will feel slow during development. A query that is
+    instant over 198 rows can be catastrophic over 100k with joins — and the effective-tag
+    cache, search, and duplicate grouping are all exactly that shape. Keep a generator
+    that can produce a synthetic library of 100k items and run the milestone's new queries
+    against it before calling the milestone done. Scale problems are not ordinary bugs;
+    they surface as architecture, and finding one after four dependent milestones is the
+    expensive way.
 
 ## Non-goals
 
@@ -155,11 +164,19 @@ found in indexing costs nothing.
 
 ### M1.5 — First-import wizard
 
-The UUID rename, split out deliberately because it is the most destructive thing this
-app will ever do and should not ship in the same breath as the code that first reads the
-library. Specified in [docs/DESIGN.md](docs/DESIGN.md#first-import): scan, parse existing
-folder names into archetype fields, dry run, backup acknowledgement, batched execution
-writing the reversal map continuously, then verification.
+The UUID rename. Specified in [docs/DESIGN.md](docs/DESIGN.md#first-import): scan, dry
+run, backup acknowledgement, batched execution writing the reversal map continuously,
+then verification.
+
+**Scoped to the rename only.** Parsing existing folder names into archetype fields is
+part of the same wizard in DESIGN.md, but archetypes do not exist until M2 — that step
+lands there instead.
+
+**Why here and not later.** The library is currently a small disposable test folder, so
+this is the safest moment the rename will ever have: it gets exercised and debugged on
+files that can simply be re-copied. Deferring it means the first real execution happens
+against an irreplaceable collection, and it means every milestone in between is built
+against M1's `disk_name` fallback rather than the actual filename model.
 
 Build the reversal script **before** the rename runs for real. Assume it will be needed.
 
@@ -184,10 +201,14 @@ menus.
 
 Theatre view in M2 holds **one item at a time**. Multi-view is M10.
 
-Also carries one gap left open by M1.1: `media/mod.rs` classifies every GIF as
-`kind = image`. Locked decision 17 requires animated GIF, WebP and APNG to index as
-`kind = video`. Small backend change, correctly out of scope at the time, not to be
-forgotten.
+Also carries two items deferred from earlier milestones:
+
+- **Folder-name parsing**, held over from M1.5 because it needs archetypes. Existing
+  folders named `Ana (@ana)` are offered as `title: Ana` with `instagram: @ana` on the
+  Person archetype, as an editable table before anything is applied.
+- **Animated GIF classification.** `media/mod.rs` classifies every GIF as `kind = image`;
+  locked decision 17 requires animated GIF, WebP and APNG to index as `kind = video`.
+  Small backend change, correctly out of scope for M1.1, not to be forgotten.
 
 **M2 is also where the interface stops looking like a prototype.** Adopt `shadcn/ui` and
 bring the window to the standard set by [docs/mockup.html](docs/mockup.html) — density,
