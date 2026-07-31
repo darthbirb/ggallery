@@ -48,6 +48,12 @@ tags, labels and search live on top. One root folder holds everything, so backup
     label you forget you set.
 14. **Filenames are opaque, so export exists.** Selecting items and exporting them
     reconstructs meaningful filenames into a chosen location.
+15. **Thumbnails are WebP** (libwebp, lossy q78). Settled by measurement in M0 — AVIF
+    encoded 41x slower and would not decode at all in the `image` crate on this
+    platform, for a 12% size win. See [docs/ENGINEERING-NOTES.md](docs/ENGINEERING-NOTES.md).
+16. **WebView2's data directory must be redirected into the app directory.** Tauri
+    defaults it to `%LOCALAPPDATA%\<bundle-id>\`, which silently breaks rule 11. Found
+    in M0; must be configured before anything else ships.
 
 ## Non-goals
 
@@ -92,7 +98,7 @@ forward slashes, normalised case. This is the single rule that keeps portability
     library.db            ← SQLite, WAL, checkpointed on exit
     library.jsonl         ← plaintext export, disaster recovery
     cache/
-      thumbs/ab/cd/<uuid>.avif
+      thumbs/ab/cd/<uuid>.webp
       sprites/ab/cd/<uuid>.webp    ← 10-frame scrub strip per video
     trash/                ← soft-deleted files, rel_path preserved
     pending/              ← compressed candidates awaiting review
@@ -123,14 +129,26 @@ it is the only real technical risk in the project, and it is cheap to test.
 
 Full brief with measurable pass criteria: [docs/M0-SPIKE.md](docs/M0-SPIKE.md).
 
-### M1 — Core library
+### M1 — Core library (strictly read-only)
 
 Root picker, filesystem walk, BLAKE3 hashing, metadata extraction, thumbnail and sprite
 generation, persistent job queue, folder tree, the real grid.
 
-**First-import migration** needs care and is specified in
-[docs/DESIGN.md](docs/DESIGN.md#first-import) — renaming an entire existing library to
-UUIDs is the most destructive thing this app will ever do.
+**M1 must not modify a single file inside the library root.** It reads, indexes, and
+writes only into `.gallery/`. Files keep whatever names they already have — content hash
+is identity, so the rename can happen later and everything re-links by hash. This means
+the first version can be pointed at a real 300GB library with zero risk, and any bug
+found in indexing costs nothing.
+
+### M1.5 — First-import wizard
+
+The UUID rename, split out deliberately because it is the most destructive thing this
+app will ever do and should not ship in the same breath as the code that first reads the
+library. Specified in [docs/DESIGN.md](docs/DESIGN.md#first-import): scan, parse existing
+folder names into archetype fields, dry run, backup acknowledgement, batched execution
+writing the reversal map continuously, then verification.
+
+Build the reversal script **before** the rename runs for real. Assume it will be needed.
 
 ### M2 — Folders as entities
 
