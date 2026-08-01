@@ -4,6 +4,8 @@
 pub mod folders;
 pub mod items;
 pub mod jobs;
+pub mod journal;
+pub mod settings;
 
 use std::path::Path;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};

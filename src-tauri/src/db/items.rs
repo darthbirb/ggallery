@@ -203,6 +203,165 @@ pub fn count(conn: &Connection) -> Result<i64> {
     )?)
 }
 
+/// Item counts and total size, grouped by kind. What the import wizard's scan
+/// step leads with.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KindTotal {
+    pub kind: String,
+    pub count: i64,
+    pub bytes: i64,
+}
+
+pub fn counts_by_kind(conn: &Connection) -> Result<Vec<KindTotal>> {
+    let mut stmt = conn.prepare(
+        "SELECT kind, COUNT(*), COALESCE(SUM(size_bytes), 0)
+           FROM item
+          WHERE deleted_at IS NULL
+          GROUP BY kind",
+    )?;
+    let rows = stmt
+        .query_map([], |r| {
+            Ok(KindTotal {
+                kind: r.get(0)?,
+                count: r.get(1)?,
+                bytes: r.get(2)?,
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(rows)
+}
+
+/// `(already renamed, still needs renaming)`. A row is "renamed" exactly when
+/// `disk_name` already equals `<uuid>.<ext>` — the same equality the schema
+/// comment in `001_initial.sql` describes as what M1.5 establishes for good,
+/// so there is no separate flag to track it.
+pub fn rename_counts(conn: &Connection) -> Result<(i64, i64)> {
+    let already: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM item
+          WHERE deleted_at IS NULL AND disk_name = uuid || '.' || ext",
+        [],
+        |r| r.get(0),
+    )?;
+    let total = count(conn)?;
+    Ok((already, total - already))
+}
+
+/// One file the import wizard still needs to rename.
+#[derive(Debug, Clone)]
+pub struct RenameCandidate {
+    pub id: i64,
+    pub uuid: String,
+    pub ext: String,
+    pub orig_name: Option<String>,
+    pub folder_rel: String,
+    pub disk_name: String,
+}
+
+/// The next batch of not-yet-renamed items after `after_id`, in id order.
+///
+/// `disk_name != uuid || '.' || ext` is not indexed, so filtering on it alone
+/// would rescan the whole table on every batch — quadratic over a 300GB
+/// library. Pairing it with `id > ?` lets SQLite walk the primary key forward
+/// from where the last batch stopped, so the filter only ever looks at rows
+/// this call has not already passed over: one forward pass across the whole
+/// import, not one per batch. See PLAN.md decision 19.
+pub fn rename_candidates_after(
+    conn: &Connection,
+    after_id: i64,
+    limit: i64,
+) -> Result<Vec<RenameCandidate>> {
+    let mut stmt = conn.prepare(
+        "SELECT i.id, i.uuid, i.ext, i.orig_name, f.rel_path, i.disk_name
+           FROM item i JOIN folder f ON f.id = i.folder_id
+          WHERE i.deleted_at IS NULL AND i.id > ?1 AND i.disk_name != (i.uuid || '.' || i.ext)
+          ORDER BY i.id
+          LIMIT ?2",
+    )?;
+    let rows = stmt
+        .query_map(params![after_id, limit], |r| {
+            Ok(RenameCandidate {
+                id: r.get(0)?,
+                uuid: r.get(1)?,
+                ext: r.get(2)?,
+                orig_name: r.get(3)?,
+                folder_rel: r.get(4)?,
+                disk_name: r.get(5)?,
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(rows)
+}
+
+/// One item, by id — what `fs::import::rename_on_arrival` needs to rename a
+/// single freshly-indexed file. Same shape as `rename_candidates_after`, just
+/// not filtered to "still needs renaming": the caller already knows this item
+/// is new.
+pub fn rename_target(conn: &Connection, id: i64) -> Result<Option<RenameCandidate>> {
+    Ok(conn
+        .query_row(
+            "SELECT i.id, i.uuid, i.ext, i.orig_name, f.rel_path, i.disk_name
+               FROM item i JOIN folder f ON f.id = i.folder_id
+              WHERE i.id = ?1",
+            params![id],
+            |r| {
+                Ok(RenameCandidate {
+                    id: r.get(0)?,
+                    uuid: r.get(1)?,
+                    ext: r.get(2)?,
+                    orig_name: r.get(3)?,
+                    folder_rel: r.get(4)?,
+                    disk_name: r.get(5)?,
+                })
+            },
+        )
+        .optional()?)
+}
+
+/// Record the file's new on-disk name. Nothing else about the row changes —
+/// `orig_name` keeps the pre-import filename as searchable metadata forever.
+pub fn set_disk_name(conn: &Connection, id: i64, disk_name: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE item SET disk_name = ?1 WHERE id = ?2",
+        params![disk_name, id],
+    )?;
+    Ok(())
+}
+
+/// What the import wizard's verify step re-hashes.
+#[derive(Debug, Clone)]
+pub struct VerifyCandidate {
+    pub id: i64,
+    pub folder_rel: String,
+    pub disk_name: String,
+    pub hash: String,
+}
+
+/// A random sample of already-renamed items. Called once, after the whole
+/// rename has finished, so the `ORDER BY RANDOM()` full-table sort is a
+/// one-off cost rather than a repeated query path — unlike the grid or search,
+/// this is not a shape PLAN.md decision 19 is warning about.
+pub fn random_sample_for_verify(conn: &Connection, n: i64) -> Result<Vec<VerifyCandidate>> {
+    let mut stmt = conn.prepare(
+        "SELECT i.id, f.rel_path, i.disk_name, i.hash
+           FROM item i JOIN folder f ON f.id = i.folder_id
+          WHERE i.deleted_at IS NULL AND i.disk_name = (i.uuid || '.' || i.ext)
+          ORDER BY RANDOM()
+          LIMIT ?1",
+    )?;
+    let rows = stmt
+        .query_map(params![n], |r| {
+            Ok(VerifyCandidate {
+                id: r.get(0)?,
+                folder_rel: r.get(1)?,
+                disk_name: r.get(2)?,
+                hash: r.get(3)?,
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(rows)
+}
+
 pub fn list(conn: &Connection, scope: &Scope) -> Result<Vec<GridItem>> {
     let folder = scope.folder.as_deref().unwrap_or("");
     let base = "SELECT id, uuid, kind, width, height, duration_ms, favorite,
