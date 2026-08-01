@@ -438,6 +438,38 @@ pub fn mark_seen(conn: &Connection, folder_id: i64, disk_name: &str) -> Result<(
     Ok(())
 }
 
+// --- watcher-driven single-path retirement --------------------------------
+//
+// The sweep above is for a whole-library walk. The watcher retires one path
+// at a time, as soon as it sees the file or folder disappear, rather than
+// waiting for a reconcile pass to notice.
+
+/// Soft-delete one item by its folder and disk name. A no-op if nothing
+/// matches — the file may never have been indexed, or this may be the tail
+/// half of a rename the app itself suppressed.
+pub fn retire_one(conn: &Connection, folder_id: i64, disk_name: &str) -> Result<bool> {
+    let n = conn.execute(
+        "UPDATE item SET deleted_at = ?1
+          WHERE folder_id = ?2 AND disk_name = ?3 COLLATE NOCASE AND deleted_at IS NULL",
+        params![now(), folder_id, disk_name],
+    )?;
+    Ok(n > 0)
+}
+
+/// Soft-delete every item in `folder_rel` and everything beneath it — the
+/// watcher's response to a whole folder disappearing at once. Folders
+/// themselves have no lifecycle yet (that is M2's job), so the row is left
+/// behind, empty, rather than removed.
+pub fn retire_folder(conn: &Connection, folder_rel: &str) -> Result<usize> {
+    Ok(conn.execute(
+        "UPDATE item SET deleted_at = ?1
+          WHERE deleted_at IS NULL
+            AND folder_id IN (SELECT id FROM folder
+                               WHERE rel_path = ?2 OR rel_path LIKE ?2 || '/%')",
+        params![now(), folder_rel],
+    )?)
+}
+
 pub fn finish_sweep(conn: &Connection) -> Result<usize> {
     conn.execute_batch(
         "CREATE INDEX IF NOT EXISTS temp.idx_seen ON seen(folder_id, disk_name COLLATE NOCASE);",

@@ -8,6 +8,7 @@ pub mod media;
 pub mod sidecar;
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, MutexGuard, RwLock};
 
 use rusqlite::Connection;
@@ -16,6 +17,7 @@ use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use crate::config::{Config, WindowState};
 use crate::error::{AppError, Result};
 use crate::fs::paths::LibraryPaths;
+use crate::fs::watch::{Suppressor, Watch};
 use crate::jobs::JobQueue;
 use crate::sidecar::Tools;
 
@@ -37,6 +39,10 @@ pub struct Library {
     pub tools: Tools,
     conn: Mutex<Connection>,
     queue: JobQueue,
+    /// `None` once `close` has stopped it. Behind a mutex rather than held
+    /// directly so `close(&self)` — called through a shared `Arc<Library>` —
+    /// can take ownership of it and call its `&mut self` `stop`.
+    watch: Mutex<Option<Watch>>,
     _lock: LockFile,
 }
 
@@ -77,19 +83,30 @@ impl Library {
             .allow_directory(paths.cache_dir(), true);
 
         let tools = Tools::discover();
+        // Shared between the job queue and the filesystem watcher: the
+        // watcher sets `rescanning` before queuing a reconcile walk and
+        // suppresses its own renames, the queue's `Progress` reads the
+        // former back and its hash job consults the latter. See
+        // `fs::watch`.
+        let suppressor = Suppressor::default();
+        let rescanning: fs::watch::Rescanning = Arc::new(AtomicBool::new(false));
         let queue = JobQueue::start(
             app,
             paths.clone(),
             tools.clone(),
             paths.db_path(),
             rename_lookup,
+            suppressor.clone(),
+            Arc::clone(&rescanning),
         )?;
+        let watch = fs::watch::start(paths.clone(), paths.db_path(), suppressor, rescanning)?;
 
         Ok(Library {
             paths,
             tools,
             conn: Mutex::new(conn),
             queue,
+            watch: Mutex::new(Some(watch)),
             _lock: lock,
         })
     }
@@ -104,9 +121,14 @@ impl Library {
         &self.queue
     }
 
-    /// Stop the workers and collapse the WAL, so a closed library is a single
-    /// `.db` file that can simply be copied.
+    /// Stop the watcher and the workers and collapse the WAL, so a closed
+    /// library is a single `.db` file that can simply be copied.
     pub fn close(&self) {
+        if let Ok(mut guard) = self.watch.lock() {
+            if let Some(mut watch) = guard.take() {
+                watch.stop();
+            }
+        }
         self.queue.stop();
         if let Ok(conn) = self.conn() {
             let _ = db::checkpoint(&conn);

@@ -23,6 +23,7 @@ use tauri::{AppHandle, Emitter};
 use crate::db;
 use crate::error::Result;
 use crate::fs::paths::LibraryPaths;
+use crate::fs::watch::Suppressor;
 use crate::sidecar::Tools;
 
 /// Emitted to the frontend on a fixed tick while anything is happening, and
@@ -45,6 +46,12 @@ pub struct Progress {
     pub failed: i64,
     pub completed: u64,
     pub last_error: Option<String>,
+    /// True while a full reconcile walk is running because the filesystem
+    /// watcher overflowed or errored, rather than because of the ordinary
+    /// startup index. Distinguishes the two in the readout so a rescan says
+    /// so instead of looking like an ordinary first index — see
+    /// `fs::watch`.
+    pub rescanning: bool,
 }
 
 pub struct QueueInner {
@@ -55,6 +62,15 @@ pub struct QueueInner {
     /// named `<uuid>.<ext>` because the M1.7 import rename ran before this
     /// walk did. See `worker::run_hash` and `fs::import::load_rename_lookup`.
     pub rename_lookup: HashMap<String, String>,
+    /// Shared with the filesystem watcher, which suppresses the paths its own
+    /// renames touch so its own writes are never reported back to it as
+    /// arrivals or deletions. See `fs::watch::Suppressor`.
+    pub suppressor: Suppressor,
+    /// Shared with the filesystem watcher, which sets this before queuing a
+    /// full reconcile walk after an overflow or error. Cleared here, by
+    /// `worker::run_index`, once that walk (or the ordinary startup index)
+    /// actually finishes.
+    pub rescanning: Arc<AtomicBool>,
     app: AppHandle,
     db_path: PathBuf,
     stop: AtomicBool,
@@ -99,6 +115,7 @@ impl QueueInner {
             failed: counts.failed,
             completed: self.completed.load(Ordering::Relaxed),
             last_error: db::jobs::last_error(conn)?,
+            rescanning: self.rescanning.load(Ordering::Relaxed),
         })
     }
 }
@@ -115,11 +132,15 @@ impl JobQueue {
         tools: Tools,
         db_path: PathBuf,
         rename_lookup: HashMap<String, String>,
+        suppressor: Suppressor,
+        rescanning: Arc<AtomicBool>,
     ) -> Result<JobQueue> {
         let inner = Arc::new(QueueInner {
             paths,
             tools,
             rename_lookup,
+            suppressor,
+            rescanning,
             app,
             db_path,
             stop: AtomicBool::new(false),

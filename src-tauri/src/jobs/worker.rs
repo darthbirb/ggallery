@@ -12,6 +12,7 @@ use crate::error::{AppError, Result};
 use crate::fs::import;
 use crate::fs::paths::{extension_of, parse_uuid_disk_name, LibraryPaths};
 use crate::fs::walk;
+use crate::fs::watch::Suppressor;
 use crate::jobs::kinds::{self, HashPayload, ItemPayload};
 use crate::jobs::QueueInner;
 use crate::media::{hash, probe, sprites, thumbs, Kind};
@@ -25,6 +26,7 @@ pub fn execute(ctx: &QueueInner, conn: &mut Connection, job: &QueuedJob) -> Resu
             paths,
             tools,
             &ctx.rename_lookup,
+            &ctx.suppressor,
             conn,
             serde_json::from_str(&job.payload)?,
         ),
@@ -46,6 +48,11 @@ fn run_index(ctx: &QueueInner, conn: &mut Connection) -> Result<()> {
         ctx.report_walk(folders, files);
     });
     ctx.set_walking(false);
+    // Whether this walk ran because of the ordinary startup index or because
+    // the watcher lost sync and asked for a reconcile, it is the same walk —
+    // once it is done, there is nothing left to distinguish it by.
+    ctx.rescanning
+        .store(false, std::sync::atomic::Ordering::Relaxed);
 
     if result.is_err() {
         // The walk commits in batches; a failure part-way leaves one open.
@@ -60,6 +67,7 @@ pub fn run_hash(
     paths: &LibraryPaths,
     tools: &Tools,
     rename_lookup: &HashMap<String, String>,
+    suppressor: &Suppressor,
     conn: &mut Connection,
     payload: HashPayload,
 ) -> Result<()> {
@@ -125,7 +133,7 @@ pub fn run_hash(
     // gets its UUID name right here, silently, as part of being indexed. See
     // docs/DESIGN.md#first-import, "After the first import".
     if db::settings::imported_at(conn)?.is_some() {
-        import::rename_on_arrival(paths, conn, item_id)?;
+        import::rename_on_arrival(paths, conn, item_id, suppressor)?;
     }
 
     if kind != Kind::Other {
@@ -231,6 +239,7 @@ mod tests {
                     &paths,
                     &tools,
                     &HashMap::new(),
+                    &Suppressor::default(),
                     &mut conn,
                     serde_json::from_str(&job.payload).unwrap(),
                 ),
@@ -302,6 +311,7 @@ mod tests {
                     &paths,
                     &tools,
                     &HashMap::new(),
+                    &Suppressor::default(),
                     &mut conn,
                     serde_json::from_str(&job.payload).unwrap(),
                 ),
@@ -349,6 +359,7 @@ mod tests {
                     &paths,
                     &tools,
                     &HashMap::new(),
+                    &Suppressor::default(),
                     &mut conn,
                     serde_json::from_str(&job.payload).unwrap(),
                 )
@@ -411,6 +422,7 @@ mod tests {
                         &paths,
                         &tools,
                         &HashMap::new(),
+                        &Suppressor::default(),
                         conn,
                         serde_json::from_str(&job.payload).unwrap(),
                     ),
@@ -476,6 +488,7 @@ mod tests {
                         &paths,
                         &tools,
                         &HashMap::new(),
+                        &Suppressor::default(),
                         conn,
                         serde_json::from_str(&job.payload).unwrap(),
                     ),
@@ -528,6 +541,7 @@ mod tests {
                         &paths,
                         &tools,
                         &HashMap::new(),
+                        &Suppressor::default(),
                         conn,
                         serde_json::from_str(&job.payload).unwrap(),
                     ),
@@ -637,6 +651,7 @@ mod tests {
                     &paths,
                     &tools,
                     &rename_lookup,
+                    &Suppressor::default(),
                     &mut conn,
                     serde_json::from_str(&job.payload).unwrap(),
                 ),
