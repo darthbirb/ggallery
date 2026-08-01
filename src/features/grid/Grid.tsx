@@ -121,7 +121,16 @@ export function Grid({
 
   useEffect(() => {
     return () => {
-      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+      // StrictMode double-invokes effects in development: mount, cleanup,
+      // mount again, synchronously. That cleanup cancels the real frame
+      // `schedule()` already armed during the first mount — if this did not
+      // also reset `frameRef`, it would be left holding a dead handle
+      // forever, and every later `schedule()` call would see it as truthy
+      // and silently never arm another frame. Nothing would ever repaint.
+      if (frameRef.current) {
+        cancelAnimationFrame(frameRef.current);
+        frameRef.current = 0;
+      }
     };
   }, []);
 
