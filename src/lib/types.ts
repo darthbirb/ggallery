@@ -74,3 +74,69 @@ export interface AppError {
   kind: string;
   message: string;
 }
+
+// --- M1.5 import wizard ------------------------------------------------
+
+export interface KindTotal {
+  kind: string;
+  count: number;
+  bytes: number;
+}
+
+export interface ScanReport {
+  byKind: KindTotal[];
+  totalItems: number;
+  totalBytes: number;
+  folderCount: number;
+  /** Files M1 could not read at all. */
+  unreadable: number;
+  alreadyRenamed: number;
+  toRename: number;
+  /** `null` until the wizard (or "Normalise filenames") has completed once —
+   *  what decides whether the wizard is offered when a library is opened. */
+  importedAt: number | null;
+}
+
+export interface RenamePreview {
+  folder: string;
+  oldName: string;
+  newName: string;
+}
+
+export interface DryRunReport {
+  toRename: number;
+  sample: RenamePreview[];
+}
+
+export interface RenameError {
+  itemId: number;
+  folder: string;
+  name: string;
+  error: string;
+}
+
+export interface ExecuteReport {
+  renamed: number;
+  alreadyDone: number;
+  errors: RenameError[];
+}
+
+export interface ImportProgress {
+  done: number;
+  total: number;
+  errors: number;
+}
+
+export interface VerifyItem {
+  itemId: number;
+  folder: string;
+  name: string;
+}
+
+export interface VerifyReport {
+  sampleChecked: number;
+  mismatches: VerifyItem[];
+  missing: VerifyItem[];
+  countTotal: number;
+  countRenamed: number;
+}

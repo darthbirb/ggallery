@@ -9,15 +9,21 @@ import { open } from "@tauri-apps/plugin-dialog";
 
 import type {
   AppError,
+  DryRunReport,
+  ExecuteReport,
   FolderNode,
   GridItem,
+  ImportProgress,
   IndexFailure,
   LibraryInfo,
   LibraryStatus,
   Progress,
+  ScanReport,
+  VerifyReport,
 } from "./types";
 
 const PROGRESS_EVENT = "job-progress";
+const IMPORT_PROGRESS_EVENT = "import-progress";
 
 export async function pickLibraryFolder(): Promise<string | null> {
   const picked = await open({
@@ -72,6 +78,38 @@ export function onProgress(
   handler: (progress: Progress) => void,
 ): Promise<UnlistenFn> {
   return listen<Progress>(PROGRESS_EVENT, (event) => handler(event.payload));
+}
+
+// --- M1.5 import wizard ------------------------------------------------
+
+export function scanImport(): Promise<ScanReport> {
+  return invoke<ScanReport>("scan_import");
+}
+
+export function dryRunImport(sampleSize: number): Promise<DryRunReport> {
+  return invoke<DryRunReport>("dry_run_import", { sampleSize });
+}
+
+export function executeImport(confirmedBackup: boolean): Promise<ExecuteReport> {
+  return invoke<ExecuteReport>("execute_import", { confirmedBackup });
+}
+
+export function verifyImport(sampleSize: number): Promise<VerifyReport> {
+  return invoke<VerifyReport>("verify_import", { sampleSize });
+}
+
+/** For a library with nothing to rename — stamps it imported without ever
+ *  showing the wizard. Not gated: nothing destructive happens. */
+export function markImported(): Promise<void> {
+  return invoke<void>("mark_imported");
+}
+
+export function onImportProgress(
+  handler: (progress: ImportProgress) => void,
+): Promise<UnlistenFn> {
+  return listen<ImportProgress>(IMPORT_PROGRESS_EVENT, (event) =>
+    handler(event.payload),
+  );
 }
 
 /** Absolute cache path to something the webview can load. */

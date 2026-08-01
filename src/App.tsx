@@ -1,23 +1,72 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Grid } from "./features/grid/Grid";
 import { FailureList } from "./features/indexing/FailureList";
 import { IndexStatus } from "./features/indexing/IndexStatus";
+import { ImportWizard } from "./features/import/ImportWizard";
+import { SettingsPanel } from "./features/settings/SettingsPanel";
 import { Sidebar } from "./features/sidebar/Sidebar";
 import { formatCount } from "./lib/format";
+import * as ipc from "./lib/ipc";
 import { useLibrary } from "./state/library";
 import { TILE_SIZES, useUi } from "./state/ui";
+
+type ImportWizardMode = "auto" | "manual";
 
 export default function App() {
   const library = useLibrary();
   const ui = useUi();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showFailures, setShowFailures] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [importWizardMode, setImportWizardMode] =
+    useState<ImportWizardMode | null>(null);
 
   // A run that fixed everything should not leave the panel open on nothing.
   useEffect(() => {
     if (library.failures.length === 0) setShowFailures(false);
   }, [library.failures.length]);
+
+  // The wizard is a step in opening a library, not a permanent control — see
+  // docs/DESIGN.md#first-import. Once the index has settled, check whether
+  // this library has ever been imported; if it needs the ceremony, offer it;
+  // if there is nothing to rename at all (an empty library, or one already
+  // all UUID-named), just stamp it imported and never ask again. Guarded to
+  // run once per opened library.
+  const checkedImportFor = useRef<string | null>(null);
+  // A brand-new library's very first progress read is "idle" too — nothing
+  // has been queued yet, before the walk even starts — indistinguishable
+  // from "idle because indexing finished" by phase alone. For a library that
+  // started empty, an idle reading is only trustworthy once a busy phase has
+  // been seen for it first; a library that already had items at open time
+  // never had that race, so its first idle reading is trusted immediately.
+  const everBusyFor = useRef<string | null>(null);
+  useEffect(() => {
+    const root = library.info?.root ?? null;
+    if (!root || !library.progress) return;
+
+    if (library.progress.phase !== "idle") {
+      everBusyFor.current = root;
+      return;
+    }
+    const trustworthy = library.info!.itemCount > 0 || everBusyFor.current === root;
+    if (!trustworthy || checkedImportFor.current === root) return;
+    checkedImportFor.current = root;
+
+    (async () => {
+      try {
+        const scan = await ipc.scanImport();
+        if (scan.importedAt !== null) return;
+        if (scan.toRename === 0) {
+          await ipc.markImported();
+          return;
+        }
+        setImportWizardMode("auto");
+      } catch {
+        // Best-effort — a failed check here should not block using the app.
+      }
+    })();
+  }, [library.info, library.progress]);
 
   if (!library.info) {
     return <Welcome library={library} />;
@@ -77,8 +126,35 @@ export default function App() {
           >
             {progress && progress.phase !== "idle" ? "Indexing…" : "Re-index"}
           </button>
+
+          <button
+            type="button"
+            onClick={() => setShowSettings(true)}
+            title="Settings"
+            className="rounded-[3px] border border-line px-2 py-0.5 text-fg-mid hover:bg-hover hover:text-fg"
+          >
+            Settings…
+          </button>
         </span>
       </header>
+
+      {importWizardMode && (
+        <ImportWizard
+          title={importWizardMode === "manual" ? "Normalise filenames" : undefined}
+          dismissable={importWizardMode === "manual"}
+          onClose={() => setImportWizardMode(null)}
+        />
+      )}
+
+      {showSettings && (
+        <SettingsPanel
+          onClose={() => setShowSettings(false)}
+          onNormaliseFilenames={() => {
+            setShowSettings(false);
+            setImportWizardMode("manual");
+          }}
+        />
+      )}
 
       <div className="grid min-h-0 grid-cols-[214px_1fr]">
         <Sidebar
