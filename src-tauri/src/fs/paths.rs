@@ -189,6 +189,28 @@ pub fn extension_of(name: &str) -> String {
         .unwrap_or_default()
 }
 
+/// If `name` is already exactly `<uuid>.<ext>` — the shape this app gives
+/// every file it renames — return the canonical (lowercase, hyphenated) uuid.
+/// `None` for anything else, including a bare 32-character hex string that
+/// happens to parse: that is not a name this app ever wrote.
+///
+/// Used to recognise a file that arrived already carrying its final name
+/// because the M1.7 import rename ran before this walk ever saw it — the
+/// walker must reuse that embedded uuid as the item's identity rather than
+/// minting a new one, or `disk_name` and `uuid` desync forever.
+pub fn parse_uuid_disk_name(name: &str) -> Option<String> {
+    let (stem, ext) = name.rsplit_once('.')?;
+    if ext.is_empty() || stem.len() != 36 {
+        return None;
+    }
+    let uuid = uuid::Uuid::parse_str(stem).ok()?;
+    let canonical = uuid.to_string();
+    if canonical != stem {
+        return None; // not the exact lowercase hyphenated form this app writes
+    }
+    Some(canonical)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -216,5 +238,26 @@ mod tests {
     #[test]
     fn shards_by_first_four_characters() {
         assert_eq!(shard("abcdef12"), "ab/cd/abcdef12.webp");
+    }
+
+    #[test]
+    fn recognises_only_names_this_app_actually_writes() {
+        let uuid = "550e8400-e29b-41d4-a716-446655440000";
+        assert_eq!(
+            parse_uuid_disk_name(&format!("{uuid}.jpg")),
+            Some(uuid.to_string())
+        );
+        assert_eq!(
+            parse_uuid_disk_name(&format!("{}.jpg", uuid.to_uppercase())),
+            None,
+            "case-sensitive — this app only ever writes lowercase"
+        );
+        assert_eq!(parse_uuid_disk_name("holiday.jpg"), None);
+        assert_eq!(
+            parse_uuid_disk_name("550e8400e29b41d4a716446655440000.jpg"),
+            None,
+            "bare hex, no hyphens — not a name this app wrote"
+        );
+        assert_eq!(parse_uuid_disk_name("noextension"), None);
     }
 }

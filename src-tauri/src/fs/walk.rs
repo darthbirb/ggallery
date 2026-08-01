@@ -24,7 +24,10 @@ use crate::jobs;
 const BATCH: u64 = 500;
 
 /// Windows and macOS litter; never library content.
-const IGNORED_FILES: &[&str] = &["thumbs.db", "desktop.ini", ".ds_store"];
+///
+/// `pub(crate)` — the M1.7 pre-import filesystem scan in `fs::import`
+/// filters by the same list before any database exists to check against.
+pub(crate) const IGNORED_FILES: &[&str] = &["thumbs.db", "desktop.ini", ".ds_store"];
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct WalkReport {
@@ -160,7 +163,9 @@ fn queue_file(
 
 /// `.gallery` is the app's own storage, and dot-directories are not library
 /// content. Everything else under the root is fair game.
-fn is_skipped_dir(paths: &LibraryPaths, entry: &DirEntry) -> bool {
+///
+/// `pub(crate)` for the same reason as `IGNORED_FILES` above.
+pub(crate) fn is_skipped_dir(paths: &LibraryPaths, entry: &DirEntry) -> bool {
     if !entry.file_type().is_dir() {
         return false;
     }

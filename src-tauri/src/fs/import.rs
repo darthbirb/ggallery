@@ -1,36 +1,45 @@
-//! The M1.5 first-import wizard's substance: scan, dry run, batched rename,
-//! verify. See docs/DESIGN.md#first-import for the flow this implements and
-//! why each step exists.
+//! The UUID rename: filesystem-only scan and execute for a library that has
+//! never been imported (`prepare` / `execute_prepared`, M1.7's startup flow),
+//! plus the original database-backed scan/dry-run/execute/verify for the
+//! repair case — Settings → Normalise filenames, run against an already-open,
+//! already-indexed library. See docs/DESIGN.md#first-import for the flow
+//! and why each step exists.
 //!
 //! **Scoped to the rename alone.** Parsing folder names into archetype fields
 //! is a separate M2 step — archetypes do not exist yet.
 //!
-//! The rename is the one destructive thing M1.5 does to the library, so two
-//! properties matter more than anything else here:
+//! The rename is the most destructive thing the app does, so two properties
+//! matter more than anything else here:
 //!
 //! 1. **Idempotent.** A file is "done" exactly when `disk_name` already equals
 //!    `<uuid>.<ext>` — not a flag set once and trusted forever. Running
-//!    `execute` again, whether because the wizard was re-opened or because the
-//!    previous run crashed mid-batch, only ever touches what is still left.
-//! 2. **The reversal map is written before the risk, not after.** Each batch's
-//!    `ReversalRecord`s are appended to `library.jsonl` and fsynced *before*
-//!    any file in that batch is renamed. If the process dies between the
-//!    fsync and the database commit, the file may already carry its new name
-//!    while the database still has the old one — `rename_one` below treats
-//!    that as success rather than an error, which is what makes resuming safe
-//!    — and `reverse_import` (a separate binary; see `src-tauri/src/bin/`)
-//!    can always undo from the jsonl alone, without the database at all.
+//!    an execute path again, whether because the flow was re-entered or
+//!    because a previous run crashed mid-batch, only ever touches what is
+//!    still left.
+//! 2. **The disaster-recovery record is written before the risk, not after.**
+//!    Each batch's `JsonlRecord`s are appended to `library.jsonl` and fsynced
+//!    *before* any file in that batch is renamed. If the process dies between
+//!    the fsync and the rename actually landing, the file may already carry
+//!    its new name while the record says otherwise — `rename_one` below
+//!    treats an already-renamed file as success rather than an error, which
+//!    is what makes resuming safe. There is no tooling that reads this record
+//!    back to undo anything — see docs/DESIGN.md#first-import, "No reversal"
+//!    — but a human with a text editor always has enough to reconstruct what
+//!    happened to any given file.
 
+use std::collections::HashMap;
 use std::fs::File;
-use std::io::Write;
-use std::path::Path;
+use std::io::{BufRead, BufReader, Write};
+use std::path::{Path, PathBuf};
 
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
+use walkdir::WalkDir;
 
 use crate::db;
 use crate::error::{AppError, Result};
 use crate::fs::paths::LibraryPaths;
+use crate::fs::walk;
 use crate::media::hash;
 
 /// Items per transaction, and per reversal-map flush. Small enough that the
@@ -116,11 +125,11 @@ pub fn dry_run(conn: &Connection, sample_size: i64) -> Result<DryRunReport> {
 
 // --- execute -----------------------------------------------------------------
 
-/// One line of `library.jsonl` — the reversal map. Self-describing on
-/// purpose: a human with a text editor and no working app should be able to
-/// see exactly what happened to a given file.
+/// One line of `library.jsonl` — the disaster-recovery record of what a
+/// rename did. Self-describing on purpose: a human with a text editor and no
+/// working app should be able to see exactly what happened to a given file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReversalRecord {
+pub struct JsonlRecord {
     pub uuid: String,
     pub folder_rel: String,
     pub orig_name: String,
@@ -156,7 +165,8 @@ pub struct ImportProgress {
 }
 
 /// Rename every not-yet-renamed item to `<uuid>.<ext>`, in batches, writing
-/// the reversal map continuously.
+/// the disaster-recovery record continuously. The repair path — Settings →
+/// Normalise filenames — on an already-open, already-indexed library.
 ///
 /// Safe to call again after a crash, a close, or on a library that was
 /// already fully imported — see the module docs for why.
@@ -203,9 +213,9 @@ pub fn execute(
 
         // Durable before any file moves — the property the whole crash-safety
         // story rests on.
-        let records: Vec<ReversalRecord> = batch
+        let records: Vec<JsonlRecord> = batch
             .iter()
-            .map(|c| ReversalRecord {
+            .map(|c| JsonlRecord {
                 uuid: c.uuid.clone(),
                 folder_rel: c.folder_rel.clone(),
                 orig_name: c
@@ -215,7 +225,7 @@ pub fn execute(
                 new_name: new_disk_name(c),
             })
             .collect();
-        append_reversal(&mut jsonl, &records)?;
+        append_jsonl(&mut jsonl, &records)?;
 
         db::begin_batch(conn)?;
         for candidate in &batch {
@@ -260,7 +270,7 @@ fn new_disk_name(candidate: &db::items::RenameCandidate) -> String {
     format!("{}.{}", candidate.uuid, candidate.ext)
 }
 
-fn append_reversal(file: &mut File, records: &[ReversalRecord]) -> Result<()> {
+fn append_jsonl(file: &mut File, records: &[JsonlRecord]) -> Result<()> {
     for record in records {
         let line = serde_json::to_string(record)?;
         writeln!(file, "{line}")?;
@@ -313,6 +323,351 @@ fn rename_one(
 
     std::fs::rename(&old_abs, &new_abs)?;
     Ok(RenameOutcome::Renamed)
+}
+
+// --- M1.7 startup flow: filesystem-only scan and execute -------------------
+//
+// A library that has never been imported has no database worth reading yet —
+// under the old M1.5/M1.6 order the walk ran first and populated one, but
+// M1.7 inverts that: nothing is indexed, thumbnailed, or written into
+// `.gallery/` until the rename has completed. So `prepare` and
+// `execute_prepared` below work the filesystem directly, the same way a plain
+// `ls -R` would, and never open a job queue or enqueue any work.
+
+/// One file a pre-import filesystem scan found that still needs renaming.
+/// Unlike `db::items::RenameCandidate`, this exists before any database row
+/// does.
+#[derive(Debug, Clone)]
+pub struct FsRenameCandidate {
+    pub folder_rel: String,
+    pub old_name: String,
+    pub uuid: String,
+    pub ext: String,
+}
+
+impl FsRenameCandidate {
+    fn new_name(&self) -> String {
+        format!("{}.{}", self.uuid, self.ext)
+    }
+}
+
+/// Held in `AppState` between `prepare` and `execute_prepared` so Review and
+/// Progress agree on exactly the same plan, and the execute step never has to
+/// re-walk the filesystem to rediscover what Review already showed.
+pub struct PendingImport {
+    pub root: PathBuf,
+    pub candidates: Vec<FsRenameCandidate>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewReport {
+    /// True when this library has either already completed import, or needed
+    /// no rename at all (an empty folder, or one already entirely
+    /// UUID-named) — resolved on the spot by `prepare`. Either way the
+    /// frontend skips Review and Progress and opens straight into the
+    /// gallery.
+    pub already_imported: bool,
+    pub by_kind: Vec<db::items::KindTotal>,
+    pub total_items: i64,
+    pub total_bytes: i64,
+    pub folder_count: i64,
+    /// Entries the scan could not read at all — a locked file, a permission
+    /// error — reported so Review does not imply the whole folder was seen
+    /// when some of it was not.
+    pub unreadable: i64,
+    pub already_renamed: i64,
+    pub to_rename: i64,
+    /// Five rows, not a full manifest — docs/DESIGN.md#first-import.
+    pub sample: Vec<RenamePreview>,
+}
+
+/// The Choose-folder step's follow-through. Figures out whether this library
+/// needs the import ceremony at all and, if so, scans it — all without
+/// opening a job queue or writing a thumbnail. Returns the plan alongside the
+/// report so the caller can stash it for `execute_prepared`.
+pub fn prepare(root: &Path) -> Result<(ReviewReport, Option<PendingImport>)> {
+    let paths = LibraryPaths::new(root);
+
+    if paths.db_path().is_file() {
+        let mut conn = db::open(&paths.db_path())?;
+        db::migrate(&mut conn)?;
+        if db::settings::imported_at(&conn)?.is_some() {
+            return Ok((
+                ReviewReport {
+                    already_imported: true,
+                    ..Default::default()
+                },
+                None,
+            ));
+        }
+    }
+
+    let scan = scan_filesystem(&paths)?;
+    if scan.candidates.is_empty() {
+        // Nothing to do — mark it imported on the spot rather than asking the
+        // user to click through a review screen with nothing on it. Mirrors
+        // `execute`'s same shortcut for the repair path.
+        paths.ensure_dirs()?;
+        let mut conn = db::open(&paths.db_path())?;
+        db::migrate(&mut conn)?;
+        db::settings::mark_imported(&conn)?;
+        return Ok((
+            ReviewReport {
+                already_imported: true,
+                ..Default::default()
+            },
+            None,
+        ));
+    }
+
+    let sample = scan
+        .candidates
+        .iter()
+        .take(5)
+        .map(|c| RenamePreview {
+            folder: c.folder_rel.clone(),
+            old_name: c.old_name.clone(),
+            new_name: c.new_name(),
+        })
+        .collect();
+    let to_rename = scan.candidates.len() as i64;
+
+    let report = ReviewReport {
+        already_imported: false,
+        by_kind: scan.by_kind,
+        total_items: scan.already_renamed + to_rename,
+        total_bytes: scan.total_bytes,
+        folder_count: scan.folder_count,
+        unreadable: scan.unreadable,
+        already_renamed: scan.already_renamed,
+        to_rename,
+        sample,
+    };
+    let pending = PendingImport {
+        root: root.to_path_buf(),
+        candidates: scan.candidates,
+    };
+    Ok((report, Some(pending)))
+}
+
+struct FsScan {
+    by_kind: Vec<db::items::KindTotal>,
+    total_bytes: i64,
+    folder_count: i64,
+    unreadable: i64,
+    already_renamed: i64,
+    candidates: Vec<FsRenameCandidate>,
+}
+
+/// Walk the root directly — no database, because there may not be one yet.
+/// Mirrors `fs::walk::index`'s filtering (skip `.gallery`, skip OS litter)
+/// without reading a single byte of file content, so it stays fast over a
+/// few hundred thousand files the same way the M0 spike validated the plain
+/// metadata walk was.
+fn scan_filesystem(paths: &LibraryPaths) -> Result<FsScan> {
+    let mut kind_totals: HashMap<&'static str, (i64, i64)> = HashMap::new();
+    // The root itself counts as one folder, matching `fs::walk::index`, which
+    // always inserts a folder row for it.
+    let mut folder_count = 1i64;
+    let mut unreadable = 0i64;
+    let mut already_renamed = 0i64;
+    let mut total_bytes = 0i64;
+    let mut candidates = Vec::new();
+
+    let walker = WalkDir::new(paths.root())
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|entry| !walk::is_skipped_dir(paths, entry));
+
+    for entry in walker {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(_) => {
+                unreadable += 1;
+                continue;
+            }
+        };
+
+        if entry.file_type().is_dir() {
+            if entry.depth() > 0 {
+                folder_count += 1;
+            }
+            continue;
+        }
+        if !entry.file_type().is_file() {
+            continue;
+        }
+
+        let name = entry.file_name().to_string_lossy().to_string();
+        if walk::IGNORED_FILES.contains(&name.to_lowercase().as_str()) {
+            continue;
+        }
+
+        let Ok(meta) = entry.metadata() else {
+            unreadable += 1;
+            continue;
+        };
+        let parent_rel = match entry.path().parent().map(|p| paths.to_rel(p)).transpose() {
+            Ok(rel) => rel.unwrap_or_default(),
+            Err(_) => {
+                unreadable += 1;
+                continue;
+            }
+        };
+
+        let ext = crate::fs::paths::extension_of(&name);
+        let kind = crate::media::Kind::from_ext(&ext);
+        let totals = kind_totals.entry(kind.as_str()).or_insert((0, 0));
+        totals.0 += 1;
+        totals.1 += meta.len() as i64;
+        total_bytes += meta.len() as i64;
+
+        if crate::fs::paths::parse_uuid_disk_name(&name).is_some() {
+            already_renamed += 1;
+            continue;
+        }
+
+        candidates.push(FsRenameCandidate {
+            folder_rel: parent_rel,
+            old_name: name,
+            uuid: uuid::Uuid::new_v4().to_string(),
+            ext,
+        });
+    }
+
+    let by_kind = kind_totals
+        .into_iter()
+        .map(|(kind, (count, bytes))| db::items::KindTotal {
+            kind: kind.to_string(),
+            count,
+            bytes,
+        })
+        .collect();
+
+    Ok(FsScan {
+        by_kind,
+        total_bytes,
+        folder_count,
+        unreadable,
+        already_renamed,
+        candidates,
+    })
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsRenameError {
+    pub folder: String,
+    pub name: String,
+    pub error: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsExecuteReport {
+    pub renamed: i64,
+    pub errors: Vec<FsRenameError>,
+}
+
+/// Run the plan `prepare` staged: batch-rename every candidate on disk,
+/// writing the disaster-recovery record before each batch the same way the
+/// repair path's `execute` does, then mark the library imported. Nothing here
+/// touches a job queue — indexing starts only once the caller opens the
+/// library for real, after this returns.
+///
+/// A file this misses (permission error, vanished mid-flight) is reported but
+/// does not fail the run: it is picked up automatically once indexing starts,
+/// because `imported_at` is already set by the time that happens and the
+/// indexer renames anything odd-named it finds on the way in — see
+/// docs/DESIGN.md#first-import, "After the first import".
+pub fn execute_prepared(
+    pending: &PendingImport,
+    on_progress: &mut dyn FnMut(&ImportProgress),
+) -> Result<FsExecuteReport> {
+    let paths = LibraryPaths::new(&pending.root);
+    paths.ensure_dirs()?;
+
+    let mut report = FsExecuteReport::default();
+    let total = pending.candidates.len() as i64;
+
+    let mut jsonl = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(paths.jsonl_path())?;
+
+    for chunk in pending.candidates.chunks(BATCH as usize) {
+        let records: Vec<JsonlRecord> = chunk
+            .iter()
+            .map(|c| JsonlRecord {
+                uuid: c.uuid.clone(),
+                folder_rel: c.folder_rel.clone(),
+                orig_name: c.old_name.clone(),
+                new_name: c.new_name(),
+            })
+            .collect();
+        append_jsonl(&mut jsonl, &records)?;
+
+        for candidate in chunk {
+            let new_name = candidate.new_name();
+            match rename_one(&paths, &candidate.folder_rel, &candidate.old_name, &new_name) {
+                Ok(RenameOutcome::Renamed) | Ok(RenameOutcome::AlreadyDone) => {
+                    report.renamed += 1;
+                }
+                Ok(RenameOutcome::Missing) => {
+                    report.errors.push(FsRenameError {
+                        folder: candidate.folder_rel.clone(),
+                        name: candidate.old_name.clone(),
+                        error: "file is no longer on disk".to_string(),
+                    });
+                }
+                Err(err) => {
+                    report.errors.push(FsRenameError {
+                        folder: candidate.folder_rel.clone(),
+                        name: candidate.old_name.clone(),
+                        error: err.to_string(),
+                    });
+                }
+            }
+        }
+
+        on_progress(&ImportProgress {
+            done: report.renamed,
+            total,
+            errors: report.errors.len() as i64,
+        });
+    }
+
+    let mut conn = db::open(&paths.db_path())?;
+    db::migrate(&mut conn)?;
+    db::settings::mark_imported(&conn)?;
+
+    Ok(report)
+}
+
+/// `uuid -> orig_name`, read from `library.jsonl`. The only consumer is the
+/// indexer's hash job, for the one moment a freshly renamed file is walked
+/// for the very first time and needs to recover the name the rename itself
+/// already recorded — see `jobs::worker::run_hash`. Best-effort: a missing or
+/// malformed file yields an empty map rather than failing the library open,
+/// since nothing here is required for the rename or the index to be correct,
+/// only for `orig_name` to be filled in rather than falling back to the
+/// UUID name.
+pub fn load_rename_lookup(paths: &LibraryPaths) -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    let Ok(file) = std::fs::File::open(paths.jsonl_path()) else {
+        return map;
+    };
+    for line in BufReader::new(file).lines() {
+        let Ok(line) = line else { continue };
+        if line.trim().is_empty() {
+            continue;
+        }
+        if let Ok(record) = serde_json::from_str::<JsonlRecord>(&line) {
+            map.insert(record.uuid, record.orig_name);
+        }
+    }
+    map
 }
 
 // --- rename on arrival ---------------------------------------------------
@@ -572,8 +927,8 @@ mod tests {
     }
 
     #[test]
-    fn writes_reversal_map_and_reverses_a_scratch_library() {
-        let root = scratch("import-reversal");
+    fn writes_a_disaster_recovery_record_that_can_reconstruct_original_names() {
+        let root = scratch("import-jsonl");
         std::fs::write(root.join("holiday.jpg"), b"data one").unwrap();
         std::fs::write(root.join("cover.png"), b"data two").unwrap();
 
@@ -585,15 +940,16 @@ mod tests {
         execute(&paths, &conn, &mut |_| {}).unwrap();
 
         let jsonl = std::fs::read_to_string(paths.jsonl_path()).unwrap();
-        let records: Vec<ReversalRecord> = jsonl
+        let records: Vec<JsonlRecord> = jsonl
             .lines()
             .filter(|l| !l.trim().is_empty())
             .map(|l| serde_json::from_str(l).unwrap())
             .collect();
         assert_eq!(records.len(), 2);
 
-        // Reverse it by hand, the way `reverse_import` does, and confirm the
-        // library is back to exactly how it started.
+        // No tooling ships to reverse this — per docs/DESIGN.md#first-import,
+        // "No reversal" — but a human with a text editor always has enough
+        // information to put a file back by hand if they ever need to.
         for record in &records {
             let folder_abs = paths.to_abs(&record.folder_rel).unwrap();
             std::fs::rename(
