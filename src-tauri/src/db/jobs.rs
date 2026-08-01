@@ -137,10 +137,15 @@ pub struct Failure {
 /// and a filename, because its item row does not exist yet. Both are resolved
 /// here so the caller gets one shape.
 pub fn failures(conn: &Connection) -> Result<Vec<Failure>> {
+    // Scoped to the three indexing stages: this is a per-file failure panel,
+    // and a retag job's payload (a folder, or an item with nothing wrong
+    // with the file itself) doesn't fit `Failure`'s shape below. A failed
+    // retag is a gap, not surfaced anywhere in M2 — see the M2 plan's job
+    // section.
     let mut stmt = conn.prepare(
         "SELECT j.id, j.type, j.payload, j.attempts, COALESCE(j.error, 'unknown error')
            FROM job j
-          WHERE j.status = 'failed'
+          WHERE j.status = 'failed' AND j.type IN ('hash', 'thumb', 'sprite')
           ORDER BY j.id",
     )?;
 

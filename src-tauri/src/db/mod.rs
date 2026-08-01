@@ -6,6 +6,7 @@ pub mod items;
 pub mod jobs;
 pub mod journal;
 pub mod settings;
+pub mod tags;
 
 use std::path::Path;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -15,7 +16,10 @@ use rusqlite::Connection;
 use crate::error::Result;
 
 /// Numbered migrations, applied in order, never edited once shipped.
-const MIGRATIONS: &[(i64, &str)] = &[(1, include_str!("migrations/001_initial.sql"))];
+const MIGRATIONS: &[(i64, &str)] = &[
+    (1, include_str!("migrations/001_initial.sql")),
+    (2, include_str!("migrations/002_folder_metadata.sql")),
+];
 
 /// Open a connection with the pragmas the whole app assumes. Every thread that
 /// touches the database opens its own; WAL makes that safe for one writer and
