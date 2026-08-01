@@ -246,6 +246,22 @@ pub fn run() {
             commands::import::prepare_import,
             commands::import::execute_prepared_import,
             commands::import::cancel_prepared_import,
+            commands::folders::get_folder,
+            commands::folders::set_folder_title,
+            commands::folders::set_folder_status,
+            commands::folders::set_folder_favorite,
+            commands::folders::set_folder_notes,
+            commands::folders::apply_folder_archetype,
+            commands::folders::set_folder_label,
+            commands::folders::add_folder_flag,
+            commands::folders::remove_folder_tag,
+            commands::folders::list_folder_statuses,
+            commands::folders::list_archetypes,
+            commands::folders::scan_folder_name_parse,
+            commands::folders::apply_folder_name_parse,
+            commands::tags::item_effective_tags,
+            commands::tags::add_item_tag,
+            commands::tags::remove_item_tag,
         ])
         .setup(|app| {
             build_window(app.handle())?;
