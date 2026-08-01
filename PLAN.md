@@ -296,11 +296,14 @@ Four scope decisions, settled:
   working. M2.5 deletes it.
 - **The scale check is DB-only and permanent.** A test helper that inserts synthetic
   folders, items and tags into a scratch database — no files on disk, since M2 adds no IO
-  or decode paths. Feeds `#[ignore]`d tests alongside the existing `scale_check_100k_items`,
-  so `cargo test -- --ignored` is the standing check for every later milestone. Measure the
-  invalidation paths, not just the initial build: a root-level folder tag edit, a folder
-  move with many descendants, the folder tree with recursive counts, and a tag-filtered
-  item query.
+  or decode paths. Measure the invalidation paths, not just the initial build: a root-level
+  folder tag edit, a folder move with many descendants, the folder tree with recursive
+  counts, and a tag-filtered item query.
+
+  Shipped as the `synth_library` binary, which is good for ad-hoc runs at any size. It
+  needs a companion **`#[ignore]`d test** calling the same generator at a fixed size and
+  asserting the budgets, so `cargo test -- --ignored` stays the single standing gate
+  alongside `scale_check_100k_items`. A check nobody remembers to run is not a check.
 
 **The effective-tag rebuild is a job, never a synchronous command.** A tag edit on a
 top-level folder invalidates the whole library. Inside a `#[tauri::command]` that freezes
@@ -356,6 +359,17 @@ This phase is deliberately conversational, and how much is asked matters:
 - **Never assume.** No blind choices on anything that shapes how the app is used.
 
 #### Phase 2 — Build. Only after the design is approved.
+
+**Set up frontend testing here**, not earlier. `vitest` plus `@testing-library/react` with
+the IPC layer mocked, covering interaction rather than appearance: does picking an
+archetype call the right command, does editing a label persist, does adding a flag update
+the tag set. That is exactly the class of bug M2 hit — an archetype dropdown that focused
+the notes field instead of registering the selection — and it is invisible to Rust tests
+and to `tsc`.
+
+It waits for M2.5 because this milestone replaces the interface wholesale; tests written
+against M2's throwaway UI would be thrown away with it. From M2.5 onward the UI is stable
+enough to be worth testing, and every later milestone inherits the harness.
 
 Then implement it, including the surfaces waiting on this milestone: the preview panel,
 theatre view with left/right navigation and a filmstrip, resizable panels, and right-click

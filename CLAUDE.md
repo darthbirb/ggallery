@@ -77,6 +77,17 @@ For the same reason, keep commands single where it costs nothing. Chaining unrel
 work with `&&` or `;` produces a string that matches nothing and prompts, even when every
 part of it is individually allowed.
 
+## Verifying the app
+
+**Never drive the user's mouse or keyboard.** Do not move the cursor, click at guessed
+coordinates, or send keystrokes to a running window. It is unreliable — coordinates drift,
+the wrong control gets focus, and the result is a confident report of something that never
+happened — and it takes over a machine someone else is using.
+
+Launching the built binary and taking a screenshot is fine. Interacting with it is not.
+When a milestone needs interactive behaviour confirmed, list the specific steps and ask
+the user to run them.
+
 ## Finishing a milestone
 
 **Always run a full release build before reporting a milestone done** — frontend included,
