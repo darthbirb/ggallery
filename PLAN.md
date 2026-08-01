@@ -77,10 +77,34 @@ tags, labels and search live on top. One root folder holds everything, so backup
     they surface as architecture, and finding one after four dependent milestones is the
     expensive way.
 
+21. **The app ships with no domain vocabulary.** No seeded archetypes, no named field
+    types, no folder-name conventions, nothing that assumes what the library is *of*.
+    "Person", "instagram", "Place", "Event" and every example in these documents are
+    illustrations of how someone might use the app — they are never strings in the
+    product. Archetypes, labels, flags and status values are created by the user, starting
+    from empty.
+
+    This is the rule that was broken twice: a migration that seeded a Person archetype with
+    social-platform fields, and a "parse folder names" action built around one specific
+    naming habit. Both are the same mistake — one user's current data shape promoted into
+    product behaviour. When a feature only makes sense if you already know what the user
+    collects, it does not belong in the app.
+
+22. **Every noun needs a full lifecycle, written down as operations.** If the specs describe
+    something the user can have — a folder, a tag, an archetype, a saved search, a status
+    value — they must also describe creating, renaming, and removing it, as capabilities in
+    their own right. Describing an operation only as an entry in some future context menu
+    is how folder creation went missing for nine milestones: the menu item was specced
+    twice and the capability never once.
+
 ## Non-goals
 
 Deliberately excluded. Do not build these without an explicit decision to reverse:
 
+- **Folder-name parsing.** A migration action that split directory names like
+  `Name (@handle)` into a title and typed fields. Removed: the library is built inside the
+  app rather than imported from an existing convention, and the feature only made sense if
+  you already knew what the folders were named after. Violates decision 21.
 - **Subscriptions / auto-checking sources for new content.** Downloads are manual:
   paste a URL, it downloads. Per-item download history is still recorded and
   searchable, but nothing runs on a schedule.
@@ -323,18 +347,41 @@ Also carries three small items deferred from earlier milestones:
 - **Animated GIF classification.** `media/mod.rs` classifies every GIF as `kind = image`;
   locked decision 17 requires animated GIF, WebP and APNG to index as `kind = video`.
 
-### M2.1 — Folder and item operations
+### M2.1 — Operations, and a vocabulary the user owns
 
-**M2 built a metadata layer over a folder hierarchy the app cannot change.** There is no
-way to create a folder, rename one, move one, delete one, or move items between them. The
-gap comes from the specs: folder creation appears only inside the sidebar's right-click
-menu (M2.5) and the triage flow (M4), so it was described twice as a menu item and never
-once as a capability.
+Two failures found together, both fixed here.
 
-For a folder-based organiser this is not a missing nicety. Fix it before M2.5 designs an
-interface for operations that do not exist.
+**The app cannot change the thing it organises.** No way to create a folder, rename one,
+move one, delete one, or move items between them. Folder creation appears in the specs
+only inside the sidebar's right-click menu (M2.5) and the triage flow (M4) — described
+twice as a menu item, never once as a capability. Decision 22 now forbids that shape.
 
-Specified in [docs/DESIGN.md](docs/DESIGN.md) §1 *Folder operations*:
+**The app ships someone's domain.** The migration seeds `Person`, `Place` and `Event`
+archetypes with `instagram`, `tiktok`, `youtube` and `twitter` fields, and Settings offers
+a "parse folder names" action built around one naming habit. Decision 21 now forbids that
+too.
+
+#### Remove
+
+- **Folder-name parsing, entirely** — modal, command, backend, docs. It is a migration tool
+  for a library that will be built inside the app rather than imported.
+- **Seeded archetypes and their fields** from `002_folder_metadata.sql`. Ship none.
+  Existing test libraries need a migration that drops them.
+- **Platform knowledge from the `handle` field type.** It becomes text matched with or
+  without a leading `@` — no auto-linking, no platform. Links use `url`.
+
+#### Add, because removing the seeds requires it
+
+- **Archetype management** in Settings: create, rename, delete, and add, reorder or remove
+  typed fields, with the "N folders use this — add the field to them?" prompt on edit and a
+  named confirmation before removing a field that holds values. With nothing seeded, an
+  editor is no longer optional.
+- **Folder status management**: rename, recolour, reorder, add and remove status values.
+
+#### Folder and item operations
+
+Specified in [docs/DESIGN.md](docs/DESIGN.md) §1 *Folder operations*, *Item operations* and
+*Selection*:
 
 - **Create** a folder — directory plus record, optional archetype.
 - **Rename** — title and directory name are independent. Retitling touches the record
@@ -344,6 +391,14 @@ Specified in [docs/DESIGN.md](docs/DESIGN.md) §1 *Folder operations*:
 - **Move items** between folders — real file move, `folder_id` update, tag-cache rebuild.
 - **Delete** to `.gallery/trash/` with relative paths preserved. Never a hard delete; this
   pulls `fs/trash.rs` forward from M4.
+- **Delete items** from the grid, not only from triage and theatre view.
+- **Reveal in Explorer** and **open with the default application** — the escape hatches an
+  app that renames everything to a UUID owes the user.
+- **Copy** the file or its absolute path to the clipboard.
+- **Select all, invert, clear**, each bound, with a live selection count.
+- **Rename and delete a tag.** Tags are created inline from M2 onward, so without this a
+  typo is permanent until M8's management screen. The full screen — merge, aliases, usage
+  counts — stays in M8; this is the minimum that stops the vocabulary rotting.
 
 Everything here is **journalled**, so M4's replayer covers it retroactively. Path rewrites
 across a large subtree are a job, not a synchronous command — same reasoning as the

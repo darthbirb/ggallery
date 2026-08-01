@@ -50,6 +50,26 @@ rebuild for that item.
 **All of these are journalled** so `Ctrl+Z` reaches them once the replayer lands. Renames
 of *files* remain the exception — see §10.
 
+### Item operations
+
+Beyond moving and tagging, the operations any file manager is expected to have, and which
+this one needs because filenames on disk are opaque UUIDs:
+
+- **Delete** the selection to `.gallery/trash/`. Available from the grid, not only from
+  triage and theatre view.
+- **Reveal in Explorer** — opens the containing folder with the file selected. The single
+  most useful escape hatch in an app that renames everything to a UUID.
+- **Open with the default application** — hand the file to whatever the OS associates with
+  it, for the cases this app deliberately does not handle.
+- **Copy** the file, or its absolute path, to the clipboard.
+
+### Selection
+
+Click selects, shift-click extends a range, ctrl-click toggles one, drag draws a marquee.
+Beyond that: **select all**, **invert selection**, and **clear selection**, each with a
+keyboard binding, plus a live count of what is selected. Every item operation above acts
+on the whole selection.
+
 ### Tags
 
 Two shapes, one system:
@@ -87,23 +107,33 @@ applied. See [DATA-MODEL.md](DATA-MODEL.md#tag-resolution).
 
 ### Archetypes
 
-A named set of field definitions. Managed in Settings.
+A named set of field definitions, created and managed entirely by the user.
 
-```
-Person   → instagram (handle), tiktok (handle), youtube (handle), twitter (handle)
-Place    → city (text), country (text), visited (date)
-Event    → date (date), location (text)
-```
+**The app ships with none.** There is no seeded archetype, no suggested name, no example
+in the interface — see locked decision 21. Any archetype named in these documents is an
+illustration of how someone *might* use the feature, never a string in the product.
 
-Field types are `text`, `handle`, `url`, `date`, `number`. `handle` renders as a link to
-the platform profile and strips a leading `@` for matching purposes.
+Field types are `text`, `handle`, `url`, `date`, `number`. `handle` is text matched with or
+without a leading `@`; it carries no knowledge of any platform and does not auto-link. A
+field that should be a link uses `url`.
 
-Creating a folder offers an archetype picker. Choosing one creates the labels with empty
-values, visible and waiting in the folder header.
+**Archetypes have a full lifecycle**, managed in Settings: create, rename, delete, and
+add, reorder or remove fields.
 
-Editing an archetype later prompts: *"3 folders use Person. Add the new field to them?"*
-Removing a field never deletes existing values without an explicit confirmation that
-names the affected folders.
+Creating a folder offers an archetype picker, which is empty until the user has made one.
+Choosing an archetype creates its labels with empty values, visible and waiting in the
+folder header.
+
+Editing an archetype prompts before touching folders that use it — *"3 folders use this
+archetype. Add the new field to them?"* Removing a field never deletes existing values
+without an explicit confirmation naming the affected folders.
+
+### Folder status
+
+The status set is user-defined too, with the same rule: the app ships with a small
+unopinionated default set that can be renamed, recoloured, reordered, extended or removed
+in Settings. Status names describe workflow state, not subject matter, so a default set is
+safe where a default archetype is not — but it is still fully editable.
 
 ### Items
 
