@@ -1,17 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Grid } from "./features/grid/Grid";
 import { FailureList } from "./features/indexing/FailureList";
 import { IndexStatus } from "./features/indexing/IndexStatus";
-import { ImportWizard } from "./features/import/ImportWizard";
+import { NormaliseFilenamesModal } from "./features/import/NormaliseFilenamesModal";
+import { ProgressScreen } from "./features/import/ProgressScreen";
+import { ReviewScreen } from "./features/import/ReviewScreen";
 import { SettingsPanel } from "./features/settings/SettingsPanel";
 import { Sidebar } from "./features/sidebar/Sidebar";
 import { formatCount } from "./lib/format";
-import * as ipc from "./lib/ipc";
 import { useLibrary } from "./state/library";
 import { TILE_SIZES, useUi } from "./state/ui";
-
-type ImportWizardMode = "auto" | "manual";
 
 export default function App() {
   const library = useLibrary();
@@ -19,54 +18,57 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showFailures, setShowFailures] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [importWizardMode, setImportWizardMode] =
-    useState<ImportWizardMode | null>(null);
+  const [showNormalise, setShowNormalise] = useState(false);
+  const [backupConfirmed, setBackupConfirmed] = useState(false);
+  const [starting, setStarting] = useState(false);
 
   // A run that fixed everything should not leave the panel open on nothing.
   useEffect(() => {
     if (library.failures.length === 0) setShowFailures(false);
   }, [library.failures.length]);
 
-  // The wizard is a step in opening a library, not a permanent control — see
-  // docs/DESIGN.md#first-import. Once the index has settled, check whether
-  // this library has ever been imported; if it needs the ceremony, offer it;
-  // if there is nothing to rename at all (an empty library, or one already
-  // all UUID-named), just stamp it imported and never ask again. Guarded to
-  // run once per opened library.
-  const checkedImportFor = useRef<string | null>(null);
-  // A brand-new library's very first progress read is "idle" too — nothing
-  // has been queued yet, before the walk even starts — indistinguishable
-  // from "idle because indexing finished" by phase alone. For a library that
-  // started empty, an idle reading is only trustworthy once a busy phase has
-  // been seen for it first; a library that already had items at open time
-  // never had that race, so its first idle reading is trusted immediately.
-  const everBusyFor = useRef<string | null>(null);
+  // Once the rename actually starts, `flowPhase` takes over as the Progress
+  // screen — reset the local "starting" flag so it's fresh if the flow is
+  // ever re-entered (a later cancel, a different folder).
   useEffect(() => {
-    const root = library.info?.root ?? null;
-    if (!root || !library.progress) return;
+    if (library.flowPhase !== "idle") setStarting(false);
+  }, [library.flowPhase]);
 
-    if (library.progress.phase !== "idle") {
-      everBusyFor.current = root;
-      return;
-    }
-    const trustworthy = library.info!.itemCount > 0 || everBusyFor.current === root;
-    if (!trustworthy || checkedImportFor.current === root) return;
-    checkedImportFor.current = root;
+  // Choose folder → Review → Progress → Gallery, as full-window screens in
+  // the picker's own visual language — see docs/DESIGN.md#first-import.
+  // `flowPhase` is checked first: the moment Import is confirmed it flips to
+  // "renaming" while `pendingReview` is still being cleared underneath it.
+  if (library.flowPhase !== "idle") {
+    return (
+      <ProgressScreen
+        phase={library.flowPhase}
+        renameProgress={library.renameProgress}
+        indexProgress={library.progress}
+      />
+    );
+  }
 
-    (async () => {
-      try {
-        const scan = await ipc.scanImport();
-        if (scan.importedAt !== null) return;
-        if (scan.toRename === 0) {
-          await ipc.markImported();
-          return;
-        }
-        setImportWizardMode("auto");
-      } catch {
-        // Best-effort — a failed check here should not block using the app.
-      }
-    })();
-  }, [library.info, library.progress]);
+  if (library.pendingReview) {
+    return (
+      <ReviewScreen
+        path={library.pendingReview.path}
+        report={library.pendingReview.report}
+        confirmed={backupConfirmed}
+        onConfirmedChange={setBackupConfirmed}
+        busy={starting}
+        error={library.error}
+        onCancel={() => {
+          setBackupConfirmed(false);
+          library.cancelImport();
+        }}
+        onImport={() => {
+          setStarting(true);
+          library.confirmImport(backupConfirmed);
+          setBackupConfirmed(false);
+        }}
+      />
+    );
+  }
 
   if (!library.info) {
     return <Welcome library={library} />;
@@ -138,22 +140,18 @@ export default function App() {
         </span>
       </header>
 
-      {importWizardMode && (
-        <ImportWizard
-          title={importWizardMode === "manual" ? "Normalise filenames" : undefined}
-          dismissable={importWizardMode === "manual"}
-          onClose={() => setImportWizardMode(null)}
-        />
-      )}
-
       {showSettings && (
         <SettingsPanel
           onClose={() => setShowSettings(false)}
           onNormaliseFilenames={() => {
             setShowSettings(false);
-            setImportWizardMode("manual");
+            setShowNormalise(true);
           }}
         />
+      )}
+
+      {showNormalise && (
+        <NormaliseFilenamesModal onClose={() => setShowNormalise(false)} />
       )}
 
       <div className="grid min-h-0 grid-cols-[214px_1fr]">
@@ -198,6 +196,38 @@ export default function App() {
               <button
                 type="button"
                 onClick={library.dismissError}
+                className="ml-auto text-fg-dim hover:text-fg"
+              >
+                dismiss
+              </button>
+            </div>
+          )}
+
+          {library.verifyIssue && (
+            <div className="flex items-center gap-3 border-b border-line bg-raised px-3 py-1.5 text-danger">
+              Import verification found a problem:{" "}
+              {formatCount(library.verifyIssue.countRenamed)} of{" "}
+              {formatCount(library.verifyIssue.countTotal)} items carry a
+              UUID name
+              {library.verifyIssue.mismatches.length > 0 && (
+                <>
+                  , {formatCount(library.verifyIssue.mismatches.length)}{" "}
+                  sampled file
+                  {library.verifyIssue.mismatches.length === 1 ? "" : "s"} did
+                  not match its recorded hash
+                </>
+              )}
+              {library.verifyIssue.missing.length > 0 && (
+                <>
+                  , {formatCount(library.verifyIssue.missing.length)} sampled
+                  file{library.verifyIssue.missing.length === 1 ? "" : "s"}{" "}
+                  could not be found at its new path
+                </>
+              )}
+              .
+              <button
+                type="button"
+                onClick={library.dismissVerifyIssue}
                 className="ml-auto text-fg-dim hover:text-fg"
               >
                 dismiss

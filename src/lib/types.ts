@@ -140,3 +140,38 @@ export interface VerifyReport {
   countTotal: number;
   countRenamed: number;
 }
+
+// --- M1.7 startup flow ---------------------------------------------------
+//
+// Filesystem-only: these run before a library is ever opened, so the report
+// shape below only exists as `RenameFsError`/`FsExecuteReport` — see
+// src-tauri/src/fs/import.rs.
+
+/** What `prepareImport` found — the Review screen's whole content. */
+export interface ReviewReport {
+  /** True when this library needs no ceremony at all — already imported, or
+   *  nothing to rename. The caller skips Review and Progress and opens
+   *  straight into the gallery. */
+  alreadyImported: boolean;
+  byKind: KindTotal[];
+  totalItems: number;
+  totalBytes: number;
+  folderCount: number;
+  /** Entries the scan could not read at all. */
+  unreadable: number;
+  alreadyRenamed: number;
+  toRename: number;
+  /** Five rows, not a full manifest. */
+  sample: RenamePreview[];
+}
+
+export interface FsRenameError {
+  folder: string;
+  name: string;
+  error: string;
+}
+
+export interface FsExecuteReport {
+  renamed: number;
+  errors: FsRenameError[];
+}

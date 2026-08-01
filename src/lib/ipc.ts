@@ -12,12 +12,14 @@ import type {
   DryRunReport,
   ExecuteReport,
   FolderNode,
+  FsExecuteReport,
   GridItem,
   ImportProgress,
   IndexFailure,
   LibraryInfo,
   LibraryStatus,
   Progress,
+  ReviewReport,
   ScanReport,
   VerifyReport,
 } from "./types";
@@ -110,6 +112,26 @@ export function onImportProgress(
   return listen<ImportProgress>(IMPORT_PROGRESS_EVENT, (event) =>
     handler(event.payload),
   );
+}
+
+// --- M1.7 startup flow ------------------------------------------------
+
+/** Choose folder → this. Filesystem-only — no library is opened yet. */
+export function prepareImport(path: string): Promise<ReviewReport> {
+  return invoke<ReviewReport>("prepare_import", { path });
+}
+
+export function executePreparedImport(
+  confirmedBackup: boolean,
+): Promise<FsExecuteReport> {
+  return invoke<FsExecuteReport>("execute_prepared_import", {
+    confirmedBackup,
+  });
+}
+
+/** Review → Cancel. Discards the staged plan; nothing to undo on disk. */
+export function cancelPreparedImport(): Promise<void> {
+  return invoke<void>("cancel_prepared_import");
 }
 
 /** Absolute cache path to something the webview can load. */
