@@ -61,6 +61,15 @@ impl Library {
         // Jobs abandoned by a crash go back in the queue.
         db::jobs::requeue_running(&conn)?;
 
+        // Only worth reading while a library is still mid-first-import: once
+        // `imported_at` is set, every row the walker can still create fresh
+        // already carries its real name, so the lookup would only ever miss.
+        let rename_lookup = if db::settings::imported_at(&conn)?.is_none() {
+            fs::import::load_rename_lookup(&paths)
+        } else {
+            Default::default()
+        };
+
         // The webview may read thumbnails and sprites, and nothing else. The
         // library's own media is not exposed until a viewer needs it (M2).
         let _ = app
@@ -68,7 +77,13 @@ impl Library {
             .allow_directory(paths.cache_dir(), true);
 
         let tools = Tools::discover();
-        let queue = JobQueue::start(app, paths.clone(), tools.clone(), paths.db_path())?;
+        let queue = JobQueue::start(
+            app,
+            paths.clone(),
+            tools.clone(),
+            paths.db_path(),
+            rename_lookup,
+        )?;
 
         Ok(Library {
             paths,
@@ -127,6 +142,10 @@ impl LockFile {
 #[derive(Default)]
 pub struct AppState {
     library: RwLock<Option<Arc<Library>>>,
+    /// The M1.7 startup flow's scan result, held between `prepare_import` and
+    /// `execute_prepared_import` — there is no `Library` yet at this point,
+    /// so it cannot live alongside one. See `fs::import::PendingImport`.
+    pending_import: Mutex<Option<fs::import::PendingImport>>,
 }
 
 impl AppState {
@@ -157,6 +176,30 @@ impl AppState {
     pub fn take(&self) -> Option<Arc<Library>> {
         self.library.write().ok().and_then(|mut slot| slot.take())
     }
+
+    pub fn set_pending_import(&self, pending: fs::import::PendingImport) -> Result<()> {
+        let mut slot = self
+            .pending_import
+            .lock()
+            .map_err(|_| AppError::invalid("pending import state is poisoned"))?;
+        *slot = Some(pending);
+        Ok(())
+    }
+
+    /// Takes the plan rather than cloning it — a plan is only ever consumed
+    /// once, by the execute step that follows the review it was built for.
+    pub fn take_pending_import(&self) -> Result<Option<fs::import::PendingImport>> {
+        Ok(self
+            .pending_import
+            .lock()
+            .map_err(|_| AppError::invalid("pending import state is poisoned"))?
+            .take())
+    }
+
+    pub fn clear_pending_import(&self) -> Result<()> {
+        self.take_pending_import()?;
+        Ok(())
+    }
 }
 
 pub fn run() {
@@ -178,6 +221,9 @@ pub fn run() {
             commands::import::execute_import,
             commands::import::verify_import,
             commands::import::mark_imported,
+            commands::import::prepare_import,
+            commands::import::execute_prepared_import,
+            commands::import::cancel_prepared_import,
         ])
         .setup(|app| {
             build_window(app.handle())?;
