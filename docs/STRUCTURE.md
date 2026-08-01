@@ -49,6 +49,7 @@ commands/             every #[tauri::command] lives here and nowhere else
   mod.rs
   library.rs          open, close, pick root, status
   items.rs            paged queries, item metadata
+  import.rs           M1.5 — scan, dry run, execute, verify for the UUID rename
   folders.rs          CRUD, tags, archetypes, status, cover
   tags.rs             create, rename, merge, alias
   search.rs           run a parsed query
@@ -65,7 +66,9 @@ db/
   folders.rs
   jobs.rs             queue storage — claim, complete, fail, counts
   tags.rs             includes effective-tag materialisation and invalidation
-  journal.rs          undo stack
+  journal.rs          undo stack. M1.6 adds the one writer renames need;
+                      M4 adds the rest (move, trash, tag) and the replayer behind Ctrl+Z
+  settings.rs         M1.6 — the generic `setting` table's first real use: `imported_at`
 
 media/
   mod.rs              Kind, and extension classification
@@ -83,6 +86,10 @@ fs/
   mod.rs
   paths.rs            relative-path normalisation — see below
   walk.rs             library indexer
+  import.rs           M1.5 — the UUID rename: scan, dry run, batched execute, verify.
+                      M1.6 adds `rename_on_arrival`, the per-file version the indexer
+                      (and, once M4 builds it, the watcher) calls for anything arriving
+                      after the library is marked imported
   watch.rs            filesystem watcher
   trash.rs            soft delete and restore
 
@@ -97,6 +104,12 @@ query/
   lexer.rs
   ast.rs
   compile.rs          AST → SQL
+
+bin/
+  reverse_import.rs   M1.5 — standalone reversal tool, reads library.jsonl only.
+                      Deliberately its own binary (`cargo run --bin reverse_import`),
+                      independent of the database and the rest of the app, because
+                      it exists for the case where one of those is what broke.
 ```
 
 ### Boundaries that matter
@@ -150,6 +163,12 @@ features/             one folder per surface in DESIGN.md
     layoutWorker.ts
   sidebar/
   indexing/           index progress readout and the per-file failure list
+  import/             M1.5 — the first-import wizard (scan, dry run, backup ack,
+                      execute, verify). M1.6 makes it a step in opening an
+                      unimported library rather than a standing button, and reuses
+                      it for the Settings → Normalise filenames repair case
+  settings/           M1.6 — deliberately minimal, just Normalise filenames for now;
+                      the real Settings screen is M9's job
   folder/             folder header, archetype fields, status
   preview/            the resizable right panel — preview, details, tags
   search/
@@ -189,10 +208,12 @@ functions, so a backend signature change breaks at compile time in one place.
 | --- | --- |
 | M1 | scaffold, `config`, `error`, `commands/{library,items,jobs}`, `db/` + migrations, `fs/{paths,walk}`, `media/`, `jobs/`, `sidecar/{mod,ffmpeg}`, `features/grid`, `features/sidebar` |
 | M1.1 | `features/indexing`, `db/jobs` failure reporting, `media::open_image_reader` |
-| M1.5 | `fs/import.rs`, the reversal script, first-run wizard UI |
-| M2 | `commands/folders`, `commands/tags`, `db/tags`, `features/folder`, `features/preview`, `features/theatre` |
+| M1.5 | `fs/import.rs`, `commands/import.rs`, `src/bin/reverse_import.rs`, `features/import` |
+| M1.6 | `db/settings.rs`, `db/journal.rs` (rename writer only), `fs::import::rename_on_arrival`, `features/settings` |
+| M2 | `commands/folders`, `commands/tags`, `db/tags`, `features/folder` |
+| M2.5 | `components/` from shadcn/ui, `features/preview`, `features/theatre` |
 | M3 | `query/`, `commands/search`, `features/search` |
-| M4 | `commands/triage`, `db/journal`, `fs/trash`, `features/triage` |
+| M4 | `commands/triage`, `db/journal` (move/trash/tag writers, the Ctrl+Z replayer), `fs/trash`, `features/triage` |
 | M5 | `sidecar/ytdlp`, `sidecar/gallerydl`, `commands/downloads`, `features/downloads` |
 | M6 | `sidecar/handbrake`, `commands/compression`, `features/review` |
 | M7 | `media/hash` perceptual work, `commands/duplicates`, `features/duplicates` |

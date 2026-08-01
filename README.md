@@ -155,8 +155,11 @@ docs/
 | M0 | Grid performance spike | Complete — architecture validated, two defects located |
 | M1 | Core library — index, hash, thumbnails, job queue, grid. Read-only | Built |
 | M1.1 | M1 defects — index failures, stale state, scrollbars, context menu | Built |
-| M1.5 | First-import wizard — the UUID rename, with dry run and reversal | Next |
-| M2 | Folders as entities — archetypes, tag inheritance, preview panel, real UI | |
+| M1.5 | First-import wizard — the UUID rename, with dry run and reversal | Built |
+| M1.6 | Wizard placement, rename on arrival, dev-mode grid | Built |
+| M1.7 | Import as a startup flow — two screens, no reversal tooling | Next |
+| M2 | Folders as entities — archetypes, labels, tag inheritance | |
+| M2.5 | The interface — shadcn/ui, preview panel, theatre view, right-click menus | |
 | M3 | Search — query parser, sectioned results | |
 | M4 | Sorting Box and triage — hotkey culling, undo, trash | |
 | M5 | Downloads — yt-dlp and gallery-dl integration | |

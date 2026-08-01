@@ -61,7 +61,13 @@ tags, labels and search live on top. One root folder holds everything, so backup
     [docs/mockup.html](docs/mockup.html) is the spec, and `shadcn/ui` — React, Tailwind
     and Radix, exactly this stack — is the component source. Deferred polish is abandoned
     polish.
-19. **Anything that adds a query path is verified against a synthetic library at scale,
+19. **Renaming is a property of indexing, not a one-time event.** Files the app creates
+    are born `<uuid>.<ext>`. Files arriving from outside are renamed as part of being
+    indexed, silently and journalled. The first-import wizard is the same operation run
+    over a whole pre-existing library at once, with a dry run and a backup gate because
+    the scale makes it dangerous — it is offered while opening an unimported library and
+    disappears afterwards. It is never a standing button.
+20. **Anything that adds a query path is verified against a synthetic library at scale,
     not just the test folder.** The working library is a few hundred files and will stay
     that way for a while, so nothing will feel slow during development. A query that is
     instant over 198 rows can be catastrophic over 100k with joins — and the effective-tag
@@ -180,6 +186,50 @@ against M1's `disk_name` fallback rather than the actual filename model.
 
 Build the reversal script **before** the rename runs for real. Assume it will be needed.
 
+### M1.6 — Wizard placement, and rename on arrival
+
+Two things M1.5 left in the wrong shape:
+
+- The wizard is a permanent "First import" button. It should be a step in opening a
+  library that has never been imported — detected from the absence of an `imported_at`
+  marker plus non-UUID filenames — and then gone from the interface. Settings keeps a
+  **Normalise filenames** action for the repair case.
+- Nothing renames files that arrive *after* the import. Pull the wizard's per-file rename
+  out of `fs/import.rs` so the indexer and watcher use it too: anything entering an
+  imported library gets a UUID name as part of being indexed, silently, journalled, with
+  `orig_name` preserved. Files the app writes itself are born UUID-named and skip this
+  path entirely.
+
+Specified in [docs/DESIGN.md](docs/DESIGN.md#first-import) under *After the first import*.
+
+Also fix the **blank grid in dev mode** found during M1.5 — an asset-protocol quirk that
+does not affect release builds. Worth clearing now rather than living with it: every
+milestone from here uses the dev loop, and a dev mode that cannot show the grid pushes
+sessions toward release-only testing, which is slow enough to discourage testing at all.
+
+### M1.7 — Import as a startup flow
+
+M1.5 and M1.6 built the right operation behind the wrong interface. Rewrite it against the
+revised [docs/DESIGN.md](docs/DESIGN.md#first-import) §10:
+
+- **Full-window screens, not a modal.** Choose folder → Review → Progress → Gallery, in
+  the picker's visual language. The import currently renders over a gallery that is already
+  indexing and generating thumbnails for files it is about to rename.
+- **Nothing is written before the rename.** No indexing, no thumbnails, no `.gallery/`
+  content until the library has been normalised. The order becomes rename, then index.
+- **Two screens, one checkbox.** Scan, dry run, backup prompt, execute and verify collapse
+  into a single Review screen — counts, a five-row before/after sample, one backup
+  acknowledgement — plus a Progress screen. Verification runs silently and surfaces only on
+  failure.
+- **Cancel returns to the folder picker.** There is no read-only half-state to maintain.
+- **Delete the reversal tooling.** `src/bin/reverse_import.rs` goes. Original filenames are
+  metadata in `item.orig_name`, shown in each file's details and searchable. The
+  uuid-to-original mapping stays in `library.jsonl` as part of the disaster-recovery export,
+  but reconstructing names is not a feature.
+
+Removing the reversal is what earns the shorter flow: with no undo, the backup
+acknowledgement is the one interruption that carries weight, so everything else can go.
+
 ### M1.1 — M1 defects
 
 Small, and worth clearing before M2 builds on top:
@@ -194,12 +244,16 @@ Small, and worth clearing before M2 builds on top:
 
 ### M2 — Folders as entities
 
-Folder records, titles, archetypes, labels, flags, tag inheritance and the materialised
-effective-tag cache. Folder header UI. Favorites, folder status, notes. The resizable
-preview panel and theatre view with left/right navigation. Resizable sidebar. Right-click
-menus.
+Folder records, titles, archetypes, labels, flags, favorites, folder status, notes, tag
+inheritance and the materialised effective-tag cache. Enough UI to exercise all of it —
+editable fields in the folder header, tags in the existing panel — but the visual pass is
+M2.5.
 
-Theatre view in M2 holds **one item at a time**. Multi-view is M10.
+**Decision 20 applies here more than anywhere.** The effective-tag cache materialises
+roughly ten rows per item; at 100k items that is a million rows, rebuilt on every folder
+move and tag edit. Verify it against a synthetic library at scale before calling this
+done. This is the milestone where a scale problem would be most expensive to find late,
+because everything from M3 onward queries through it.
 
 Also carries two items deferred from earlier milestones:
 
@@ -208,12 +262,26 @@ Also carries two items deferred from earlier milestones:
   Person archetype, as an editable table before anything is applied.
 - **Animated GIF classification.** `media/mod.rs` classifies every GIF as `kind = image`;
   locked decision 17 requires animated GIF, WebP and APNG to index as `kind = video`.
-  Small backend change, correctly out of scope for M1.1, not to be forgotten.
 
-**M2 is also where the interface stops looking like a prototype.** Adopt `shadcn/ui` and
-bring the window to the standard set by [docs/mockup.html](docs/mockup.html) — density,
-type scale, the amber accent used sparingly, panel chrome. Every milestone after this one
-ships at that standard.
+### M2.5 — The interface
+
+The one-time catch-up that makes decision 18 true. Adopt `shadcn/ui` and bring the whole
+window to the standard set by [docs/mockup.html](docs/mockup.html) — density, type scale,
+the amber accent used sparingly, panel chrome, the folder header card.
+
+Then the surfaces that were waiting on it:
+
+- The resizable **preview panel** — preview, details, tags, with a drag handle and
+  persisted width.
+- **Theatre view** with left/right navigation and a filmstrip. One item at a time;
+  multi-view is M10.
+- **Resizable sidebar**, same treatment.
+- **Right-click menus** appropriate to folder, item, selection and empty space.
+
+Separated from M2 deliberately. Folded together, the data work would eat the schedule and
+the interface would arrive as an afterthought — which is precisely the failure mode
+decision 18 exists to prevent. Given its own milestone, it also establishes the component
+vocabulary every later milestone builds from.
 
 ### M3 — Search
 

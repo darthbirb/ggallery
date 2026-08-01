@@ -39,8 +39,10 @@ ffmpeg, HandBrakeCLI, yt-dlp and gallery-dl as sidecar binaries.
   `%APPDATA%`, no installer. The app must run from a USB stick.
 - **Files on disk are named `<uuid>.<ext>`.** The app owns filenames completely. Original
   names are stored in the database as searchable metadata.
-- **Destructive operations need a dry run and an undo path.** Moves, deletes, renames and
-  compressions all go through the journal so `Ctrl+Z` works across restarts.
+- **Destructive operations need an undo path.** Moves, deletes and compressions go through
+  the journal so `Ctrl+Z` works across restarts. **Renames are the exception** — the app
+  owns filenames, so renaming is normalisation rather than a user decision. Original names
+  are kept in `item.orig_name` as metadata, and there is no reversal tooling.
 - **WebView2's data directory must be redirected into the app directory.** Tauri defaults
   it to `%LOCALAPPDATA%\<bundle-id>\`, which breaks the rule above silently.
 - **Heavy Tauri commands are `async fn` + `spawn_blocking`.** A synchronous command blocks

@@ -465,27 +465,91 @@ clean, or on a schedule if you are feeling careful.
 
 <a id="first-import"></a>
 
-Pointing the app at an existing library renames every file to a UUID. That is the most
-destructive operation this app performs and it must be treated as such.
+Pointing the app at a library it has never seen renames every file to a UUID. It happens
+once, before the library is ever shown.
 
-The first-run wizard:
+**It is part of the startup flow, not a dialog over the app.** The sequence is full-window
+screens, in the same visual language as the folder picker — no modal floating above a grid
+that is already loading thumbnails of files about to be renamed. Nothing is indexed, no
+thumbnail is generated, and no `.gallery/` content is written until the rename has run.
+The library is normalised first, then opened.
 
-1. **Scan** — walk the root, report what was found: file counts by type, total size,
-   folder structure, anything unreadable.
-2. **Parse folder names** — existing folders named `Ana (@ana)` are offered as
-   `title: Ana` with `instagram: @ana` extracted into a label, using the Person
-   archetype. Show the proposed mapping as a table and let it be edited or rejected
-   per-row. This is a one-time payoff for the naming convention already in use.
+```
+  ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌─────────┐
+  │  Choose  │ ──▶ │  Review  │ ──▶ │ Progress │ ──▶ │ Gallery │
+  │  folder  │ ◀── │          │     │          │     │         │
+  └──────────┘ Cancel─────────┘     └──────────┘     └─────────┘
+```
 
-   *This step lands with M2, not M1.5 — it needs archetypes to exist. M1.5 ships the
-   rename alone.*
-3. **Dry run** — show exactly what will be renamed, with a sample. Nothing has been
-   written yet.
-4. **Backup prompt** — refuse to proceed without an explicit acknowledgement that a copy
-   exists elsewhere.
-5. **Execute** — rename in batches, writing `library.jsonl` continuously so the mapping
-   from UUID back to original filename survives a crash mid-operation.
-6. **Verify** — re-hash a random sample and confirm counts match before declaring done.
+**Choose folder** — the existing picker.
 
-A `--dry-run` mode and a reversal script that reads `library.jsonl` and restores original
-filenames should both exist before this ships. Assume it will need to be undone once.
+**Review** — one screen, and the only one that asks anything:
+
+- What was found: file count, total size, anything unreadable.
+- What will happen, in one sentence: files are renamed to UUIDs, original names are kept
+  and shown in each file's details.
+- A short before/after sample — five rows, not a full manifest.
+- One checkbox: *I have a backup of this folder.* Nothing proceeds without it.
+- **Cancel** returns to the folder picker. **Import** starts.
+
+**Progress** — rename, then index, then thumbnails, as one continuous readout. Verification
+runs here silently: a random sample is re-hashed and counts are confirmed, surfaced only if
+it fails.
+
+Then the gallery opens.
+
+### Keep it short
+
+The flow above is deliberately two screens and one checkbox. An import wizard that explains
+itself across six panels reads as nervous, and a user who is asked to confirm four times
+stops reading by the third. There is exactly one thing worth interrupting for — that a
+backup exists — because there is no undo.
+
+### No reversal
+
+There is no reversal script and no undo for the import. The app owns filenames; that is
+locked decision 5, and the rename is normalisation rather than an edit the user made.
+
+Original filenames are **metadata**. They live in `item.orig_name`, are searchable, and
+appear in each file's details alongside dimensions and dates. `library.jsonl` still records
+the uuid-to-original mapping as part of the disaster-recovery export, so the information to
+reconstruct original names always exists — but reconstructing them is not a feature, and no
+tooling ships for it.
+
+This is why the backup checkbox is the one confirmation that stays.
+
+### Repairing later
+
+Settings keeps a **Normalise filenames** action: it finds anything in the library that is
+not UUID-named and renames it, through the same single confirmation. That is for when
+something has drifted, not the normal path — see below.
+
+### After the first import
+
+The import is a bulk operation with a confirmation because it touches thousands of files at
+once. **Ongoing arrivals are not that**, and must never require it. Once a library is
+marked imported, anything entering it gets a UUID name as part of being taken in — no
+prompt, no screen, no backup gate. It is one file the user just added, and its original
+name is preserved in `orig_name` like any other.
+
+Renames are not undoable, here or at import. Moves, deletes and compressions are — those
+are decisions the user made, and they go through the journal. A rename is the app applying
+its own naming rule to a file it has taken ownership of.
+
+Files arrive by two routes, and only one of them needs renaming at all:
+
+**The app creates the file.** Downloads (M5), compressed output (M6), converted GIFs (M6),
+anything written by a job. These are named `<uuid>.<ext>` at the moment they are written.
+There is no rename step because there was never a wrong name.
+
+**Something outside the app creates the file.** Pasted into a folder in Explorer, dropped
+onto the window, added through the file picker, or moved in by another tool. The indexer
+and the filesystem watcher rename these on the way in, as part of indexing — the same code
+path the wizard drives in bulk, applied to one file at a time.
+
+The rule that makes this coherent: **renaming is a property of indexing, not a milestone.**
+The import is that same operation run over an entire pre-existing library at once, behind
+one confirmation because the scale makes it worth pausing for. Nothing else needs it.
+
+M1's strict read-only stance was a milestone constraint that ends here. From this point
+the app owns filenames for everything it takes in.
