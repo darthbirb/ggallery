@@ -61,7 +61,6 @@ export interface LibraryController {
   /** Review → Cancel. Back to the picker; nothing on disk has changed. */
   cancelImport: () => void;
   dismissVerifyIssue: () => void;
-  reindex: () => void;
   retry: () => void;
   setScope: (scope: Scope) => void;
   dismissError: () => void;
@@ -250,20 +249,6 @@ export function useLibrary(): LibraryController {
     }
   }, []);
 
-  const reindex = useCallback(async () => {
-    try {
-      // The run clears the previous run's failures as it starts; clearing
-      // them here too keeps the UI from showing a stale list in the gap
-      // before the first progress tick.
-      setFailures([]);
-      loadedFailures.current = 0;
-      await ipc.startIndex();
-      setProgress(await ipc.indexProgress());
-    } catch (err) {
-      setError(ipc.errorMessage(err));
-    }
-  }, []);
-
   const retry = useCallback(async () => {
     try {
       setFailures([]);
@@ -394,7 +379,6 @@ export function useLibrary(): LibraryController {
     confirmImport,
     cancelImport,
     dismissVerifyIssue: () => setVerifyIssue(null),
-    reindex,
     retry,
     setScope,
     dismissError: () => setError(null),

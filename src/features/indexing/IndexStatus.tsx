@@ -22,7 +22,10 @@ export function IndexStatus({
     <span className="flex items-center gap-2 font-mono text-[11px] tabular-nums text-fg-dim">
       {progress.phase === "walking" && (
         <span className="text-fg-mid">
-          scanning · {formatCount(progress.folders)} folders ·{" "}
+          {progress.rescanning
+            ? "rescanning — the watcher lost sync, redoing a full scan"
+            : "scanning"}{" "}
+          · {formatCount(progress.folders)} folders ·{" "}
           {formatCount(progress.filesSeen)} files
         </span>
       )}

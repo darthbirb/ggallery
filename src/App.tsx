@@ -122,15 +122,6 @@ export default function App() {
 
           <button
             type="button"
-            onClick={library.reindex}
-            disabled={progress?.phase !== "idle" && progress !== null}
-            className="rounded-[3px] border border-line px-2 py-0.5 text-fg-mid hover:bg-hover hover:text-fg disabled:opacity-40"
-          >
-            {progress && progress.phase !== "idle" ? "Indexing…" : "Re-index"}
-          </button>
-
-          <button
-            type="button"
             onClick={() => setShowSettings(true)}
             title="Settings"
             className="rounded-[3px] border border-line px-2 py-0.5 text-fg-mid hover:bg-hover hover:text-fg"

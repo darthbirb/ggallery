@@ -55,6 +55,10 @@ export interface Progress {
   failed: number;
   completed: number;
   lastError: string | null;
+  /** True while the current walk is a full reconcile the filesystem watcher
+   *  triggered after an overflow or error, rather than the ordinary startup
+   *  index — see docs/DESIGN.md §10 "The library is live". */
+  rescanning: boolean;
 }
 
 /** One file that failed to index, with the error the decoder actually gave. */
