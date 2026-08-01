@@ -166,6 +166,7 @@ docs/
 | M1.7 | Import as a startup flow — rename before index, two screens, no reversal tooling | Built |
 | M1.8 | The library is live — filesystem watcher, no re-index button | Next |
 | M2 | Folders as entities — archetypes, labels, tag inheritance | |
+| M2.1 | Folder and item operations — create, rename, move, delete | Next |
 | M2.5 | The interface — designed from scratch, interactively | |
 | M3 | Search — query parser, sectioned results | |
 | M4 | Sorting Box and triage — hotkey culling, undo, trash | |

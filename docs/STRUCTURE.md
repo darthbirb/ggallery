@@ -217,6 +217,7 @@ functions, so a backend signature change breaks at compile time in one place.
 | M1.7 | filesystem-only `fs::import::{prepare, execute_prepared}` (rename before a database exists), `commands/import::{prepare_import, execute_prepared_import, cancel_prepared_import}`, `features/import/{ReviewScreen,ProgressScreen,NormaliseFilenamesModal}` — removes `src/bin/reverse_import.rs` |
 | M2 | `commands/folders`, `commands/tags`, `db/tags`, `features/folder`, `bin/synth_library` |
 | M1.8 | `fs/watch.rs`, transient index readout |
+| M2.1 | `fs/trash.rs` (pulled forward from M4), folder/item move and rename in `fs/`, `commands/folders` and `commands/items` extensions |
 | M2.5 | whatever the design phase concludes — `components/`, `features/preview`, `features/theatre` are expected but not assumed |
 | M3 | `query/`, `commands/search`, `features/search` |
 | M4 | `commands/triage`, `db/journal` (move/trash/tag writers, the Ctrl+Z replayer), `fs/trash`, `features/triage` |

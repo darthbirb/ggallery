@@ -323,6 +323,35 @@ Also carries three small items deferred from earlier milestones:
 - **Animated GIF classification.** `media/mod.rs` classifies every GIF as `kind = image`;
   locked decision 17 requires animated GIF, WebP and APNG to index as `kind = video`.
 
+### M2.1 — Folder and item operations
+
+**M2 built a metadata layer over a folder hierarchy the app cannot change.** There is no
+way to create a folder, rename one, move one, delete one, or move items between them. The
+gap comes from the specs: folder creation appears only inside the sidebar's right-click
+menu (M2.5) and the triage flow (M4), so it was described twice as a menu item and never
+once as a capability.
+
+For a folder-based organiser this is not a missing nicety. Fix it before M2.5 designs an
+interface for operations that do not exist.
+
+Specified in [docs/DESIGN.md](docs/DESIGN.md) §1 *Folder operations*:
+
+- **Create** a folder — directory plus record, optional archetype.
+- **Rename** — title and directory name are independent. Retitling touches the record
+  only; renaming the directory moves it on disk and rewrites every descendant `rel_path`.
+- **Move** a folder — descendants follow, and the effective-tag cache rebuilds for the
+  subtree because inherited tags are recomputed from the new ancestry.
+- **Move items** between folders — real file move, `folder_id` update, tag-cache rebuild.
+- **Delete** to `.gallery/trash/` with relative paths preserved. Never a hard delete; this
+  pulls `fs/trash.rs` forward from M4.
+
+Everything here is **journalled**, so M4's replayer covers it retroactively. Path rewrites
+across a large subtree are a job, not a synchronous command — same reasoning as the
+effective-tag rebuild.
+
+UI is disposable scaffolding again: whatever is cheapest to exercise the operations. M2.5
+designs where these controls actually live.
+
 ### M2.5 — The interface, designed from scratch
 
 **This is a design milestone, not a restyling job.** It does not improve the existing

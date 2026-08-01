@@ -28,6 +28,28 @@ A folder is a real directory on disk *and* a record in the database. It has:
 Folders nest arbitrarily. Every folder contributes its title as a tag automatically —
 that is not editable and not removable.
 
+### Folder operations
+
+Folders are created, renamed, moved and deleted from inside the app. Every one of these
+changes the filesystem and the database together, and the filesystem is authoritative:
+
+- **Create** — makes the directory on disk and the record, with an optional archetype.
+- **Rename** — the display title and the directory name are separate. Changing the title
+  alone touches only the record. Renaming the directory moves it on disk, and every
+  descendant's `rel_path` updates with it.
+- **Move** — dragging a folder onto another, or a menu action. Descendant paths and the
+  effective-tag cache both follow, because inherited tags are recomputed from the new
+  ancestry.
+- **Delete** — the folder and its contents go to `.gallery/trash/` with their relative
+  paths preserved. Never a hard delete.
+
+Items move between folders the same way: drag onto a sidebar folder, a menu action, or a
+triage hotkey. A move is a real file move plus a `folder_id` update plus a tag-cache
+rebuild for that item.
+
+**All of these are journalled** so `Ctrl+Z` reaches them once the replayer lands. Renames
+of *files* remain the exception — see §10.
+
 ### Tags
 
 Two shapes, one system:
