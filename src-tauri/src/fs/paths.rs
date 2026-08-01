@@ -106,9 +106,9 @@ impl LibraryPaths {
 
     /// Absolute path of the file backing an item.
     ///
-    /// M1 does not rename anything, so the on-disk name is whatever the user
-    /// already had. M1.5 replaces it with `<uuid>.<ext>`; this function is the
-    /// only thing that needs to change when it does.
+    /// `disk_name` is whatever the user already had, until `fs::import`
+    /// renames it to `<uuid>.<ext>` — this function does not care which, it
+    /// just joins the folder and whatever name the row currently holds.
     pub fn item_path(&self, folder_rel: &str, disk_name: &str) -> Result<PathBuf> {
         Ok(self.to_abs(folder_rel)?.join(disk_name))
     }
