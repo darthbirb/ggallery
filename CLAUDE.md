@@ -66,6 +66,17 @@ for an explicit yes — never commit or push as a convenient last step. `git cle
 push, `git reset --hard` and history rewriting are off the table entirely; if one seems
 necessary, say so and let the user run it.
 
+## Running commands
+
+**Never prefix a command with `cd` or `Set-Location`.** The working directory is already
+the project root. Permission rules match on command *prefixes*, so
+`Set-Location D:\Projects\ggallery; git status` matches no rule at all and prompts, while
+a bare `git status --short` is already allowed. Prefixing defeats the entire allowlist.
+
+For the same reason, keep commands single where it costs nothing. Chaining unrelated
+work with `&&` or `;` produces a string that matches nothing and prompts, even when every
+part of it is individually allowed.
+
 ## Finishing a milestone
 
 **Always run a full release build before reporting a milestone done** — frontend included,

@@ -87,13 +87,13 @@ names the affected folders.
 
 Every file is an item. Filenames on disk are `<uuidv4>.<ext>` — the app owns them
 completely. The original filename is stored in the database, is searchable, and is shown
-in the inspector.
+in the preview panel.
 
 Items carry: captured date (EXIF, container metadata, or file mtime as fallback),
 dimensions, duration, codec, size, content hash, perceptual hash, manual tags, notes,
 and lineage if they came from a compression.
 
-Captured date can be **overridden manually** when it is wrong or missing; the inspector
+Captured date can be **overridden manually** when it is wrong or missing; the preview panel
 shows where the value came from so a guess is never mistaken for metadata.
 
 ### Favorites
@@ -314,7 +314,7 @@ flagged on arrival rather than after you have already sorted them.
   the item and advances. The bar shows pinned destinations first, then most-recently-used.
 - `/` opens a fuzzy destination search when the target isn't on the bar. Typing a name
   that doesn't exist offers **Create folder** inline, with an archetype picker.
-- `Space` skips, `X` trashes, `T` focuses tag entry, `I` toggles the inspector.
+- `Space` skips, `X` trashes, `T` focuses tag entry, `I` toggles the preview panel.
 - `Ctrl+Z` undoes — including across restarts, and undoing a batch as one action.
 - `Tab` switches to grid mode.
 - Video plays automatically, muted, looping. `M` unmutes.

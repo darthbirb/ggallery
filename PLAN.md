@@ -259,7 +259,7 @@ The parts that need care, none of which are the watching itself:
 
 Small, and worth clearing before M2 builds on top:
 
-- **12 items out of 2016 fail to index.** Find out why, per item, and either handle the
+- **Items fail to index with no explanation.** Find out why, per item, and either handle the
   cause or report it in a way that says which files and what went wrong. Thumbnails
   otherwise render correctly — this is about the failures specifically.
 - Failure count and retry affordance persist after a re-index that had no failures.

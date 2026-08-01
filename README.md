@@ -8,8 +8,12 @@ organisation, one portable library folder, integrated downloads, a compression p
 duplicate detection, and a triage flow fast enough to actually use.
 
 > **Status: pre-alpha, but it runs.**
-> M0 (the grid performance spike) is complete and its findings are recorded. M1 is built:
-> the app opens a library folder, indexes it with progress, and scrolls the grid.
+> The core library layer is built through M1.8. The app opens a library folder, imports
+> it, indexes it, and scrolls the grid — and the library stays live: files added, changed
+> or removed on disk by any means show up without a refresh and without a re-index button.
+>
+> Nothing above the file layer exists yet. No folders-as-entities, no tags, no search, no
+> triage. That starts at M2.
 >
 > **Opening a library it has never seen renames every file to a UUID first, then
 > indexes it** — a full-window Choose folder → Review → Progress flow, gated behind one

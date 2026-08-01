@@ -97,12 +97,17 @@ image decode and React commits on the main thread, and costs nothing.
 
 ---
 
-## The two things M0 found that M1 must fix
+## The two defects M0 found — both fixed in M1, keep them fixed
 
 Interaction-tagged re-testing (§1a of [M0-RESULTS.md](M0-RESULTS.md)) turned the earlier
 vague "frame times are mostly fine" into two specific, located defects. Neither
-invalidates the layout architecture above — first paint, relayout and scrubber-jump
-latency all pass with wide margins. Both live in the tile component and the scrubber.
+invalidated the layout architecture above — first paint, relayout and scrubber-jump
+latency all passed with wide margins. Both lived in the tile component and the scrubber,
+and M1 shipped with both addressed.
+
+They are recorded here because the fixes are easy to undo by accident. Anyone who
+reintroduces a React component per tile, or drops the scrubber's per-frame coalescing,
+reintroduces the measurements below.
 
 ### 1. Tile churn triggers GC pauses during fast scrolling — fling fails its target
 
@@ -136,8 +141,8 @@ tile:
 - Keep per-tile decoration (favorite badge, selection ring, duration) as reused nodes
   toggled by class, not conditionally rendered children.
 
-Do this in M1 when the tile component is first written. Retrofitting recycling onto a
-mount/unmount grid means rewriting it.
+Shipped in M1: `grid/Tile.tsx` exports a `TilePool`, not a component. Nothing mounts or
+unmounts while scrolling and React renders no tiles at all.
 
 ### 2. Scrubber drag repaints per jump
 
