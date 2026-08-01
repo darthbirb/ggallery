@@ -4,22 +4,10 @@ version = "0.1.0"
 description = "GGallery — a local-first media library"
 edition = "2021"
 rust-version = "1.77"
-# Tauri's dev/build commands run a bare `cargo run`, which is ambiguous now
-# that `reverse_import` is a second binary — pin the app itself as the one
-# that resolves by default. `cargo run --bin reverse_import` still reaches
-# the reversal tool explicitly.
-default-run = "gallery"
 
 [lib]
 name = "gallery_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
-
-# The M1.5 reversal tool. Deliberately a separate binary rather than a Tauri
-# command: it must still work if the database — or the whole app — is what
-# broke. See docs/DESIGN.md#first-import and src/bin/reverse_import.rs.
-[[bin]]
-name = "reverse_import"
-path = "src/bin/reverse_import.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
