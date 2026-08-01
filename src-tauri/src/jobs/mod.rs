@@ -8,6 +8,7 @@
 pub mod kinds;
 pub mod worker;
 
+use std::collections::HashMap;
 use std::panic::AssertUnwindSafe;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -49,6 +50,11 @@ pub struct Progress {
 pub struct QueueInner {
     pub paths: LibraryPaths,
     pub tools: Tools,
+    /// `uuid -> orig_name` recovered from `library.jsonl`, consulted exactly
+    /// once per file: the first time the walker hashes something already
+    /// named `<uuid>.<ext>` because the M1.7 import rename ran before this
+    /// walk did. See `worker::run_hash` and `fs::import::load_rename_lookup`.
+    pub rename_lookup: HashMap<String, String>,
     app: AppHandle,
     db_path: PathBuf,
     stop: AtomicBool,
@@ -108,10 +114,12 @@ impl JobQueue {
         paths: LibraryPaths,
         tools: Tools,
         db_path: PathBuf,
+        rename_lookup: HashMap<String, String>,
     ) -> Result<JobQueue> {
         let inner = Arc::new(QueueInner {
             paths,
             tools,
+            rename_lookup,
             app,
             db_path,
             stop: AtomicBool::new(false),

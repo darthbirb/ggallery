@@ -105,18 +105,20 @@ pub fn existing(
 /// Insert a fully-probed item, or refresh the existing row for that file.
 ///
 /// The uuid of an existing row is kept — it is the cache key for thumbnails
-/// and sprites, and re-issuing it would orphan them.
+/// and sprites, and re-issuing it would orphan them. `orig_name` is likewise
+/// left untouched on refresh: it is the pre-import filename, recorded once
+/// and never revised just because the file's content changed under the same
+/// name. Only the insert branch below sets it.
 pub fn upsert(conn: &Connection, item: &NewItem) -> Result<i64> {
     if let Some(found) = existing(conn, item.folder_id, &item.disk_name)? {
         conn.execute(
             "UPDATE item
-                SET ext = ?1, orig_name = ?2, hash = ?3, size_bytes = ?4, mtime = ?5,
-                    kind = ?6, width = ?7, height = ?8, duration_ms = ?9, codec = ?10,
-                    bitrate = ?11, captured_at = ?12, captured_src = ?13, deleted_at = NULL
-              WHERE id = ?14",
+                SET ext = ?1, hash = ?2, size_bytes = ?3, mtime = ?4,
+                    kind = ?5, width = ?6, height = ?7, duration_ms = ?8, codec = ?9,
+                    bitrate = ?10, captured_at = ?11, captured_src = ?12, deleted_at = NULL
+              WHERE id = ?13",
             params![
                 item.ext,
-                item.orig_name,
                 item.hash,
                 item.size_bytes,
                 item.mtime,

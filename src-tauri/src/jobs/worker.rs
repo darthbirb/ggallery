@@ -1,6 +1,8 @@
 //! Job execution. Everything here runs on a worker thread with its own
 //! database connection — never on the Tauri command thread.
 
+use std::collections::HashMap;
+
 use rusqlite::Connection;
 
 use crate::db;
@@ -8,7 +10,7 @@ use crate::db::items::NewItem;
 use crate::db::jobs::QueuedJob;
 use crate::error::{AppError, Result};
 use crate::fs::import;
-use crate::fs::paths::{extension_of, LibraryPaths};
+use crate::fs::paths::{extension_of, parse_uuid_disk_name, LibraryPaths};
 use crate::fs::walk;
 use crate::jobs::kinds::{self, HashPayload, ItemPayload};
 use crate::jobs::QueueInner;
@@ -19,7 +21,13 @@ pub fn execute(ctx: &QueueInner, conn: &mut Connection, job: &QueuedJob) -> Resu
     let (paths, tools) = (&ctx.paths, &ctx.tools);
     match job.kind.as_str() {
         kinds::INDEX => run_index(ctx, conn),
-        kinds::HASH => run_hash(paths, tools, conn, serde_json::from_str(&job.payload)?),
+        kinds::HASH => run_hash(
+            paths,
+            tools,
+            &ctx.rename_lookup,
+            conn,
+            serde_json::from_str(&job.payload)?,
+        ),
         kinds::THUMB => run_thumb(paths, tools, conn, serde_json::from_str(&job.payload)?),
         kinds::SPRITE => run_sprite(paths, tools, conn, serde_json::from_str(&job.payload)?),
         other => Err(AppError::invalid(format!("unknown job type {other}"))),
@@ -51,6 +59,7 @@ fn run_index(ctx: &QueueInner, conn: &mut Connection) -> Result<()> {
 pub fn run_hash(
     paths: &LibraryPaths,
     tools: &Tools,
+    rename_lookup: &HashMap<String, String>,
     conn: &mut Connection,
     payload: HashPayload,
 ) -> Result<()> {
@@ -69,9 +78,25 @@ pub fn run_hash(
     let probed = probe::probe(&path, kind, mtime, tools.ffmpeg.as_ref());
 
     let existing = db::items::existing(conn, payload.folder_id, &payload.disk_name)?;
-    let uuid = existing
-        .map(|e| e.uuid)
-        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    // A brand-new row whose name already parses as `<uuid>.<ext>` arrived
+    // that way because the M1.7 import rename ran before this walk did —
+    // reuse the embedded uuid as identity (minting a fresh one here would
+    // desync `disk_name` from `uuid` forever) and recover the real original
+    // name from the rename's own record, since all the walker itself can see
+    // is the name already on disk.
+    let (uuid, orig_name) = match &existing {
+        Some(item) => (item.uuid.clone(), payload.disk_name.clone()),
+        None => match parse_uuid_disk_name(&payload.disk_name) {
+            Some(embedded_uuid) => {
+                let orig_name = rename_lookup
+                    .get(&embedded_uuid)
+                    .cloned()
+                    .unwrap_or_else(|| payload.disk_name.clone());
+                (embedded_uuid, orig_name)
+            }
+            None => (uuid::Uuid::new_v4().to_string(), payload.disk_name.clone()),
+        },
+    };
 
     let item_id = db::items::upsert(
         conn,
@@ -80,7 +105,7 @@ pub fn run_hash(
             folder_id: payload.folder_id,
             disk_name: payload.disk_name.clone(),
             ext,
-            orig_name: payload.disk_name,
+            orig_name,
             hash,
             size_bytes: size,
             mtime,
@@ -205,6 +230,7 @@ mod tests {
                 kinds::HASH => run_hash(
                     &paths,
                     &tools,
+                    &HashMap::new(),
                     &mut conn,
                     serde_json::from_str(&job.payload).unwrap(),
                 ),
@@ -275,6 +301,7 @@ mod tests {
                 kinds::HASH => run_hash(
                     &paths,
                     &tools,
+                    &HashMap::new(),
                     &mut conn,
                     serde_json::from_str(&job.payload).unwrap(),
                 ),
@@ -321,6 +348,7 @@ mod tests {
                 kinds::HASH => run_hash(
                     &paths,
                     &tools,
+                    &HashMap::new(),
                     &mut conn,
                     serde_json::from_str(&job.payload).unwrap(),
                 )
@@ -382,6 +410,7 @@ mod tests {
                     kinds::HASH => run_hash(
                         &paths,
                         &tools,
+                        &HashMap::new(),
                         conn,
                         serde_json::from_str(&job.payload).unwrap(),
                     ),
@@ -446,6 +475,7 @@ mod tests {
                     kinds::HASH => run_hash(
                         &paths,
                         &tools,
+                        &HashMap::new(),
                         conn,
                         serde_json::from_str(&job.payload).unwrap(),
                     ),
@@ -497,6 +527,7 @@ mod tests {
                     kinds::HASH => run_hash(
                         &paths,
                         &tools,
+                        &HashMap::new(),
                         conn,
                         serde_json::from_str(&job.payload).unwrap(),
                     ),
@@ -551,5 +582,107 @@ mod tests {
             })
             .unwrap();
         assert_eq!(journal_count, 1, "one arrival, one journal row");
+    }
+
+    /// M1.7's whole point: the rename must complete before a single row is
+    /// indexed, and the walker must still recover the true original name for
+    /// a file it only ever sees already renamed. Drives the exact sequence
+    /// the startup flow does — `fs::import::prepare`, then
+    /// `fs::import::execute_prepared`, and only afterward the normal
+    /// walk+hash pipeline — and checks both halves of that promise.
+    #[test]
+    fn m1_7_rename_before_index_preserves_orig_name_and_uuid_identity() {
+        let root = scratch("m1-7-rename-then-index");
+        std::fs::create_dir_all(root.join("People/Ana")).unwrap();
+        write_png(&root.join("People/Ana/holiday.png"), 40, 20);
+        write_png(&root.join("cover.png"), 8, 8);
+
+        let paths = LibraryPaths::new(&root);
+
+        // Nothing indexed yet — this is the pre-database scan the startup
+        // flow's Review screen shows.
+        let (report, pending) = import::prepare(&root).unwrap();
+        assert!(!report.already_imported);
+        assert_eq!(report.to_rename, 2);
+        let pending = pending.expect("two files need renaming");
+
+        let executed = import::execute_prepared(&pending, &mut |_| {}).unwrap();
+        assert_eq!(executed.renamed, 2);
+        assert!(executed.errors.is_empty());
+
+        // Renamed on disk before anything was indexed — exactly the order
+        // M1.7 requires.
+        assert!(!root.join("People/Ana/holiday.png").exists());
+        assert!(!root.join("cover.png").exists());
+
+        let mut conn = db::open(&paths.db_path()).unwrap();
+        db::migrate(&mut conn).unwrap();
+        assert!(
+            db::settings::imported_at(&conn).unwrap().is_some(),
+            "execute_prepared marks the library imported on its own"
+        );
+        assert_eq!(
+            db::items::count(&conn).unwrap(),
+            0,
+            "no item row exists yet — the rename never touched the database"
+        );
+
+        let rename_lookup = import::load_rename_lookup(&paths);
+        let tools = Tools::default();
+
+        crate::fs::walk::index(&paths, &mut conn, &mut |_, _| {}).unwrap();
+        while let Some(job) = db::jobs::claim(&mut conn).unwrap() {
+            let outcome = match job.kind.as_str() {
+                kinds::HASH => run_hash(
+                    &paths,
+                    &tools,
+                    &rename_lookup,
+                    &mut conn,
+                    serde_json::from_str(&job.payload).unwrap(),
+                ),
+                kinds::THUMB => run_thumb(
+                    &paths,
+                    &tools,
+                    &mut conn,
+                    serde_json::from_str(&job.payload).unwrap(),
+                ),
+                other => panic!("unexpected job {other}"),
+            };
+            outcome.unwrap();
+            db::jobs::complete(&conn, job.id).unwrap();
+        }
+
+        let items = db::items::list(&conn, &Scope::default()).unwrap();
+        assert_eq!(items.len(), 2);
+
+        let orig_name: String = conn
+            .query_row(
+                "SELECT orig_name FROM item WHERE orig_name = 'holiday.png'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            orig_name, "holiday.png",
+            "the real original name, recovered via the rename lookup — not the uuid the walker actually saw"
+        );
+
+        let (disk_name, uuid): (String, String) = conn
+            .query_row(
+                "SELECT disk_name, uuid FROM item WHERE orig_name = 'holiday.png'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            disk_name,
+            format!("{uuid}.png"),
+            "the uuid embedded in the filename must become the item's own identity, not a \
+             freshly minted one, or disk_name and uuid desync forever"
+        );
+
+        let (already_renamed, to_rename) = db::items::rename_counts(&conn).unwrap();
+        assert_eq!(already_renamed, 2);
+        assert_eq!(to_rename, 0);
     }
 }
