@@ -104,6 +104,15 @@ query/
   lexer.rs
   ast.rs
   compile.rs          AST → SQL
+
+bin/
+  synth_library.rs    M2 — PLAN.md decision 20's synthetic-library generator.
+                      Dev tool only, not shipped: inserts a synthetic folder
+                      tree and items straight into a scratch database (no real
+                      files) and times whichever query paths the current
+                      milestone added. Kept and extended by later milestones
+                      for their own new queries, rather than thrown away like
+                      the M0 spike — decision 20 asks for exactly that.
 ```
 
 ### Boundaries that matter
@@ -206,7 +215,7 @@ functions, so a backend signature change breaks at compile time in one place.
 | M1.5 | `fs/import.rs`, `commands/import.rs`, `features/import` |
 | M1.6 | `db/settings.rs`, `db/journal.rs` (rename writer only), `fs::import::rename_on_arrival`, `features/settings` |
 | M1.7 | filesystem-only `fs::import::{prepare, execute_prepared}` (rename before a database exists), `commands/import::{prepare_import, execute_prepared_import, cancel_prepared_import}`, `features/import/{ReviewScreen,ProgressScreen,NormaliseFilenamesModal}` — removes `src/bin/reverse_import.rs` |
-| M2 | `commands/folders`, `commands/tags`, `db/tags`, `features/folder` |
+| M2 | `commands/folders`, `commands/tags`, `db/tags`, `features/folder`, `bin/synth_library` |
 | M1.8 | `fs/watch.rs`, transient index readout |
 | M2.5 | whatever the design phase concludes — `components/`, `features/preview`, `features/theatre` are expected but not assumed |
 | M3 | `query/`, `commands/search`, `features/search` |
