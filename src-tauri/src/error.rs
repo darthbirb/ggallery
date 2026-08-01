@@ -33,6 +33,9 @@ pub enum AppError {
 
     #[error("{0}")]
     Invalid(String),
+
+    #[error("filesystem watcher: {0}")]
+    Watch(String),
 }
 
 impl AppError {
@@ -47,6 +50,7 @@ impl AppError {
             AppError::Media(_) => "media",
             AppError::ToolMissing(_) => "tool-missing",
             AppError::Invalid(_) => "invalid",
+            AppError::Watch(_) => "watch",
         }
     }
 
@@ -72,5 +76,11 @@ impl serde::Serialize for AppError {
 impl From<tauri::Error> for AppError {
     fn from(e: tauri::Error) -> Self {
         AppError::Invalid(e.to_string())
+    }
+}
+
+impl From<notify::Error> for AppError {
+    fn from(e: notify::Error) -> Self {
+        AppError::Watch(e.to_string())
     }
 }

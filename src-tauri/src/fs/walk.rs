@@ -8,6 +8,7 @@
 
 use std::collections::HashMap;
 use std::fs::Metadata;
+use std::path::Path;
 use std::time::UNIX_EPOCH;
 
 use rusqlite::Connection;
@@ -37,6 +38,17 @@ pub struct WalkReport {
     pub vanished: usize,
 }
 
+/// Directory name to fall back on when the root has none (e.g. a drive
+/// root). Shared with `fs::watch`, which resolves the same root folder row
+/// on demand while ensuring a new arrival's folder chain exists.
+pub(crate) fn root_title(paths: &LibraryPaths) -> String {
+    paths
+        .root()
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "Library".to_string())
+}
+
 pub fn index(
     paths: &LibraryPaths,
     conn: &mut Connection,
@@ -47,19 +59,76 @@ pub fn index(
 
     db::items::begin_sweep(conn)?;
 
-    let root_title = paths
-        .root()
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| "Library".to_string());
-    let root_id = db::folders::upsert(conn, "", &root_title)?;
+    let root_id = db::folders::upsert(conn, "", &root_title(paths))?;
     folder_ids.insert(String::new(), root_id);
     report.folders = 1;
 
+    walk_tree(
+        paths,
+        conn,
+        paths.root(),
+        &mut folder_ids,
+        &mut report,
+        true,
+        on_progress,
+    )?;
+
+    // Anything in the database that the walk did not see is gone from disk.
+    // This is database bookkeeping only — no file is touched — and a file that
+    // comes back clears the mark when it is re-indexed.
+    report.vanished = db::items::finish_sweep(conn)?;
+
+    Ok(report)
+}
+
+/// Walk one subtree that just appeared under an already-open, already-indexed
+/// library — the filesystem watcher's response to a whole folder arriving in
+/// one atomic move. `ReadDirectoryChangesW` reports a single event for the
+/// top directory in that case, with no guarantee of separate events for
+/// whatever was already inside it, so the watcher walks it once here rather
+/// than assuming per-file events will follow.
+///
+/// Unlike `index`, there is no reconciliation sweep: only `dir` is in scope,
+/// so "not seen during this walk" says nothing about anything outside it —
+/// running one would incorrectly retire every other item in the library.
+/// The caller is expected to have already ensured `dir`'s own ancestor chain
+/// of folder rows exists (see `fs::watch::ensure_folder_chain`); this walk
+/// only ever creates folder rows for `dir` and whatever is beneath it.
+pub fn index_subtree(paths: &LibraryPaths, conn: &Connection, dir: &Path) -> Result<WalkReport> {
+    let mut report = WalkReport::default();
+    let mut folder_ids: HashMap<String, i64> = HashMap::new();
+    walk_tree(
+        paths,
+        conn,
+        dir,
+        &mut folder_ids,
+        &mut report,
+        false,
+        &mut |_, _| {},
+    )?;
+    Ok(report)
+}
+
+/// The shared walk loop: queues work for every file under `start`, creating
+/// folder rows for directories it has not seen yet. `folder_ids` is seeded by
+/// the caller with whatever ancestors are already known — `index` seeds it
+/// with the root; `index_subtree` starts it empty because `start` itself and
+/// everything below it is new. `mark_seen` is only meaningful alongside a
+/// sweep, so it is skipped entirely for a subtree walk, which has no sweep to
+/// feed.
+fn walk_tree(
+    paths: &LibraryPaths,
+    conn: &Connection,
+    start: &Path,
+    folder_ids: &mut HashMap<String, i64>,
+    report: &mut WalkReport,
+    mark_seen: bool,
+    on_progress: &mut dyn FnMut(u64, u64),
+) -> Result<()> {
     db::begin_batch(conn)?;
     let mut in_batch = 0u64;
 
-    let walker = WalkDir::new(paths.root())
+    let walker = WalkDir::new(start)
         .follow_links(false)
         .into_iter()
         .filter_entry(|entry| !is_skipped_dir(paths, entry));
@@ -77,8 +146,8 @@ pub fn index(
 
         if entry.file_type().is_dir() {
             let rel = paths.to_rel(entry.path())?;
-            if rel.is_empty() {
-                continue; // the root, already inserted
+            if folder_ids.contains_key(&rel) {
+                continue; // the root (index) or start (index_subtree), already inserted
             }
             let title = entry.file_name().to_string_lossy().to_string();
             let id = db::folders::upsert(conn, &rel, &title)?;
@@ -106,7 +175,9 @@ pub fn index(
             };
             report.files += 1;
 
-            db::items::mark_seen(conn, folder_id, &name)?;
+            if mark_seen {
+                db::items::mark_seen(conn, folder_id, &name)?;
+            }
             if queue_file(paths, conn, folder_id, &name, &meta)? {
                 report.queued += 1;
             }
@@ -123,18 +194,17 @@ pub fn index(
 
     db::commit_batch(conn)?;
     on_progress(report.folders, report.files);
-
-    // Anything in the database that the walk did not see is gone from disk.
-    // This is database bookkeeping only — no file is touched — and a file that
-    // comes back clears the mark when it is re-indexed.
-    report.vanished = db::items::finish_sweep(conn)?;
-
-    Ok(report)
+    Ok(())
 }
 
 /// Enqueue work for one file, or nothing if it is already indexed and
 /// unchanged. Returns whether a job was queued.
-fn queue_file(
+///
+/// `pub(crate)` — the filesystem watcher calls this directly for a single
+/// settled file, the same way this walk calls it for every file it visits,
+/// so a modified file is re-hashed through the identical path that indexes a
+/// new one rather than the watcher growing its own copy.
+pub(crate) fn queue_file(
     paths: &LibraryPaths,
     conn: &Connection,
     folder_id: i64,

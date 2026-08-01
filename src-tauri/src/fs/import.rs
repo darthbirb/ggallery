@@ -40,6 +40,7 @@ use crate::db;
 use crate::error::{AppError, Result};
 use crate::fs::paths::LibraryPaths;
 use crate::fs::walk;
+use crate::fs::watch::Suppressor;
 use crate::media::hash;
 
 /// Items per transaction, and per reversal-map flush. Small enough that the
@@ -686,7 +687,18 @@ pub fn load_rename_lookup(paths: &LibraryPaths) -> HashMap<String, String> {
 /// Never called for files the app writes itself — downloads, compression
 /// output, converted GIFs. Those are born `<uuid>.<ext>` and never reach this
 /// path at all, because there was never a wrong name to correct.
-pub fn rename_on_arrival(paths: &LibraryPaths, conn: &Connection, item_id: i64) -> Result<()> {
+///
+/// `suppressor` is registered with both the old and new absolute paths
+/// *before* the rename touches disk — the filesystem watcher (M1.8) checks it
+/// on every event it sees, so the delete-then-create pair this rename itself
+/// generates is never fed back in as an arrival and a deletion of its own
+/// making. See `fs::watch::Suppressor`.
+pub fn rename_on_arrival(
+    paths: &LibraryPaths,
+    conn: &Connection,
+    item_id: i64,
+    suppressor: &Suppressor,
+) -> Result<()> {
     let item = db::items::rename_target(conn, item_id)?
         .ok_or_else(|| AppError::invalid("item disappeared before it could be renamed"))?;
 
@@ -694,6 +706,11 @@ pub fn rename_on_arrival(paths: &LibraryPaths, conn: &Connection, item_id: i64) 
     if item.disk_name == new_name {
         return Ok(()); // already correctly named — nothing to do, nothing to journal
     }
+
+    let old_abs = paths.item_path(&item.folder_rel, &item.disk_name)?;
+    let new_abs = paths.item_path(&item.folder_rel, &new_name)?;
+    suppressor.suppress(paths, &old_abs);
+    suppressor.suppress(paths, &new_abs);
 
     match rename_one(paths, &item.folder_rel, &item.disk_name, &new_name)? {
         RenameOutcome::Missing => {
@@ -1061,7 +1078,7 @@ mod tests {
         let root_id = db::folders::upsert(&conn, "", "Library").unwrap();
         let (item_id, uuid) = index_one(&conn, root_id, "newphoto.jpg", b"fresh bytes");
 
-        rename_on_arrival(&paths, &conn, item_id).unwrap();
+        rename_on_arrival(&paths, &conn, item_id, &Suppressor::default()).unwrap();
 
         assert!(root.join(format!("{uuid}.jpg")).is_file());
         assert!(!root.join("newphoto.jpg").exists());
@@ -1103,8 +1120,8 @@ mod tests {
         let root_id = db::folders::upsert(&conn, "", "Library").unwrap();
         let (item_id, _uuid) = index_one(&conn, root_id, "photo.jpg", b"bytes");
 
-        rename_on_arrival(&paths, &conn, item_id).unwrap();
-        rename_on_arrival(&paths, &conn, item_id).unwrap();
+        rename_on_arrival(&paths, &conn, item_id, &Suppressor::default()).unwrap();
+        rename_on_arrival(&paths, &conn, item_id, &Suppressor::default()).unwrap();
 
         let journal_count: i64 = conn
             .query_row("SELECT COUNT(*) FROM journal", [], |r| r.get(0))
