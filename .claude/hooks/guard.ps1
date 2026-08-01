@@ -114,7 +114,7 @@ try {
     # further sequencing (&&, ||, ;) could hide anything after a safe opener.
     if ($body -notmatch '(&&|\|\||;)') {
         $safe = '^(' +
-            'cargo\s+(check|build|test|clippy|fmt|tree|--version)|' +
+            'cargo\s+(check|build|test|run|bench|doc|tree|clippy|fmt|metadata|--version)|' +
             'rustfmt|' +
             'npm\s+(run|test|ci|ls)|' +
             'npx\s+(tsc|vite|tauri)|' +
