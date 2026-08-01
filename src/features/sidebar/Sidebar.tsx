@@ -3,6 +3,17 @@ import { useMemo, useState } from "react";
 import { formatCount } from "../../lib/format";
 import type { FolderNode } from "../../lib/types";
 
+/** Mirrors `002_folder_metadata.sql`'s seed. The sidebar renders a plain dot
+ *  from the status key rather than round-tripping through IPC for four
+ *  colours that don't change at runtime — the folder header is the source of
+ *  truth for anything that does. */
+const STATUS_COLOURS: Record<string, string> = {
+  active: "#6b7280",
+  wip: "#eab308",
+  done: "#22c55e",
+  archived: "#64748b",
+};
+
 interface SidebarProps {
   folders: FolderNode[];
   /** Selected folder rel_path, or null for the whole library. */
@@ -65,7 +76,17 @@ export function Sidebar({ folders, selected, onSelect }: SidebarProps) {
         >
           {children.length > 0 ? (isOpen ? "▾" : "▸") : ""}
         </span>
-        <span className="truncate">{isRoot ? "Library" : folder.title}</span>
+        {!isRoot && (
+          <span
+            className="h-1.5 w-1.5 shrink-0 rounded-full"
+            style={{ backgroundColor: STATUS_COLOURS[folder.status] ?? "#888" }}
+            title={folder.status}
+          />
+        )}
+        <span className="truncate">
+          {isRoot ? "Library" : folder.title}
+          {!isRoot && folder.favorite && " ★"}
+        </span>
         <span className="ml-auto pl-2 font-mono text-[11px] tabular-nums text-fg-dim">
           {formatCount(folder.totalCount)}
         </span>
@@ -73,7 +94,10 @@ export function Sidebar({ folders, selected, onSelect }: SidebarProps) {
     );
 
     if (!isOpen) return;
-    for (const child of children.sort((a, b) => a.title.localeCompare(b.title))) {
+    const ordered = children.sort(
+      (a, b) => Number(b.favorite) - Number(a.favorite) || a.title.localeCompare(b.title),
+    );
+    for (const child of ordered) {
       push(child, depth + 1);
     }
   };

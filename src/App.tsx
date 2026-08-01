@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 
+import { FolderHeader } from "./features/folder/FolderHeader";
 import { Grid } from "./features/grid/Grid";
 import { FailureList } from "./features/indexing/FailureList";
 import { IndexStatus } from "./features/indexing/IndexStatus";
 import { NormaliseFilenamesModal } from "./features/import/NormaliseFilenamesModal";
 import { ProgressScreen } from "./features/import/ProgressScreen";
 import { ReviewScreen } from "./features/import/ReviewScreen";
+import { ParseFolderNamesModal } from "./features/settings/ParseFolderNamesModal";
 import { SettingsPanel } from "./features/settings/SettingsPanel";
 import { Sidebar } from "./features/sidebar/Sidebar";
 import { formatCount } from "./lib/format";
@@ -19,6 +21,7 @@ export default function App() {
   const [showFailures, setShowFailures] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showNormalise, setShowNormalise] = useState(false);
+  const [showParseNames, setShowParseNames] = useState(false);
   const [backupConfirmed, setBackupConfirmed] = useState(false);
   const [starting, setStarting] = useState(false);
 
@@ -138,11 +141,22 @@ export default function App() {
             setShowSettings(false);
             setShowNormalise(true);
           }}
+          onParseFolderNames={() => {
+            setShowSettings(false);
+            setShowParseNames(true);
+          }}
         />
       )}
 
       {showNormalise && (
         <NormaliseFilenamesModal onClose={() => setShowNormalise(false)} />
+      )}
+
+      {showParseNames && (
+        <ParseFolderNamesModal
+          onClose={() => setShowParseNames(false)}
+          onApplied={library.refreshFolders}
+        />
       )}
 
       <div className="grid min-h-0 grid-cols-[214px_1fr]">
@@ -180,6 +194,17 @@ export default function App() {
               </label>
             )}
           </div>
+
+          {folder && (
+            <FolderHeader
+              folderId={folder.id}
+              collapsed={ui.folderHeaderCollapsed}
+              onToggleCollapsed={() =>
+                ui.setFolderHeaderCollapsed(!ui.folderHeaderCollapsed)
+              }
+              onChanged={library.refreshFolders}
+            />
+          )}
 
           {library.error && (
             <div className="flex items-center gap-3 border-b border-line bg-raised px-3 py-1.5 text-danger">

@@ -27,6 +27,8 @@ export interface FolderNode {
   depth: number;
   directCount: number;
   totalCount: number;
+  status: string;
+  favorite: boolean;
 }
 
 export interface GridItem {
@@ -178,4 +180,71 @@ export interface FsRenameError {
 export interface FsExecuteReport {
   renamed: number;
   errors: FsRenameError[];
+}
+
+// --- M2: folders as entities ---------------------------------------------
+
+export interface ArchetypeFieldValue {
+  key: string;
+  type: string;
+  ordinal: number;
+  value: string;
+}
+
+export interface FolderFlag {
+  tagId: number;
+  value: string;
+}
+
+export interface FolderDetail {
+  id: number;
+  relPath: string;
+  title: string;
+  parentId: number | null;
+  status: string;
+  favorite: boolean;
+  notes: string | null;
+  lastAddedAt: number | null;
+  directCount: number;
+  totalCount: number;
+  subfolderCount: number;
+  archetypeId: number | null;
+  archetypeName: string | null;
+  fields: ArchetypeFieldValue[];
+  flags: FolderFlag[];
+}
+
+export interface FolderStatusDef {
+  key: string;
+  label: string;
+  colour: string;
+  ordinal: number;
+}
+
+export interface ArchetypeFieldDef {
+  key: string;
+  type: string;
+  ordinal: number;
+}
+
+export interface ArchetypeInfo {
+  id: number;
+  name: string;
+  fields: ArchetypeFieldDef[];
+}
+
+export interface NameParseCandidate {
+  folderId: number;
+  relPath: string;
+  currentTitle: string;
+  proposedTitle: string;
+  handle: string;
+}
+
+export interface EffectiveTag {
+  tagId: number;
+  key: string | null;
+  value: string;
+  /** `null` for a manual tag; the contributing ancestor folder otherwise. */
+  originId: number | null;
 }

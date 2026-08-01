@@ -64,6 +64,9 @@ export interface LibraryController {
   retry: () => void;
   setScope: (scope: Scope) => void;
   dismissError: () => void;
+  /** Re-fetch just the folder tree — for after a folder-header edit (title,
+   *  status, favorite) that the sidebar needs to reflect. */
+  refreshFolders: () => void;
 }
 
 /**
@@ -268,6 +271,16 @@ export function useLibrary(): LibraryController {
     [load],
   );
 
+  const refreshFolders = useCallback(() => {
+    (async () => {
+      try {
+        setFolders(await ipc.folderTree());
+      } catch (err) {
+        setError(ipc.errorMessage(err));
+      }
+    })();
+  }, []);
+
   // Reopen whatever was open last time, without a picker.
   useEffect(() => {
     let cancelled = false;
@@ -382,5 +395,6 @@ export function useLibrary(): LibraryController {
     retry,
     setScope,
     dismissError: () => setError(null),
+    refreshFolders,
   };
 }
