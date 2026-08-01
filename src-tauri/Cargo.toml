@@ -1,9 +1,15 @@
 [package]
-name = "gallery"
+name = "ggallery"
 version = "0.1.0"
 description = "GGallery — a local-first media library"
 edition = "2021"
 rust-version = "1.77"
+# `bin/synth_library.rs` (decision 20's scale-verification tool) added a
+# second binary target alongside the app itself. Without this, `cargo run`
+# and the Tauri CLI's own build-summary line become ambiguous about which
+# binary is "the app" — this is Cargo's standard disambiguation, not a
+# Tauri-specific setting.
+default-run = "ggallery"
 
 [lib]
 name = "gallery_lib"

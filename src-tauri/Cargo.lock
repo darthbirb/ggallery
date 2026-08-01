@@ -979,27 +979,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gallery"
-version = "0.1.0"
-dependencies = [
- "blake3",
- "image",
- "kamadak-exif",
- "notify",
- "num_cpus",
- "rusqlite",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "thiserror 1.0.69",
- "uuid",
- "walkdir",
- "webp",
-]
-
-[[package]]
 name = "gdk"
 version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1140,6 +1119,27 @@ dependencies = [
  "cfg-if",
  "libc",
  "r-efi 6.0.0",
+]
+
+[[package]]
+name = "ggallery"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "image",
+ "kamadak-exif",
+ "notify",
+ "num_cpus",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "thiserror 1.0.69",
+ "uuid",
+ "walkdir",
+ "webp",
 ]
 
 [[package]]
