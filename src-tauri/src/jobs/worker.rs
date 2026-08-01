@@ -7,6 +7,7 @@ use crate::db;
 use crate::db::items::NewItem;
 use crate::db::jobs::QueuedJob;
 use crate::error::{AppError, Result};
+use crate::fs::import;
 use crate::fs::paths::{extension_of, LibraryPaths};
 use crate::fs::walk;
 use crate::jobs::kinds::{self, HashPayload, ItemPayload};
@@ -93,6 +94,14 @@ pub fn run_hash(
             captured_src: probed.captured_src,
         },
     )?;
+
+    // M1's read-only stance ends once the library has been imported: from
+    // then on, anything the walker finds that the app did not itself write
+    // gets its UUID name right here, silently, as part of being indexed. See
+    // docs/DESIGN.md#first-import, "After the first import".
+    if db::settings::imported_at(conn)?.is_some() {
+        import::rename_on_arrival(paths, conn, item_id)?;
+    }
 
     if kind != Kind::Other {
         crate::jobs::enqueue_thumb(conn, item_id)?;
@@ -466,5 +475,81 @@ mod tests {
         let third = crate::fs::walk::index(&paths, &mut conn, &mut |_, _| {}).unwrap();
         assert_eq!(third.vanished, 1, "a deleted file leaves the grid");
         assert_eq!(db::items::count(&conn).unwrap(), 1);
+    }
+
+    /// M1.6: before a library is marked imported, arriving files keep their
+    /// real names (M1's read-only stance) — after, the indexer renames them
+    /// on the way in, silently, without anyone running the wizard again.
+    #[test]
+    fn arriving_files_are_left_alone_before_import_and_renamed_after() {
+        let root = scratch("arrival-gating");
+        write_png(&root.join("before.png"), 10, 10);
+
+        let paths = LibraryPaths::new(&root);
+        paths.ensure_dirs().unwrap();
+        let mut conn = db::open(&paths.db_path()).unwrap();
+        db::migrate(&mut conn).unwrap();
+        let tools = Tools::default();
+
+        let drain = |conn: &mut rusqlite::Connection| {
+            while let Some(job) = db::jobs::claim(conn).unwrap() {
+                let outcome = match job.kind.as_str() {
+                    kinds::HASH => run_hash(
+                        &paths,
+                        &tools,
+                        conn,
+                        serde_json::from_str(&job.payload).unwrap(),
+                    ),
+                    kinds::THUMB => run_thumb(
+                        &paths,
+                        &tools,
+                        conn,
+                        serde_json::from_str(&job.payload).unwrap(),
+                    ),
+                    other => panic!("unexpected job {other}"),
+                };
+                outcome.unwrap();
+                db::jobs::complete(conn, job.id).unwrap();
+            }
+        };
+
+        crate::fs::walk::index(&paths, &mut conn, &mut |_, _| {}).unwrap();
+        drain(&mut conn);
+        assert!(
+            root.join("before.png").is_file(),
+            "not yet imported — M1's read-only stance holds"
+        );
+
+        db::settings::mark_imported(&conn).unwrap();
+
+        write_png(&root.join("after.png"), 10, 10);
+        crate::fs::walk::index(&paths, &mut conn, &mut |_, _| {}).unwrap();
+        drain(&mut conn);
+
+        assert!(
+            !root.join("after.png").exists(),
+            "arriving after import, this file should have been renamed on the way in"
+        );
+        assert!(
+            root.join("before.png").is_file(),
+            "already-indexed files are not retroactively renamed"
+        );
+
+        let disk_name: String = conn
+            .query_row(
+                "SELECT disk_name FROM item WHERE orig_name = 'after.png'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_ne!(disk_name, "after.png");
+        assert!(root.join(&disk_name).is_file());
+
+        let journal_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM journal WHERE op = 'rename'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(journal_count, 1, "one arrival, one journal row");
     }
 }
