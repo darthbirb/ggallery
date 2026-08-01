@@ -1,6 +1,7 @@
 interface SettingsPanelProps {
   onClose: () => void;
   onNormaliseFilenames: () => void;
+  onParseFolderNames: () => void;
 }
 
 /**
@@ -12,6 +13,7 @@ interface SettingsPanelProps {
 export function SettingsPanel({
   onClose,
   onNormaliseFilenames,
+  onParseFolderNames,
 }: SettingsPanelProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -40,6 +42,18 @@ export function SettingsPanel({
             <span className="block text-[12px] text-fg-dim">
               Find any file that is not UUID-named and rename it — for when
               something outside the app has renamed a file back.
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onParseFolderNames}
+            className="mt-2 w-full rounded-[3px] border border-line px-3 py-2 text-left hover:bg-hover"
+          >
+            <span className="block text-fg">Parse folder names</span>
+            <span className="block text-[12px] text-fg-dim">
+              Split folders named like "Ana (@ana)" into a title and an
+              Instagram handle on the Person archetype.
             </span>
           </button>
         </div>
