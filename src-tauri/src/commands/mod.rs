@@ -6,6 +6,7 @@
 //! inside `spawn_blocking` — a synchronous command blocks the native window
 //! message pump and Windows marks the app "Not Responding".
 
+pub mod import;
 pub mod items;
 pub mod jobs;
 pub mod library;

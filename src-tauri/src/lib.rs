@@ -173,6 +173,11 @@ pub fn run() {
             commands::jobs::index_progress,
             commands::jobs::index_failures,
             commands::jobs::retry_failed_jobs,
+            commands::import::scan_import,
+            commands::import::dry_run_import,
+            commands::import::execute_import,
+            commands::import::verify_import,
+            commands::import::mark_imported,
         ])
         .setup(|app| {
             build_window(app.handle())?;
@@ -221,6 +226,10 @@ fn build_window(app: &AppHandle) -> Result<()> {
     if config.window.map(|state| state.maximized).unwrap_or(false) {
         let _ = window.maximize();
     }
+
+    #[cfg(debug_assertions)]
+    window.open_devtools();
+
     Ok(())
 }
 
