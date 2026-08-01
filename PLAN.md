@@ -280,6 +280,33 @@ move and tag edit. Verify it against a synthetic library at scale before calling
 done. This is the milestone where a scale problem would be most expensive to find late,
 because everything from M3 onward queries through it.
 
+Four scope decisions, settled:
+
+- **Archetypes are seed-and-apply.** Migration seeds Person, Place and Event; the folder
+  header gets a picker that applies one. No archetype editor — folders carry labels
+  independently, so anything an archetype lacks is added as a one-off label on the folder.
+  The editor is M2.5's to design.
+- **Folder-name parsing is a Settings batch action**, shaped like Normalise filenames: scan
+  every folder for `Name (@handle)`, show an editable table, apply on confirm. Only touch
+  folders whose title still equals the raw directory name, so it is idempotent and cannot
+  clobber a manual edit.
+- **A minimal details panel is in scope, as disposable scaffolding.** Fixed width, no media
+  preview, no resizing, no styling investment — a tag list showing inherited greyed and
+  manual solid, with add/remove. Without it the effective-tag cache is never observed
+  working. M2.5 deletes it.
+- **The scale check is DB-only and permanent.** A test helper that inserts synthetic
+  folders, items and tags into a scratch database — no files on disk, since M2 adds no IO
+  or decode paths. Feeds `#[ignore]`d tests alongside the existing `scale_check_100k_items`,
+  so `cargo test -- --ignored` is the standing check for every later milestone. Measure the
+  invalidation paths, not just the initial build: a root-level folder tag edit, a folder
+  move with many descendants, the folder tree with recursive counts, and a tag-filtered
+  item query.
+
+**The effective-tag rebuild is a job, never a synchronous command.** A tag edit on a
+top-level folder invalidates the whole library. Inside a `#[tauri::command]` that freezes
+the window — see [docs/ENGINEERING-NOTES.md](docs/ENGINEERING-NOTES.md). Build it as a job
+now; retrofitting once M3 onward queries through it is far worse.
+
 Also carries three small items deferred from earlier milestones:
 
 - **Rename the binary.** `tauri.conf.json` has `productName: "gallery"` and `Cargo.toml`
