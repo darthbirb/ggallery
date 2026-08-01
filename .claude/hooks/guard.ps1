@@ -98,6 +98,35 @@ try {
         if ($c -match $rule.pattern) { Emit 'ask' $rule.reason }
     }
 
+    # ---- Allow safe work even behind a `cd` prefix --------------------------
+    #
+    # Permission rules in settings.json match on prefixes, so
+    # `cd "d:/proj" && cargo test` matches no rule and prompts, even though
+    # `cargo test *` is allowed. Strip a leading `cd <path> &&` and judge what
+    # actually runs. Deny and ask are checked above and still win.
+
+    $body = $c
+    if ($body -match '^cd\s+("[^"]*"|''[^'']*''|[^\s&;|]+)\s*&&\s*(.+)$') {
+        $body = $Matches[2].Trim()
+    }
+
+    # Only single commands. Pipes into filters are fine (`| tail -60`), but any
+    # further sequencing (&&, ||, ;) could hide anything after a safe opener.
+    if ($body -notmatch '(&&|\|\||;)') {
+        $safe = '^(' +
+            'cargo\s+(check|build|test|clippy|fmt|tree|--version)|' +
+            'rustfmt|' +
+            'npm\s+(run|test|ci|ls)|' +
+            'npx\s+(tsc|vite|tauri)|' +
+            'tsc|' +
+            'git\s+(status|diff|log|show|branch|ls-files|rev-parse|blame|check-ignore|describe|shortlog)|' +
+            'grep|rg|cat|head|tail|wc|ls|find|sed\s+-n|sort|uniq|echo' +
+            ')\b'
+        if ($body -match $safe) {
+            Emit 'allow' 'Read-only or ordinary build command.'
+        }
+    }
+
     exit 0
 }
 catch {
