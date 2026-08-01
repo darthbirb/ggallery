@@ -536,6 +536,38 @@ Renames are not undoable, here or at import. Moves, deletes and compressions are
 are decisions the user made, and they go through the journal. A rename is the app applying
 its own naming rule to a file it has taken ownership of.
 
+### The library is live
+
+**There is no "Re-index" button.** Indexing is not an action the user takes; it is
+something the app does because the folder changed. A control that asks the user to keep
+the database in sync with the disk is the app admitting it cannot.
+
+The library root is watched continuously. Anything that appears, changes or disappears —
+whether the app did it, Explorer did it, or another tool did it — is picked up and
+reflected in the grid without a refresh:
+
+- **Appears** → renamed to a UUID, hashed, probed, thumbnailed, and it shows up in place.
+- **Changes** → re-hashed and re-thumbnailed. The item keeps its identity; content hash is
+  updated rather than treated as a new file.
+- **Disappears** → retired from the view.
+
+Progress surfaces as a transient readout — *Indexing 42 items…* — that goes away on its
+own. It never blocks, and it never needs dismissing.
+
+`.gallery/` is excluded from watching, and paths the app is itself mid-write on are
+suppressed so its own work does not feed back in.
+
+**Files still being written are left alone.** A large video copied in from Explorer
+generates events long before it is complete; the watcher waits for size and mtime to
+settle before touching it. Indexing a half-copied file would record a hash for something
+that no longer exists a second later.
+
+**If the watcher fails, the app says so and falls back.** Windows drops change
+notifications when too many arrive at once, and the OS reports that overflow rather than
+hiding it. On overflow or watcher error, a full reconcile walk runs and the readout says a
+rescan is happening. Silent divergence between disk and database is the one outcome that
+is not acceptable — a visible rescan is fine.
+
 Files arrive by two routes, and only one of them needs renaming at all:
 
 **The app creates the file.** Downloads (M5), compressed output (M6), converted GIFs (M6),

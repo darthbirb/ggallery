@@ -348,4 +348,5 @@ stays directly editable.
   survive untouched.
 - **`library.jsonl`** is written on a debounce: one line per item with uuid, folder path,
   orig_name, hash, and resolved tags. It is the rebuild path if the database is ever
-  lost, and the reversal map for the first-import rename.
+  lost, and the disaster-recovery record of what the first-import rename did — no
+  tooling reads it back to reconstruct names; see docs/DESIGN.md#first-import.

@@ -57,10 +57,10 @@ tags, labels and search live on top. One root folder holds everything, so backup
 17. **Animated GIFs are video; nothing is converted at import.** GIF, WebP and APNG stay
     in their original format on disk. Converting to MP4 is a compression preset in M6,
     reviewed like any other. Import never rewrites an original.
-18. **Every milestone ships at the mockup's visual standard.** There is no polish phase.
-    [docs/mockup.html](docs/mockup.html) is the spec, and `shadcn/ui` — React, Tailwind
-    and Radix, exactly this stack — is the component source. Deferred polish is abandoned
-    polish.
+18. **There is no polish phase.** M2.5 designs the interface from scratch and sets the
+    standard; every milestone after it ships at that standard. Deferred polish is
+    abandoned polish. [docs/mockup.html](docs/mockup.html) is an early reference drawn
+    before much of the scope existed — input to M2.5, not a specification it must follow.
 19. **Renaming is a property of indexing, not a one-time event.** Files the app creates
     are born `<uuid>.<ext>`. Files arriving from outside are renamed as part of being
     indexed, silently and journalled. The first-import wizard is the same operation run
@@ -230,6 +230,31 @@ revised [docs/DESIGN.md](docs/DESIGN.md#first-import) §10:
 Removing the reversal is what earns the shorter flow: with no undo, the backup
 acknowledgement is the one interruption that carries weight, so everything else can go.
 
+### M1.8 — The library is live
+
+Remove the **Re-index** button and replace it with a filesystem watcher, per
+[docs/DESIGN.md](docs/DESIGN.md) §10 *The library is live*. Indexing stops being something
+the user asks for.
+
+`fs/watch.rs`, built on the `notify` crate over Windows' `ReadDirectoryChangesW`. This is
+an OS-level notification API on a single recursive directory handle — **no polling, no
+per-file cost**, which is why the preferred design is achievable rather than a compromise.
+
+The parts that need care, none of which are the watching itself:
+
+- **Settling.** A file copied in from Explorer emits events long before it is complete.
+  Wait for size and mtime to stop changing before hashing. Indexing a half-copied file
+  records a hash for something that will not exist a second later.
+- **Self-suppression.** The app renames files and writes into `.gallery/`. Exclude
+  `.gallery/` from the watch, and suppress paths the app is mid-write on, or the watcher
+  feeds its own work back to itself.
+- **Overflow.** Windows drops notifications when too many arrive at once and reports the
+  overflow. On overflow or watcher error, run a full reconcile walk and say so in the
+  readout. Silent divergence between disk and database is the only unacceptable outcome.
+- **Modification keeps identity.** A changed file has a new content hash but is the same
+  item. Update in place, anchored on path; do not create a second row.
+- **Progress is a transient readout**, not a panel. *Indexing 42 items…*, self-dismissing.
+
 ### M1.1 — M1 defects
 
 Small, and worth clearing before M2 builds on top:
@@ -263,25 +288,50 @@ Also carries two items deferred from earlier milestones:
 - **Animated GIF classification.** `media/mod.rs` classifies every GIF as `kind = image`;
   locked decision 17 requires animated GIF, WebP and APNG to index as `kind = video`.
 
-### M2.5 — The interface
+### M2.5 — The interface, designed from scratch
 
-The one-time catch-up that makes decision 18 true. Adopt `shadcn/ui` and bring the whole
-window to the standard set by [docs/mockup.html](docs/mockup.html) — density, type scale,
-the amber accent used sparingly, panel chrome, the folder header card.
+**This is a design milestone, not a restyling job.** It does not improve the existing
+interface, extend it, or bring it up to a standard. It asks what the best end-user
+interface for an application of this scope would be, and builds that.
 
-Then the surfaces that were waiting on it:
+The current UI and [docs/mockup.html](docs/mockup.html) are **inputs, not constraints**.
+The mockup was drawn early, before much of the scope existed; it is one proposal among
+several and may be rejected in whole or in part. Concluding that the sidebar belongs
+elsewhere, that the query bar should work differently, or that the whole layout model is
+wrong are all legitimate outcomes.
 
-- The resizable **preview panel** — preview, details, tags, with a drag handle and
-  persisted width.
-- **Theatre view** with left/right navigation and a filmstrip. One item at a time;
-  multi-view is M10.
-- **Resizable sidebar**, same treatment.
-- **Right-click menus** appropriate to folder, item, selection and empty space.
+#### Phase 1 — Design. Nothing is built.
 
-Separated from M2 deliberately. Folded together, the data work would eat the schedule and
-the interface would arrive as an afterthought — which is precisely the failure mode
-decision 18 exists to prevent. Given its own milestone, it also establishes the component
-vocabulary every later milestone builds from.
+1. Read the full scope in [docs/DESIGN.md](docs/DESIGN.md): what this app is for, the
+   workflows it exists to replace, everything from folders and tags through triage,
+   downloads, compression review and multi-view.
+2. Look at how comparable applications solve these problems — media libraries, DAM tools,
+   photo managers, file browsers — and what they get right and wrong.
+3. Produce **two or three genuinely different directions**, not variations on one. Show
+   them concretely enough to react to.
+4. Present, then converse.
+
+#### Interaction rules for phase 1
+
+This phase is deliberately conversational, and how much is asked matters:
+
+- **Where two options are genuinely comparable** and the choice is taste, ask. Present the
+  tradeoff honestly rather than steering.
+- **Where one option is clearly better**, say so, explain why, and confirm before adopting
+  it. Recommend — do not silently decide.
+- **Where a convention obviously applies**, decide quietly. Do not ask which side the
+  close button goes on.
+- **Never assume.** No blind choices on anything that shapes how the app is used.
+
+#### Phase 2 — Build. Only after the design is approved.
+
+Then implement it, including the surfaces waiting on this milestone: the preview panel,
+theatre view with left/right navigation and a filmstrip, resizable panels, and right-click
+menus for folder, item, selection and empty space.
+
+Separated from M2 deliberately. Folded together, the data work eats the schedule and the
+interface arrives as an afterthought. Given its own milestone, it also establishes the
+component vocabulary every later milestone builds from.
 
 ### M3 — Search
 

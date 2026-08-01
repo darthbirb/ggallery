@@ -11,10 +11,12 @@ duplicate detection, and a triage flow fast enough to actually use.
 > M0 (the grid performance spike) is complete and its findings are recorded. M1 is built:
 > the app opens a library folder, indexes it with progress, and scrolls the grid.
 >
-> **M1 is strictly read-only over your library.** It reads and indexes; it writes only
-> into `.gallery/` inside the library root. Nothing is renamed, moved or deleted — which
-> is exactly why it is safe to point at a real 300GB library today. The UUID rename is
-> M1.5, and it ships with a dry run and a reversal path.
+> **Opening a library it has never seen renames every file to a UUID first, then
+> indexes it** — a full-window Choose folder → Review → Progress flow, gated behind one
+> backup acknowledgement because there is no undo. Original filenames live on as
+> searchable metadata (`item.orig_name`); the uuid-to-original mapping is also kept in
+> `library.jsonl` as a disaster-recovery export, but no tooling reconstructs names from
+> it — there is no reversal feature. See [docs/DESIGN.md](docs/DESIGN.md#first-import).
 
 ---
 
@@ -155,11 +157,12 @@ docs/
 | M0 | Grid performance spike | Complete — architecture validated, two defects located |
 | M1 | Core library — index, hash, thumbnails, job queue, grid. Read-only | Built |
 | M1.1 | M1 defects — index failures, stale state, scrollbars, context menu | Built |
-| M1.5 | First-import wizard — the UUID rename, with dry run and reversal | Built |
+| M1.5 | First-import wizard — the UUID rename, with dry run and verification | Built |
 | M1.6 | Wizard placement, rename on arrival, dev-mode grid | Built |
-| M1.7 | Import as a startup flow — two screens, no reversal tooling | Next |
+| M1.7 | Import as a startup flow — rename before index, two screens, no reversal tooling | Built |
+| M1.8 | The library is live — filesystem watcher, no re-index button | Next |
 | M2 | Folders as entities — archetypes, labels, tag inheritance | |
-| M2.5 | The interface — shadcn/ui, preview panel, theatre view, right-click menus | |
+| M2.5 | The interface — designed from scratch, interactively | |
 | M3 | Search — query parser, sectioned results | |
 | M4 | Sorting Box and triage — hotkey culling, undo, trash | |
 | M5 | Downloads — yt-dlp and gallery-dl integration | |

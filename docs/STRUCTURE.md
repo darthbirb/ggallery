@@ -104,12 +104,6 @@ query/
   lexer.rs
   ast.rs
   compile.rs          AST → SQL
-
-bin/
-  reverse_import.rs   M1.5 — standalone reversal tool, reads library.jsonl only.
-                      Deliberately its own binary (`cargo run --bin reverse_import`),
-                      independent of the database and the rest of the app, because
-                      it exists for the case where one of those is what broke.
 ```
 
 ### Boundaries that matter
@@ -163,10 +157,11 @@ features/             one folder per surface in DESIGN.md
     layoutWorker.ts
   sidebar/
   indexing/           index progress readout and the per-file failure list
-  import/             M1.5 — the first-import wizard (scan, dry run, backup ack,
-                      execute, verify). M1.6 makes it a step in opening an
-                      unimported library rather than a standing button, and reuses
-                      it for the Settings → Normalise filenames repair case
+  import/             M1.7 — the startup flow's full-window Review and Progress
+                      screens (Choose folder is the picker itself, in App.tsx),
+                      plus the Settings → Normalise filenames repair modal that
+                      reuses the same one-screen-review shape against an
+                      already-open library
   settings/           M1.6 — deliberately minimal, just Normalise filenames for now;
                       the real Settings screen is M9's job
   folder/             folder header, archetype fields, status
@@ -208,10 +203,12 @@ functions, so a backend signature change breaks at compile time in one place.
 | --- | --- |
 | M1 | scaffold, `config`, `error`, `commands/{library,items,jobs}`, `db/` + migrations, `fs/{paths,walk}`, `media/`, `jobs/`, `sidecar/{mod,ffmpeg}`, `features/grid`, `features/sidebar` |
 | M1.1 | `features/indexing`, `db/jobs` failure reporting, `media::open_image_reader` |
-| M1.5 | `fs/import.rs`, `commands/import.rs`, `src/bin/reverse_import.rs`, `features/import` |
+| M1.5 | `fs/import.rs`, `commands/import.rs`, `features/import` |
 | M1.6 | `db/settings.rs`, `db/journal.rs` (rename writer only), `fs::import::rename_on_arrival`, `features/settings` |
+| M1.7 | filesystem-only `fs::import::{prepare, execute_prepared}` (rename before a database exists), `commands/import::{prepare_import, execute_prepared_import, cancel_prepared_import}`, `features/import/{ReviewScreen,ProgressScreen,NormaliseFilenamesModal}` — removes `src/bin/reverse_import.rs` |
 | M2 | `commands/folders`, `commands/tags`, `db/tags`, `features/folder` |
-| M2.5 | `components/` from shadcn/ui, `features/preview`, `features/theatre` |
+| M1.8 | `fs/watch.rs`, transient index readout |
+| M2.5 | whatever the design phase concludes — `components/`, `features/preview`, `features/theatre` are expected but not assumed |
 | M3 | `query/`, `commands/search`, `features/search` |
 | M4 | `commands/triage`, `db/journal` (move/trash/tag writers, the Ctrl+Z replayer), `fs/trash`, `features/triage` |
 | M5 | `sidecar/ytdlp`, `sidecar/gallerydl`, `commands/downloads`, `features/downloads` |
