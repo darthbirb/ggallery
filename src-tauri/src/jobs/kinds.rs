@@ -11,9 +11,15 @@ pub const INDEX: &str = "index";
 pub const HASH: &str = "hash";
 pub const THUMB: &str = "thumb";
 pub const SPRITE: &str = "sprite";
+pub const RETAG_FOLDER: &str = "retag_folder";
+pub const RETAG_ITEM: &str = "retag_item";
 
 pub const PRIORITY_INDEX: i64 = 100;
 pub const PRIORITY_THUMB: i64 = 20;
+/// Between thumb and hash: tag correctness matters for search (M3+), but
+/// shouldn't starve the grid's own thumbnails while a big folder-level edit
+/// is still fanning out.
+pub const PRIORITY_RETAG: i64 = 15;
 pub const PRIORITY_HASH: i64 = 10;
 pub const PRIORITY_SPRITE: i64 = 1;
 
@@ -30,8 +36,16 @@ pub struct HashPayload {
     pub disk_name: String,
 }
 
-/// Thumbnail and sprite jobs, which work from an existing item.
+/// Thumbnail, sprite and item-level retag jobs, which work from an existing
+/// item.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemPayload {
     pub item_id: i64,
+}
+
+/// A folder-level tag edit's fan-out into `item_effective_tag` across its
+/// subtree. See `db::tags::rebuild_subtree`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RetagFolderPayload {
+    pub folder_rel: String,
 }

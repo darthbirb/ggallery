@@ -32,6 +32,14 @@ pub fn execute(ctx: &QueueInner, conn: &mut Connection, job: &QueuedJob) -> Resu
         ),
         kinds::THUMB => run_thumb(paths, tools, conn, serde_json::from_str(&job.payload)?),
         kinds::SPRITE => run_sprite(paths, tools, conn, serde_json::from_str(&job.payload)?),
+        kinds::RETAG_FOLDER => {
+            let payload: kinds::RetagFolderPayload = serde_json::from_str(&job.payload)?;
+            db::tags::rebuild_subtree(conn, &payload.folder_rel)
+        }
+        kinds::RETAG_ITEM => {
+            let payload: ItemPayload = serde_json::from_str(&job.payload)?;
+            db::tags::rebuild_item(conn, payload.item_id)
+        }
         other => Err(AppError::invalid(format!("unknown job type {other}"))),
     }
 }
@@ -80,7 +88,9 @@ pub fn run_hash(
     let mtime = walk::mtime_secs(&meta);
 
     let ext = extension_of(&payload.disk_name);
-    let kind = Kind::from_ext(&ext);
+    // Content-aware, not extension-only, for gif/webp/png — an animated one
+    // classifies as video per PLAN.md locked decision 17. See `media::classify`.
+    let kind = Kind::classify(&path, &ext);
 
     let hash = hash::blake3_file(&path)?;
     let probed = probe::probe(&path, kind, mtime, tools.ffmpeg.as_ref());
@@ -127,6 +137,16 @@ pub fn run_hash(
             captured_src: probed.captured_src,
         },
     )?;
+
+    // A brand-new item's effective tags are computed here, inline, rather
+    // than through the RETAG_ITEM queue — it is one bounded ancestor walk
+    // (see `db::tags::rebuild_item`), and queuing it separately would double
+    // the job count across a full walk for no benefit. An item that already
+    // existed keeps whatever cache it already has; nothing about its folder
+    // or its own tags changed just because its content did.
+    if existing.is_none() {
+        db::tags::rebuild_item(conn, item_id)?;
+    }
 
     // M1's read-only stance ends once the library has been imported: from
     // then on, anything the walker finds that the app did not itself write

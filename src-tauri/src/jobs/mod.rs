@@ -299,3 +299,23 @@ pub fn enqueue_sprite(conn: &Connection, item_id: i64) -> Result<()> {
     db::jobs::enqueue(conn, kinds::SPRITE, &payload, kinds::PRIORITY_SPRITE)?;
     Ok(())
 }
+
+/// Fan out a folder-level tag edit into `item_effective_tag` across its
+/// subtree. `folder_rel` is already normalised — callers derive it from
+/// `db::folders::rel_for` rather than passing a raw path.
+pub fn enqueue_retag_folder(conn: &Connection, folder_rel: &str) -> Result<()> {
+    let payload = serde_json::to_string(&kinds::RetagFolderPayload {
+        folder_rel: folder_rel.to_string(),
+    })?;
+    db::jobs::enqueue(conn, kinds::RETAG_FOLDER, &payload, kinds::PRIORITY_RETAG)?;
+    Ok(())
+}
+
+/// Recompute one item's effective tags — item-level manual tag changes.
+/// A brand-new item's initial cache is built inline in `jobs::worker::run_hash`
+/// instead of through this queue; see that function's doc comment.
+pub fn enqueue_retag_item(conn: &Connection, item_id: i64) -> Result<()> {
+    let payload = serde_json::to_string(&kinds::ItemPayload { item_id })?;
+    db::jobs::enqueue(conn, kinds::RETAG_ITEM, &payload, kinds::PRIORITY_RETAG)?;
+    Ok(())
+}
