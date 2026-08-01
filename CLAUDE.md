@@ -37,6 +37,12 @@ ffmpeg, HandBrakeCLI, yt-dlp and gallery-dl as sidecar binaries.
   portable between machines.
 - **Nothing is written outside the app directory and the library root.** No registry, no
   `%APPDATA%`, no installer. The app must run from a USB stick.
+
+  This governs **the shipped application at runtime**, not the build toolchain. Cargo,
+  npm and rustup keep machine-wide caches (`~/.cargo/registry`, the npm cache) by design
+  and are shared across every project — that is normal and correct. Do not try to relocate
+  them into the repo; setting `CARGO_HOME` locally would bloat the repository and slow
+  every build for no benefit.
 - **Files on disk are named `<uuid>.<ext>`.** The app owns filenames completely. Original
   names are stored in the database as searchable metadata.
 - **Destructive operations need an undo path.** Moves, deletes and compressions go through
@@ -59,6 +65,20 @@ Committing and pushing are the user's decisions, always. Show what would go in, 
 for an explicit yes — never commit or push as a convenient last step. `git clean`, force
 push, `git reset --hard` and history rewriting are off the table entirely; if one seems
 necessary, say so and let the user run it.
+
+## Finishing a milestone
+
+**Always run a full release build before reporting a milestone done** — frontend included,
+through the `tauri` CLI:
+
+```
+npm run tauri build
+```
+
+`cargo check`, `cargo test` and `tsc --noEmit` passing is not the same as the application
+building and running. LTO and `codegen-units = 1` make this a several-minute build; run it
+in the background and report the result, including whether the binary actually launches
+against a real library.
 
 ## Working style
 

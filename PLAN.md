@@ -280,7 +280,12 @@ move and tag edit. Verify it against a synthetic library at scale before calling
 done. This is the milestone where a scale problem would be most expensive to find late,
 because everything from M3 onward queries through it.
 
-Also carries two items deferred from earlier milestones:
+Also carries three small items deferred from earlier milestones:
+
+- **Rename the binary.** `tauri.conf.json` has `productName: "gallery"` and `Cargo.toml`
+  the package name `gallery`, so the build produces `gallery.exe` while the repo, the
+  window title and the README all say GGallery. The identifier `local.ggallery` is already
+  correct. Check the WebView2 data directory path still resolves after the change.
 
 - **Folder-name parsing**, held over from M1.5 because it needs archetypes. Existing
   folders named `Ana (@ana)` are offered as `title: Ana` with `instagram: @ana` on the
