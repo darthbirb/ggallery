@@ -468,6 +468,36 @@ Almost everything is open. These are not:
   move is a regression. The gesture is open, its existence is not. §2 *Direct
   manipulation*.
 
+#### Settled in phase 1
+
+The four forks the design hung from, answered. These are decisions, not suggestions.
+
+**The window is one split, and the second pane is polymorphic.** Direction A's continuous
+viewer/browser split, extended: the pane can hold an **item preview**, **another grid** (a
+different folder or query, side by side), or a **folder grid** — destination tiles with a
+filter box that narrows as you type. That last mode is the sort workflow, and it is how the
+two-Explorer-window habit gets beaten rather than tied.
+
+**Mouse-first.** The pane is drag-resizable and fully closable, and sizes are remembered
+and adjustable in settings. Ratio shortcuts may exist as a convenience layer, but the app
+must not assume anyone uses them — no capability may be keyboard-only.
+
+**The folder tree is resident by default and collapsible by click.** Around 200px,
+drag-resizable, foldable away with a visible control; width and collapsed state remembered.
+Never summoned by a keypress.
+
+**Drop targets are folder-grid tiles and tree rows.** Nothing appears or rearranges
+mid-drag. Tree rows spring open on hover while dragging, so a nested folder can be reached
+without setting it up first.
+
+**Folder identity is a collapsed band above the grid** — one title line, expanding on click
+to cover, archetype fields, tags, status and counts, remembered per folder.
+
+Two consequences to carry through: Direction A's permanent destination bar along the bottom
+**is not built** — the folder-grid pane replaces it with better ergonomics and no standing
+chrome. And the split pane does not show folder information when nothing is selected; the
+band owns that.
+
 #### Phase 1 — Design. Nothing is built.
 
 1. Read the full scope in [docs/DESIGN.md](docs/DESIGN.md): what this app is for, the

@@ -315,7 +315,11 @@ The panel is preview on top, details below:
 - **Tags** — inherited render greyed, manual render solid, so it is always obvious which
   came from where. Multi-selection shows shared tags and allows bulk add/remove. Tag entry
   is a combobox with autocomplete over existing keys and values.
-- With nothing selected, the panel shows the current folder instead.
+- With nothing selected, the panel is empty or shows the previous item. Folder identity
+  lives in its own collapsed band above the grid, not here.
+- The panel is **drag-resizable and fully closable**, with its width remembered. It can also
+  hold a second grid, or a filterable grid of folders used as drop targets — see
+  [PLAN.md](../PLAN.md) §M2.5 *Settled in phase 1*.
 
 ### Theatre view
 
