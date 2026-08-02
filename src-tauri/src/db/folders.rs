@@ -333,9 +333,11 @@ fn subtree_totals(conn: &Connection, rel_path: &str) -> Result<(i64, i64, i64)> 
     Ok((direct, total, subfolders.max(0)))
 }
 
-/// Retitling touches the record only — never the filesystem. The directory
-/// name lives in `rel_path`, independent of `title`; see `rename_dir` for
-/// the operation that moves the directory.
+/// The record's half of a retitle — title, its tag, and the journal entry.
+/// Pure DB, no filesystem access, which is exactly why `fs::relocate::
+/// retitle_folder` (the only real caller since M2.2 collapsed the title and
+/// the directory name into one thing) calls this first and only then decides
+/// whether the sanitised result means the directory needs to follow.
 pub fn set_title(conn: &Connection, id: i64, title: &str) -> Result<()> {
     let previous: String = conn.query_row(
         "SELECT title FROM folder WHERE id = ?1",
@@ -1093,10 +1095,12 @@ mod folder_metadata_tests {
 
     /// PLAN.md decision 20 / §M2.1: "verify subtree cases at scale with
     /// synth_library, and add the companion #[ignore]d test" — this is that
-    /// test, sized like `fs::import::scale_check_100k_items`. DB-only, no
-    /// files on disk: the physical directory rename is a single O(1) OS call
-    /// regardless of subtree size, so it isn't what either job body spends
-    /// its time on. Run explicitly with `cargo test --release
+    /// test, sized like `fs::import::scale_check_100k_items`. §M2.2 adds the
+    /// `set_title` case: retitling now drives the same rewrite and the same
+    /// retag, since a folder has one name. DB-only, no files on disk: the
+    /// physical directory rename is a single O(1) OS call regardless of
+    /// subtree size, so it isn't what any of these job bodies spend their
+    /// time on. Run explicitly with `cargo test --release
     /// scale_check_folder_relocate -- --ignored --nocapture`.
     #[test]
     #[ignore]
@@ -1165,6 +1169,21 @@ mod folder_metadata_tests {
         assert!(
             move_elapsed < std::time::Duration::from_secs(3),
             "move subtree rewrite+retag too slow: {move_elapsed:?}"
+        );
+
+        // M2.2: a folder has one name — retitling drives `set_title`, whose
+        // `enqueue_retag` fans out into the same `rebuild_subtree` above,
+        // just triggered by a title edit instead of a folder-tag edit. The
+        // directory rename `retitle_folder` would also perform is a single
+        // O(1) OS call, not measured here — same reasoning as the rename
+        // and move checks above.
+        let retitle_start = std::time::Instant::now();
+        set_title(&conn, cat, "Category, Retitled").unwrap();
+        let retitle_elapsed = retitle_start.elapsed();
+        println!("set_title fan-out over {LEAVES} descendants: {retitle_elapsed:?}");
+        assert!(
+            retitle_elapsed < std::time::Duration::from_secs(3),
+            "retitle's subtree fan-out too slow: {retitle_elapsed:?}"
         );
     }
 }

@@ -19,12 +19,17 @@ pub async fn get_folder(state: State<'_, AppState>, id: i64) -> Result<FolderDet
     .await
 }
 
+/// A folder has one name (PLAN.md §M2.2) — this both updates the title and,
+/// when the sanitised result differs from what's on disk, renames the
+/// directory to match. There is no separate rename-directory command any
+/// more.
 #[tauri::command]
 pub async fn set_folder_title(state: State<'_, AppState>, id: i64, title: String) -> Result<()> {
     let library = state.library()?;
     blocking(move || {
         let conn = library.conn()?;
-        db::folders::set_title(&conn, id, &title)
+        let suppressor = library.queue().inner().suppressor.clone();
+        crate::fs::relocate::retitle_folder(&library.paths, &conn, &suppressor, id, &title)
     })
     .await
 }
@@ -149,18 +154,6 @@ pub async fn create_folder(
     blocking(move || {
         let conn = library.conn()?;
         crate::fs::relocate::create_folder(&library.paths, &conn, parent_id, &name, archetype_id)
-    })
-    .await
-}
-
-/// The directory move — independent of `set_folder_title`, which touches
-/// only the display title. See docs/DESIGN.md "Folder operations".
-#[tauri::command]
-pub async fn rename_folder_dir(state: State<'_, AppState>, id: i64, name: String) -> Result<()> {
-    let library = state.library()?;
-    blocking(move || {
-        let conn = library.conn()?;
-        crate::fs::relocate::rename_folder_dir(&library.paths, &conn, id, &name)
     })
     .await
 }

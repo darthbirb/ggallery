@@ -259,7 +259,6 @@ pub fn run() {
             commands::folders::list_folder_statuses,
             commands::folders::list_archetypes,
             commands::folders::create_folder,
-            commands::folders::rename_folder_dir,
             commands::folders::move_folder,
             commands::folders::delete_folder,
             commands::folders::create_archetype,
