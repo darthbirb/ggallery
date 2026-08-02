@@ -233,18 +233,43 @@ export interface ArchetypeInfo {
   fields: ArchetypeFieldDef[];
 }
 
-export interface NameParseCandidate {
-  folderId: number;
-  relPath: string;
-  currentTitle: string;
-  proposedTitle: string;
-  handle: string;
-}
-
 export interface EffectiveTag {
   tagId: number;
   key: string | null;
   value: string;
   /** `null` for a manual tag; the contributing ancestor folder otherwise. */
   originId: number | null;
+}
+
+// --- M2.1: folder/item operations, archetype and status management -------
+
+/** A folder on this archetype that has actually filled the field in —
+ *  named in the confirmation before `removeArchetypeField` deletes it. */
+export interface ArchetypeFieldUsage {
+  folderId: number;
+  relPath: string;
+  title: string;
+  value: string;
+}
+
+export interface TagSummary {
+  id: number;
+  key: string | null;
+  value: string;
+  usageCount: number;
+}
+
+export interface ItemOpError {
+  itemId: number;
+  error: string;
+}
+
+export interface MoveItemsReport {
+  moved: number;
+  errors: ItemOpError[];
+}
+
+export interface TrashItemsReport {
+  trashed: number;
+  errors: ItemOpError[];
 }

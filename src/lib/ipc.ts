@@ -8,6 +8,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 
 import type {
+  ArchetypeFieldUsage,
   ArchetypeInfo,
   AppError,
   DryRunReport,
@@ -22,10 +23,12 @@ import type {
   IndexFailure,
   LibraryInfo,
   LibraryStatus,
-  NameParseCandidate,
+  MoveItemsReport,
   Progress,
   ReviewReport,
   ScanReport,
+  TagSummary,
+  TrashItemsReport,
   VerifyReport,
 } from "./types";
 
@@ -189,16 +192,6 @@ export function listArchetypes(): Promise<ArchetypeInfo[]> {
   return invoke<ArchetypeInfo[]>("list_archetypes");
 }
 
-export function scanFolderNameParse(): Promise<NameParseCandidate[]> {
-  return invoke<NameParseCandidate[]>("scan_folder_name_parse");
-}
-
-export function applyFolderNameParse(
-  rows: NameParseCandidate[],
-): Promise<void> {
-  return invoke<void>("apply_folder_name_parse", { rows });
-}
-
 /** No frontend caller yet — item-level tag UI is M2.5's. Exposed so M2.5 has
  *  a typed entry point to build on. */
 export function itemEffectiveTags(itemId: number): Promise<EffectiveTag[]> {
@@ -215,6 +208,152 @@ export function addItemTag(
 
 export function removeItemTag(itemId: number, tagId: number): Promise<void> {
   return invoke<void>("remove_item_tag", { itemId, tagId });
+}
+
+// --- M2.1: folder lifecycle ------------------------------------------------
+
+export function createFolder(
+  parentId: number | null,
+  name: string,
+  archetypeId: number | null,
+): Promise<number> {
+  return invoke<number>("create_folder", { parentId, name, archetypeId });
+}
+
+/** The directory move — independent of `setFolderTitle`, which touches only
+ *  the display title. */
+export function renameFolderDir(id: number, name: string): Promise<void> {
+  return invoke<void>("rename_folder_dir", { id, name });
+}
+
+export function moveFolder(id: number, newParentId: number | null): Promise<void> {
+  return invoke<void>("move_folder", { id, newParentId });
+}
+
+export function deleteFolder(id: number): Promise<void> {
+  return invoke<void>("delete_folder", { id });
+}
+
+// --- M2.1: archetype lifecycle ----------------------------------------
+
+export function createArchetype(name: string): Promise<number> {
+  return invoke<number>("create_archetype", { name });
+}
+
+export function renameArchetype(id: number, name: string): Promise<void> {
+  return invoke<void>("rename_archetype", { id, name });
+}
+
+export function deleteArchetype(id: number): Promise<void> {
+  return invoke<void>("delete_archetype", { id });
+}
+
+export function countFoldersUsingArchetype(archetypeId: number): Promise<number> {
+  return invoke<number>("count_folders_using_archetype", { archetypeId });
+}
+
+export function addArchetypeField(
+  archetypeId: number,
+  key: string,
+  fieldType: string,
+  applyToExisting: boolean,
+): Promise<void> {
+  return invoke<void>("add_archetype_field", {
+    archetypeId,
+    key,
+    fieldType,
+    applyToExisting,
+  });
+}
+
+export function reorderArchetypeFields(
+  archetypeId: number,
+  orderedKeys: string[],
+): Promise<void> {
+  return invoke<void>("reorder_archetype_fields", { archetypeId, orderedKeys });
+}
+
+export function archetypeFieldUsage(
+  archetypeId: number,
+  key: string,
+): Promise<ArchetypeFieldUsage[]> {
+  return invoke<ArchetypeFieldUsage[]>("archetype_field_usage", { archetypeId, key });
+}
+
+export function removeArchetypeField(archetypeId: number, key: string): Promise<void> {
+  return invoke<void>("remove_archetype_field", { archetypeId, key });
+}
+
+// --- M2.1: folder status lifecycle -------------------------------------
+
+export function createFolderStatus(label: string, colour: string): Promise<string> {
+  return invoke<string>("create_folder_status", { label, colour });
+}
+
+export function renameFolderStatus(key: string, label: string): Promise<void> {
+  return invoke<void>("rename_folder_status", { key, label });
+}
+
+export function recolourFolderStatus(key: string, colour: string): Promise<void> {
+  return invoke<void>("recolour_folder_status", { key, colour });
+}
+
+export function reorderFolderStatuses(orderedKeys: string[]): Promise<void> {
+  return invoke<void>("reorder_folder_statuses", { orderedKeys });
+}
+
+export function countFoldersByStatus(key: string): Promise<number> {
+  return invoke<number>("count_folders_by_status", { key });
+}
+
+export function removeFolderStatus(
+  key: string,
+  reassignTo: string | null,
+): Promise<void> {
+  return invoke<void>("remove_folder_status", { key, reassignTo });
+}
+
+// --- M2.1: item move, delete, and OS-integration escape hatches --------
+
+export function moveItems(
+  itemIds: number[],
+  destFolderId: number,
+): Promise<MoveItemsReport> {
+  return invoke<MoveItemsReport>("move_items", { itemIds, destFolderId });
+}
+
+export function deleteItems(itemIds: number[]): Promise<TrashItemsReport> {
+  return invoke<TrashItemsReport>("delete_items", { itemIds });
+}
+
+export function revealItem(itemId: number): Promise<void> {
+  return invoke<void>("reveal_item", { itemId });
+}
+
+export function openItem(itemId: number): Promise<void> {
+  return invoke<void>("open_item", { itemId });
+}
+
+export function copyItemFile(itemId: number): Promise<void> {
+  return invoke<void>("copy_item_file", { itemId });
+}
+
+export function copyItemPath(itemId: number): Promise<void> {
+  return invoke<void>("copy_item_path", { itemId });
+}
+
+// --- M2.1: rename / delete a tag ----------------------------------------
+
+export function listTags(filter: string | null): Promise<TagSummary[]> {
+  return invoke<TagSummary[]>("list_tags", { filter });
+}
+
+export function renameTag(tagId: number, value: string): Promise<void> {
+  return invoke<void>("rename_tag", { tagId, value });
+}
+
+export function deleteTag(tagId: number): Promise<void> {
+  return invoke<void>("delete_tag", { tagId });
 }
 
 /** Absolute cache path to something the webview can load. */

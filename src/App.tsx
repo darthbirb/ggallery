@@ -2,26 +2,32 @@ import { useEffect, useState } from "react";
 
 import { FolderHeader } from "./features/folder/FolderHeader";
 import { Grid } from "./features/grid/Grid";
+import { SelectionToolbar } from "./features/grid/SelectionToolbar";
 import { FailureList } from "./features/indexing/FailureList";
 import { IndexStatus } from "./features/indexing/IndexStatus";
 import { NormaliseFilenamesModal } from "./features/import/NormaliseFilenamesModal";
 import { ProgressScreen } from "./features/import/ProgressScreen";
 import { ReviewScreen } from "./features/import/ReviewScreen";
-import { ParseFolderNamesModal } from "./features/settings/ParseFolderNamesModal";
+import { ArchetypesModal } from "./features/settings/ArchetypesModal";
 import { SettingsPanel } from "./features/settings/SettingsPanel";
+import { StatusesModal } from "./features/settings/StatusesModal";
+import { TagsModal } from "./features/settings/TagsModal";
 import { Sidebar } from "./features/sidebar/Sidebar";
 import { formatCount } from "./lib/format";
 import { useLibrary } from "./state/library";
+import { useSelection } from "./state/selection";
 import { TILE_SIZES, useUi } from "./state/ui";
 
 export default function App() {
   const library = useLibrary();
   const ui = useUi();
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const selection = useSelection(library.items);
   const [showFailures, setShowFailures] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showNormalise, setShowNormalise] = useState(false);
-  const [showParseNames, setShowParseNames] = useState(false);
+  const [showArchetypes, setShowArchetypes] = useState(false);
+  const [showStatuses, setShowStatuses] = useState(false);
+  const [showTags, setShowTags] = useState(false);
   const [backupConfirmed, setBackupConfirmed] = useState(false);
   const [starting, setStarting] = useState(false);
 
@@ -141,9 +147,17 @@ export default function App() {
             setShowSettings(false);
             setShowNormalise(true);
           }}
-          onParseFolderNames={() => {
+          onManageArchetypes={() => {
             setShowSettings(false);
-            setShowParseNames(true);
+            setShowArchetypes(true);
+          }}
+          onManageStatuses={() => {
+            setShowSettings(false);
+            setShowStatuses(true);
+          }}
+          onManageTags={() => {
+            setShowSettings(false);
+            setShowTags(true);
           }}
         />
       )}
@@ -152,11 +166,22 @@ export default function App() {
         <NormaliseFilenamesModal onClose={() => setShowNormalise(false)} />
       )}
 
-      {showParseNames && (
-        <ParseFolderNamesModal
-          onClose={() => setShowParseNames(false)}
-          onApplied={library.refreshFolders}
+      {showArchetypes && (
+        <ArchetypesModal
+          onClose={() => setShowArchetypes(false)}
+          onChanged={library.refreshFolders}
         />
+      )}
+
+      {showStatuses && (
+        <StatusesModal
+          onClose={() => setShowStatuses(false)}
+          onChanged={library.refreshFolders}
+        />
+      )}
+
+      {showTags && (
+        <TagsModal onClose={() => setShowTags(false)} onChanged={library.refreshFolders} />
       )}
 
       <div className="grid min-h-0 grid-cols-[214px_1fr]">
@@ -166,6 +191,7 @@ export default function App() {
           onSelect={(relPath) =>
             library.setScope({ folder: relPath, recursive: scope.recursive })
           }
+          onChanged={library.refreshFolders}
         />
 
         <main className="flex min-h-0 min-w-0 flex-col">
@@ -203,6 +229,8 @@ export default function App() {
                 ui.setFolderHeaderCollapsed(!ui.folderHeaderCollapsed)
               }
               onChanged={library.refreshFolders}
+              folders={library.folders}
+              onDeleted={() => library.setScope({ folder: null, recursive: true })}
             />
           )}
 
@@ -267,13 +295,18 @@ export default function App() {
             </div>
           )}
 
+          <SelectionToolbar
+            selection={selection}
+            folders={library.folders}
+            onChanged={() => library.setScope(scope)}
+          />
+
           <Grid
             items={library.items}
             thumbsDir={info.thumbsDir}
             spritesDir={info.spritesDir}
             tileHeight={ui.tileHeight}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
+            selection={selection}
             refreshToken={library.refreshToken}
           />
         </main>
