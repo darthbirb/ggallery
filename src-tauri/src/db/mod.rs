@@ -19,6 +19,8 @@ use crate::error::Result;
 const MIGRATIONS: &[(i64, &str)] = &[
     (1, include_str!("migrations/001_initial.sql")),
     (2, include_str!("migrations/002_folder_metadata.sql")),
+    (3, include_str!("migrations/003_drop_seeded_archetypes.sql")),
+    (4, include_str!("migrations/004_folder_soft_delete.sql")),
 ];
 
 /// Open a connection with the pragmas the whole app assumes. Every thread that

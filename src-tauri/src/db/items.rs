@@ -330,6 +330,37 @@ pub fn set_disk_name(conn: &Connection, id: i64, disk_name: &str) -> Result<()> 
     Ok(())
 }
 
+pub fn folder_id_of(conn: &Connection, id: i64) -> Result<Option<i64>> {
+    Ok(conn
+        .query_row(
+            "SELECT folder_id FROM item WHERE id = ?1 AND deleted_at IS NULL",
+            params![id],
+            |r| r.get(0),
+        )
+        .optional()?)
+}
+
+/// The move operation's DB half — `fs::relocate::move_items` has already
+/// moved the file on disk by the time this runs.
+pub fn set_folder(conn: &Connection, id: i64, folder_id: i64) -> Result<()> {
+    conn.execute(
+        "UPDATE item SET folder_id = ?1 WHERE id = ?2",
+        params![folder_id, id],
+    )?;
+    Ok(())
+}
+
+/// The delete operation's DB half — reuses the same soft-delete column the
+/// watcher already uses for a file that vanished from disk. `fs::trash`
+/// has already moved the file into `.gallery/trash/` by the time this runs.
+pub fn trash_one(conn: &Connection, id: i64) -> Result<()> {
+    conn.execute(
+        "UPDATE item SET deleted_at = ?1 WHERE id = ?2",
+        params![now(), id],
+    )?;
+    Ok(())
+}
+
 /// What the import wizard's verify step re-hashes.
 #[derive(Debug, Clone)]
 pub struct VerifyCandidate {

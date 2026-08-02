@@ -13,7 +13,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 
 use crate::db::now;
-use crate::error::Result;
+use crate::error::{AppError, Result};
 
 /// Get or create the shared `tag` row for `(key, value)`. `key` is `None`
 /// for a flag. `IS` rather than `=` so `NULL` compares correctly.
@@ -302,6 +302,129 @@ pub fn remove_item_tag(conn: &Connection, item_id: i64, tag_id: i64) -> Result<(
         params![item_id, tag_id],
     )?;
     rebuild_item(conn, item_id)
+}
+
+// --- rename / delete a tag (M2.1) -----------------------------------------
+//
+// The minimum that stops the vocabulary rotting — a typo fix and a way to
+// remove one. Merge, aliases and usage counts stay M8's full tag-management
+// screen, per docs/DESIGN.md "Item operations".
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TagSummary {
+    pub id: i64,
+    pub key: Option<String>,
+    pub value: String,
+    pub usage_count: i64,
+}
+
+pub fn list_tags(conn: &Connection, filter: Option<&str>) -> Result<Vec<TagSummary>> {
+    let pattern = filter.map(|f| format!("%{f}%"));
+    let mut stmt = conn.prepare(
+        "SELECT t.id, t.key, t.value,
+                (SELECT COUNT(*) FROM folder_tag WHERE tag_id = t.id)
+              + (SELECT COUNT(*) FROM item_tag WHERE tag_id = t.id) AS usage
+           FROM tag t
+          WHERE ?1 IS NULL OR t.value LIKE ?1 OR t.key LIKE ?1
+          ORDER BY t.key IS NOT NULL, t.value COLLATE NOCASE",
+    )?;
+    let rows = stmt
+        .query_map(params![pattern], |r| {
+            Ok(TagSummary {
+                id: r.get(0)?,
+                key: r.get(1)?,
+                value: r.get(2)?,
+                usage_count: r.get(3)?,
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(rows)
+}
+
+/// Renames a tag's display value. Only the value changes — a label's key
+/// (what field it represents) is a bigger edit than a typo fix and stays
+/// out of scope here. No cache rebuild needed: `item_effective_tag` and
+/// `folder_tag`/`item_tag` all reference `tag_id`, not a copy of the text,
+/// so every place the tag renders picks the new value up through the join.
+pub fn rename_tag(conn: &Connection, tag_id: i64, new_value: &str) -> Result<()> {
+    let (key, old_value): (Option<String>, String) = conn
+        .query_row(
+            "SELECT key, value FROM tag WHERE id = ?1",
+            params![tag_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?
+        .ok_or_else(|| AppError::invalid("tag not found"))?;
+
+    let collision: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM tag WHERE key IS ?1 AND value = ?2 AND id != ?3)",
+        params![key, new_value, tag_id],
+        |r| r.get(0),
+    )?;
+    if collision {
+        return Err(AppError::invalid("a tag with that name already exists"));
+    }
+
+    conn.execute(
+        "UPDATE tag SET value = ?1 WHERE id = ?2",
+        params![new_value, tag_id],
+    )?;
+    crate::db::journal::record_tag_rename(conn, tag_id, &old_value, new_value)?;
+    Ok(())
+}
+
+/// Deletes a tag across the whole library — `folder_tag`, `item_tag`,
+/// `item_effective_tag`, `tag_alias`, then the `tag` row itself. Refuses if
+/// the tag is a `source = 'title'` folder-title tag, mirroring the
+/// per-folder protection `db::folders::remove_tag` already enforces — a
+/// folder's title is renamed, not deleted out from under it.
+///
+/// No rebuild job needed: `item_effective_tag` rows are deleted directly by
+/// `tag_id` here, which is cheap and immediate, unlike a subtree recompute.
+pub fn delete_tag(conn: &Connection, tag_id: i64) -> Result<()> {
+    let is_title: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM folder_tag WHERE tag_id = ?1 AND source = 'title')",
+        params![tag_id],
+        |r| r.get(0),
+    )?;
+    if is_title {
+        return Err(AppError::invalid(
+            "this tag is a folder title and can't be deleted directly — rename the folder instead",
+        ));
+    }
+
+    let (key, value): (Option<String>, String) = conn
+        .query_row(
+            "SELECT key, value FROM tag WHERE id = ?1",
+            params![tag_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?
+        .ok_or_else(|| AppError::invalid("tag not found"))?;
+
+    let mut fstmt = conn.prepare("SELECT folder_id FROM folder_tag WHERE tag_id = ?1")?;
+    let folder_ids: Vec<i64> = fstmt
+        .query_map(params![tag_id], |r| r.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    drop(fstmt);
+    let mut istmt = conn.prepare("SELECT item_id FROM item_tag WHERE tag_id = ?1")?;
+    let item_ids: Vec<i64> = istmt
+        .query_map(params![tag_id], |r| r.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    drop(istmt);
+
+    conn.execute("DELETE FROM folder_tag WHERE tag_id = ?1", params![tag_id])?;
+    conn.execute("DELETE FROM item_tag WHERE tag_id = ?1", params![tag_id])?;
+    conn.execute(
+        "DELETE FROM item_effective_tag WHERE tag_id = ?1",
+        params![tag_id],
+    )?;
+    conn.execute("DELETE FROM tag_alias WHERE tag_id = ?1", params![tag_id])?;
+    conn.execute("DELETE FROM tag WHERE id = ?1", params![tag_id])?;
+
+    crate::db::journal::record_tag_delete(conn, tag_id, key.as_deref(), &value, &folder_ids, &item_ids)?;
+    Ok(())
 }
 
 #[cfg(test)]
