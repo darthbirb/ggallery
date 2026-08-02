@@ -60,7 +60,12 @@ fn move_to_trash(paths: &LibraryPaths, rel_path: &str) -> Result<String> {
 /// descendant folder in two bulk `UPDATE`s. Both are cheap even for a large
 /// subtree, which is why this runs synchronously rather than as a job,
 /// unlike the tag-cache rebuild.
-pub fn trash_folder(paths: &LibraryPaths, conn: &Connection, folder_id: i64) -> Result<()> {
+pub fn trash_folder(
+    paths: &LibraryPaths,
+    conn: &Connection,
+    folder_id: i64,
+    batch_id: &str,
+) -> Result<()> {
     let (rel_path, title, parent_id): (String, String, Option<i64>) = conn
         .query_row(
             "SELECT rel_path, title, parent_id FROM folder WHERE id = ?1 AND deleted_at IS NULL",
@@ -72,9 +77,37 @@ pub fn trash_folder(paths: &LibraryPaths, conn: &Connection, folder_id: i64) -> 
         return Err(AppError::invalid("the library root can't be deleted"));
     }
 
+    // Read before the write: `trash_subtree_rows` overwrites every one of
+    // these paths, so this is the only moment they can be captured for undo.
+    let subtree = db::folders::subtree_rows(conn, &rel_path)?;
+
     let trash_rel = move_to_trash(paths, &rel_path)?;
-    db::folders::trash_subtree_rows(conn, &rel_path)?;
-    db::journal::record_folder_trash(conn, folder_id, &rel_path, &title, &trash_rel)?;
+    let trashed_at = db::folders::trash_subtree_rows(conn, &rel_path)?;
+    db::journal::record_folder_trash(
+        conn, batch_id, folder_id, &rel_path, &title, &trash_rel, &subtree, trashed_at,
+    )?;
+    Ok(())
+}
+
+/// Move something back out of trash to `rel_path`. Undo's half of
+/// `move_to_trash`; the caller puts the database rows back.
+pub fn restore_from_trash(paths: &LibraryPaths, trash_rel: &str, rel_path: &str) -> Result<()> {
+    let src = paths.trash_dir().join(trash_rel);
+    if !src.exists() {
+        return Err(AppError::invalid(format!(
+            "{trash_rel} is no longer in the trash"
+        )));
+    }
+    let dest = paths.to_abs(rel_path)?;
+    if dest.exists() {
+        return Err(AppError::invalid(format!(
+            "something already exists at {rel_path}"
+        )));
+    }
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::rename(&src, &dest)?;
     Ok(())
 }
 
@@ -86,6 +119,9 @@ pub fn trash_folder(paths: &LibraryPaths, conn: &Connection, folder_id: i64) -> 
 pub struct TrashItemsReport {
     pub trashed: i64,
     pub errors: Vec<ItemOpError>,
+    /// The journal batch this delete wrote — what the toast's Undo button
+    /// hands back to `undo_batch`.
+    pub batch_id: String,
 }
 
 /// Trash a batch of items, sharing `batch_id` so one future undo covers the
@@ -96,7 +132,10 @@ pub fn trash_items(
     item_ids: &[i64],
     batch_id: &str,
 ) -> Result<TrashItemsReport> {
-    let mut report = TrashItemsReport::default();
+    let mut report = TrashItemsReport {
+        batch_id: batch_id.to_string(),
+        ..Default::default()
+    };
     for &item_id in item_ids {
         match trash_one_item(paths, conn, item_id, batch_id) {
             Ok(()) => report.trashed += 1,
@@ -180,7 +219,7 @@ mod tests {
         )
         .unwrap();
 
-        trash_folder(&paths, &conn, ana).unwrap();
+        trash_folder(&paths, &conn, ana, &db::journal::new_batch()).unwrap();
 
         assert!(!root.join("People/Ana").exists(), "moved off its original path");
         assert!(
@@ -211,7 +250,7 @@ mod tests {
         db::folders::upsert(&conn, "", "Library").unwrap();
         db::folders::upsert(&conn, "people", "People").unwrap();
         let ana = db::folders::upsert(&conn, "people/ana", "Ana").unwrap();
-        trash_folder(&paths, &conn, ana).unwrap();
+        trash_folder(&paths, &conn, ana, &db::journal::new_batch()).unwrap();
 
         // Recreate a directory at the freed path and let the walker's own
         // `upsert` (id_for_rel-backed) pick it up as a brand-new folder.

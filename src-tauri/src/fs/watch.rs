@@ -417,13 +417,16 @@ fn handle_dir_renamed(paths: &LibraryPaths, conn: &Connection, old_abs: &Path, n
         .unwrap_or_default()
         .to_string();
 
+    // One rename in Explorer is one undoable step, so the title change and
+    // the path change share a batch.
+    let batch = db::journal::new_batch();
     if crate::fs::relocate::sanitise_folder_name(&current_title) != new_name {
-        db::folders::set_title(conn, folder_id, &new_name)?;
+        db::folders::set_title(conn, folder_id, &new_name, &batch)?;
     }
 
     db::folders::set_rel_path(conn, folder_id, &new_rel)?;
     jobs::enqueue_rename_folder_subtree(conn, &old_rel, &new_rel)?;
-    db::journal::record_folder_rename_dir(conn, folder_id, &old_rel, &new_rel)?;
+    db::journal::record_folder_rename_dir(conn, &batch, folder_id, &old_rel, &new_rel)?;
     Ok(())
 }
 

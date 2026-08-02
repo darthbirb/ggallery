@@ -153,6 +153,7 @@ pub fn create_folder(
     parent_id: Option<i64>,
     title: &str,
     archetype_id: Option<i64>,
+    batch_id: &str,
 ) -> Result<i64> {
     let parent_path = match parent_id {
         Some(id) => db::folders::rel_for(conn, id)?
@@ -186,7 +187,7 @@ pub fn create_folder(
     if let Some(archetype_id) = archetype_id {
         db::folders::apply_archetype(conn, id, archetype_id)?;
     }
-    db::journal::record_folder_create(conn, id, parent_id, &rel)?;
+    db::journal::record_folder_create(conn, batch_id, id, parent_id, &rel)?;
     Ok(id)
 }
 
@@ -202,11 +203,12 @@ pub fn retitle_folder(
     suppressor: &Suppressor,
     folder_id: i64,
     new_title: &str,
+    batch_id: &str,
 ) -> Result<()> {
     let (old_rel, parent_id, old_title) = folder_location(conn, folder_id)?;
 
     if old_title != new_title {
-        db::folders::set_title(conn, folder_id, new_title)?;
+        db::folders::set_title(conn, folder_id, new_title, batch_id)?;
     }
 
     if parent_id.is_none() {
@@ -244,7 +246,7 @@ pub fn retitle_folder(
     let new_rel = join_rel(&parent_path, &target_name);
     db::folders::set_rel_path(conn, folder_id, &new_rel)?;
     jobs::enqueue_rename_folder_subtree(conn, &old_rel, &new_rel)?;
-    db::journal::record_folder_rename_dir(conn, folder_id, &old_rel, &new_rel)?;
+    db::journal::record_folder_rename_dir(conn, batch_id, folder_id, &old_rel, &new_rel)?;
     Ok(())
 }
 
@@ -257,6 +259,28 @@ pub fn move_folder(
     conn: &Connection,
     folder_id: i64,
     new_parent_id: Option<i64>,
+    batch_id: &str,
+) -> Result<()> {
+    move_folder_inner(paths, conn, folder_id, new_parent_id, Some(batch_id))
+}
+
+/// The same move, without a journal entry — what `fs::undo` calls to put a
+/// folder back. A reversal is not itself an operation to reverse.
+pub fn move_folder_unjournalled(
+    paths: &LibraryPaths,
+    conn: &Connection,
+    folder_id: i64,
+    new_parent_id: Option<i64>,
+) -> Result<()> {
+    move_folder_inner(paths, conn, folder_id, new_parent_id, None)
+}
+
+fn move_folder_inner(
+    paths: &LibraryPaths,
+    conn: &Connection,
+    folder_id: i64,
+    new_parent_id: Option<i64>,
+    batch_id: Option<&str>,
 ) -> Result<()> {
     let (old_rel, parent_id, title) = folder_location(conn, folder_id)?;
     if parent_id.is_none() {
@@ -308,7 +332,17 @@ pub fn move_folder(
     let new_rel = join_rel(&new_parent_path, &name);
     db::folders::set_parent_and_rel_path(conn, folder_id, new_parent_id, &new_rel)?;
     jobs::enqueue_move_folder_subtree(conn, &old_rel, &new_rel)?;
-    db::journal::record_folder_move(conn, folder_id, parent_id, new_parent_id, &old_rel, &new_rel)?;
+    if let Some(batch_id) = batch_id {
+        db::journal::record_folder_move(
+            conn,
+            batch_id,
+            folder_id,
+            parent_id,
+            new_parent_id,
+            &old_rel,
+            &new_rel,
+        )?;
+    }
     Ok(())
 }
 
@@ -328,6 +362,9 @@ pub struct ItemOpError {
 pub struct MoveItemsReport {
     pub moved: i64,
     pub errors: Vec<ItemOpError>,
+    /// The journal batch this move wrote — what the toast's Undo button
+    /// hands back to `undo_batch`. Empty only when nothing moved.
+    pub batch_id: String,
 }
 
 /// Move a batch of items into `dest_folder_id`, sharing `batch_id` so one
@@ -342,7 +379,10 @@ pub fn move_items(
     let dest_rel = db::folders::rel_for(conn, dest_folder_id)?
         .ok_or_else(|| AppError::invalid("destination folder not found"))?;
 
-    let mut report = MoveItemsReport::default();
+    let mut report = MoveItemsReport {
+        batch_id: batch_id.to_string(),
+        ..Default::default()
+    };
     for &item_id in item_ids {
         match move_one_item(paths, conn, item_id, dest_folder_id, &dest_rel, batch_id) {
             Ok(()) => report.moved += 1,
@@ -510,7 +550,7 @@ mod tests {
         let ana = db::folders::upsert(&conn, "ana", "Ana").unwrap();
         let trip = db::folders::upsert(&conn, "ana/2024 trip", "2024 Trip").unwrap();
 
-        retitle_folder(&paths, &conn, &Suppressor::default(), ana, "Anastasia").unwrap();
+        retitle_folder(&paths, &conn, &Suppressor::default(), ana, "Anastasia", &db::journal::new_batch()).unwrap();
 
         assert!(root.join("Anastasia").is_dir());
         assert!(!root.join("Ana").exists());
@@ -536,7 +576,7 @@ mod tests {
         let (paths, conn) = open_db(&root);
         let ana = db::folders::upsert(&conn, "ana", "Ana").unwrap();
 
-        retitle_folder(&paths, &conn, &Suppressor::default(), ana, "Anastasia").unwrap();
+        retitle_folder(&paths, &conn, &Suppressor::default(), ana, "Anastasia", &db::journal::new_batch()).unwrap();
 
         let dir_renames: i64 = conn
             .query_row(
@@ -574,7 +614,7 @@ mod tests {
 
         // "Ana:Trip" sanitises to "Ana-Trip", identical to what's already
         // on disk (from "Ana/Trip") — only the title should move.
-        retitle_folder(&paths, &conn, &Suppressor::default(), ana, "Ana:Trip").unwrap();
+        retitle_folder(&paths, &conn, &Suppressor::default(), ana, "Ana:Trip", &db::journal::new_batch()).unwrap();
 
         assert!(root.join("Ana-Trip").is_dir());
         let detail = db::folders::get_detail(&conn, ana).unwrap().unwrap();
@@ -589,7 +629,7 @@ mod tests {
         let (paths, conn) = open_db(&root);
         let ana = db::folders::upsert(&conn, "ana", "Ana").unwrap();
 
-        retitle_folder(&paths, &conn, &Suppressor::default(), ana, "...").unwrap();
+        retitle_folder(&paths, &conn, &Suppressor::default(), ana, "...", &db::journal::new_batch()).unwrap();
 
         assert!(root.join("Ana").is_dir(), "directory keeps its previous name");
         let detail = db::folders::get_detail(&conn, ana).unwrap().unwrap();
@@ -606,7 +646,7 @@ mod tests {
         db::folders::upsert(&conn, "ana", "Ana").unwrap();
         let bob = db::folders::upsert(&conn, "bob", "Bob").unwrap();
 
-        retitle_folder(&paths, &conn, &Suppressor::default(), bob, "Ana").unwrap();
+        retitle_folder(&paths, &conn, &Suppressor::default(), bob, "Ana", &db::journal::new_batch()).unwrap();
 
         assert!(root.join("Ana (2)").is_dir());
         let detail = db::folders::get_detail(&conn, bob).unwrap().unwrap();
@@ -621,7 +661,7 @@ mod tests {
         let (paths, conn) = open_db(&root);
         let ana = db::folders::upsert(&conn, "ana", "Ana").unwrap();
 
-        retitle_folder(&paths, &conn, &Suppressor::default(), ana, "ANA").unwrap();
+        retitle_folder(&paths, &conn, &Suppressor::default(), ana, "ANA", &db::journal::new_batch()).unwrap();
 
         let on_disk = std::fs::canonicalize(root.join("ana")).unwrap();
         assert_eq!(
@@ -641,7 +681,7 @@ mod tests {
         let ana = db::folders::upsert(&conn, "ana", "Ana").unwrap();
         let suppressor = Suppressor::default();
 
-        retitle_folder(&paths, &conn, &suppressor, ana, "Anastasia").unwrap();
+        retitle_folder(&paths, &conn, &suppressor, ana, "Anastasia", &db::journal::new_batch()).unwrap();
 
         assert!(suppressor.is_suppressed(&paths, &root.join("Ana")));
         assert!(suppressor.is_suppressed(&paths, &root.join("Anastasia")));
@@ -660,7 +700,7 @@ mod tests {
         let ana = db::folders::upsert(&conn, "ana", "Ana").unwrap();
         let people = db::folders::upsert(&conn, "people", "People").unwrap();
 
-        move_folder(&paths, &conn, ana, Some(people)).unwrap();
+        move_folder(&paths, &conn, ana, Some(people), &db::journal::new_batch()).unwrap();
 
         assert!(root.join("People/Ana").is_dir());
         let detail = db::folders::get_detail(&conn, ana).unwrap().unwrap();

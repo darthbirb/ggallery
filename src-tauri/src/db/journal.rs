@@ -30,6 +30,40 @@ pub fn new_batch() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 
+/// One journal row, as `fs::undo` reads it back.
+pub struct Entry {
+    pub id: i64,
+    pub op: String,
+    pub inverse: Value,
+}
+
+/// Every row in a batch, newest first — the order an undo has to apply them
+/// in, since a batch's later rows may depend on its earlier ones.
+pub fn batch(conn: &Connection, batch_id: &str) -> Result<Vec<Entry>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, op, inverse FROM journal WHERE batch_id = ?1 ORDER BY id DESC",
+    )?;
+    let rows = stmt
+        .query_map(params![batch_id], |r| {
+            let raw: String = r.get(2)?;
+            Ok(Entry {
+                id: r.get(0)?,
+                op: r.get(1)?,
+                inverse: serde_json::from_str(&raw).unwrap_or(Value::Null),
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(rows)
+}
+
+/// Drop a batch once it has been undone. An operation that has been reversed
+/// is not history a replayer should ever act on again — and until M4 builds
+/// the full stack, "gone" is the honest representation of undone.
+pub fn drop_batch(conn: &Connection, batch_id: &str) -> Result<()> {
+    conn.execute("DELETE FROM journal WHERE batch_id = ?1", params![batch_id])?;
+    Ok(())
+}
+
 /// One file renamed on arrival, recorded so a future undo can put it back
 /// under its old name. `forward`/`inverse` are deliberately symmetric — both
 /// are just `{ itemId, folderRel, from, to }` with the names swapped, so a
@@ -54,26 +88,27 @@ pub fn record_rename(
 
 // --- folders ---------------------------------------------------------------
 
-pub fn record_folder_create(conn: &Connection, folder_id: i64, parent_id: Option<i64>, rel_path: &str) -> Result<()> {
+pub fn record_folder_create(conn: &Connection, batch_id: &str, folder_id: i64, parent_id: Option<i64>, rel_path: &str) -> Result<()> {
     let forward = json!({ "folderId": folder_id, "parentId": parent_id, "relPath": rel_path });
     let inverse = json!({ "folderId": folder_id });
-    record(conn, &new_batch(), "folder_create", forward, inverse)
+    record(conn, batch_id, "folder_create", forward, inverse)
 }
 
-pub fn record_folder_rename_title(conn: &Connection, folder_id: i64, from: &str, to: &str) -> Result<()> {
+pub fn record_folder_rename_title(conn: &Connection, batch_id: &str, folder_id: i64, from: &str, to: &str) -> Result<()> {
     let forward = json!({ "folderId": folder_id, "from": from, "to": to });
     let inverse = json!({ "folderId": folder_id, "from": to, "to": from });
-    record(conn, &new_batch(), "folder_rename_title", forward, inverse)
+    record(conn, batch_id, "folder_rename_title", forward, inverse)
 }
 
-pub fn record_folder_rename_dir(conn: &Connection, folder_id: i64, old_rel: &str, new_rel: &str) -> Result<()> {
+pub fn record_folder_rename_dir(conn: &Connection, batch_id: &str, folder_id: i64, old_rel: &str, new_rel: &str) -> Result<()> {
     let forward = json!({ "folderId": folder_id, "from": old_rel, "to": new_rel });
     let inverse = json!({ "folderId": folder_id, "from": new_rel, "to": old_rel });
-    record(conn, &new_batch(), "folder_rename_dir", forward, inverse)
+    record(conn, batch_id, "folder_rename_dir", forward, inverse)
 }
 
 pub fn record_folder_move(
     conn: &Connection,
+    batch_id: &str,
     folder_id: i64,
     from_parent_id: Option<i64>,
     to_parent_id: Option<i64>,
@@ -82,13 +117,37 @@ pub fn record_folder_move(
 ) -> Result<()> {
     let forward = json!({ "folderId": folder_id, "fromParentId": from_parent_id, "toParentId": to_parent_id, "fromRel": old_rel, "toRel": new_rel });
     let inverse = json!({ "folderId": folder_id, "fromParentId": to_parent_id, "toParentId": from_parent_id, "fromRel": new_rel, "toRel": old_rel });
-    record(conn, &new_batch(), "folder_move", forward, inverse)
+    record(conn, batch_id, "folder_move", forward, inverse)
 }
 
-pub fn record_folder_trash(conn: &Connection, folder_id: i64, rel_path: &str, title: &str, trash_rel: &str) -> Result<()> {
-    let forward = json!({ "folderId": folder_id, "relPath": rel_path, "title": title, "trashRel": trash_rel });
-    let inverse = json!({ "folderId": folder_id, "relPath": rel_path, "title": title, "trashRel": trash_rel });
-    record(conn, &new_batch(), "folder_trash", forward, inverse)
+/// `subtree` is every folder row the trash retired, as `[id, relPath]` pairs,
+/// and `trashedAt` the timestamp it stamped on them. Both are captured because
+/// `db::folders::trash_subtree_rows` rewrites each `rel_path` to `.trashed/<id>`
+/// to free the string for reuse — after which nothing else in the database
+/// remembers where the subtree lived.
+pub fn record_folder_trash(
+    conn: &Connection,
+    batch_id: &str,
+    folder_id: i64,
+    rel_path: &str,
+    title: &str,
+    trash_rel: &str,
+    subtree: &[(i64, String)],
+    trashed_at: i64,
+) -> Result<()> {
+    let rows: Vec<Value> = subtree
+        .iter()
+        .map(|(id, rel)| json!([id, rel]))
+        .collect();
+    let payload = json!({
+        "folderId": folder_id,
+        "relPath": rel_path,
+        "title": title,
+        "trashRel": trash_rel,
+        "subtree": rows,
+        "trashedAt": trashed_at,
+    });
+    record(conn, batch_id, "folder_trash", payload.clone(), payload)
 }
 
 // --- items -------------------------------------------------------------
