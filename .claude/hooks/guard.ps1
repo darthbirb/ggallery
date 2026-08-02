@@ -110,21 +110,26 @@ try {
         $body = $Matches[2].Trim()
     }
 
-    # Only single commands. Pipes into filters are fine (`| tail -60`), but any
-    # further sequencing (&&, ||, ;) could hide anything after a safe opener.
-    if ($body -notmatch '(&&|\|\||;)') {
-        $safe = '^(' +
-            'cargo\s+(check|build|test|run|bench|doc|tree|clippy|fmt|metadata|--version)|' +
-            'rustfmt|' +
-            'npm\s+(run|test|ci|ls)|' +
-            'npx\s+(tsc|vite|tauri)|' +
-            'tsc|' +
-            'git\s+(status|diff|log|show|branch|ls-files|rev-parse|blame|check-ignore|describe|shortlog)|' +
-            'grep|rg|cat|head|tail|wc|ls|find|sed\s+-n|sort|uniq|echo' +
-            ')\b'
-        if ($body -match $safe) {
-            Emit 'allow' 'Read-only or ordinary build command.'
-        }
+    # Split on every separator and require *each* segment to be safe. Judging only
+    # the opener would allow `cargo build | sh`; refusing every separator would
+    # block `npx tsc --noEmit; echo "EXIT:$?"`, which is harmless and common.
+    $safe = '^(' +
+        'cargo\s+(check|build|test|run|bench|doc|tree|clippy|fmt|metadata|--version)|' +
+        'rustfmt|' +
+        'npm\s+(run|test|ci|ls)|' +
+        'npx\s+(tsc|vite|tauri)|' +
+        'tsc|' +
+        'git\s+(status|diff|log|show|branch|ls-files|rev-parse|blame|check-ignore|describe|shortlog)|' +
+        'grep|rg|findstr|cat|head|tail|wc|ls|pwd|find|sed\s+-n|sort|uniq|echo|jq|' +
+        'Get-ChildItem|Get-Content|Get-Item|Test-Path|Select-String|Select-Object|' +
+        'Measure-Object|Resolve-Path|Get-Location|Write-Output' +
+        ')\b'
+
+    $segments = $body -split '(\&\&|\|\||;|\|)' | Where-Object { $_ -notmatch '^(\&\&|\|\||;|\|)$' }
+    $segments = $segments | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+
+    if ($segments.Count -gt 0 -and -not ($segments | Where-Object { $_ -notmatch $safe })) {
+        Emit 'allow' 'Read-only or ordinary build command.'
     }
 
     exit 0
