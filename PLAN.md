@@ -71,6 +71,12 @@ folder holds everything, so backup is "copy the folder".
     standard; every milestone after it ships at that standard. Deferred polish is
     abandoned polish. [docs/mockup.html](docs/mockup.html) is an early reference drawn
     before much of the scope existed — input to M2.5, not a specification it must follow.
+
+    **`shadcn/ui` is the component source.** Not Radix alone — Radix is headless and ships
+    no visual design at all, which is how M2.5a ended up with correct behaviour and
+    hand-rolled appearance. shadcn is Radix plus designed Tailwind defaults, copied into
+    the repo so they can be restyled. A bespoke layout does not require bespoke buttons.
+
 19. **Renaming is a property of indexing, not a one-time event.** Files the app creates
     are born `<uuid>.<ext>`. Files arriving from outside are renamed as part of being
     indexed, silently and journalled. The first-import wizard is the same operation run
@@ -130,6 +136,23 @@ folder holds everything, so backup is "copy the folder".
     the accent. Swap `--color-accent` / `--color-accent-d` via a `data-accent` attribute on
     the root; `--color-good` and `--color-danger` are fixed. `--color-info` is deleted; it
     collides with the default accent.
+
+25. **Controls are sized to be hit and seen.** Decided once, applied everywhere:
+
+    - Control heights `28 / 32 / 38px` for small, default, large. Icon buttons are never
+      smaller than `32×32`, whatever the glyph.
+    - The glyph fills roughly 55–60% of its button — an 18px icon in a 32px button, not 12px.
+    - **Every button has a visible surface at rest**: background and border. Ghost buttons
+      that only materialise on hover are how a control becomes invisible until you already
+      know it is there.
+    - Base UI text `14px`, mono `12px`. Both a step up from where M2.5a landed.
+
+26. **One visual state for selection; focus rings are for keyboards.** Selection is a filled
+    accent border. The shift-click anchor is **not rendered** — it is invisible bookkeeping,
+    and drawing it competes with selection for the same meaning, which is why inverting a
+    selection currently looks ambiguous. Keyboard focus uses `:focus-visible` only, so it
+    never appears after a mouse click. Two outlines fighting over one tile is a design bug,
+    not a styling one.
 
 ## Non-goals
 
@@ -554,6 +577,25 @@ look at my library properly", 2b is "can I sort it fast".**
 band, the accent system, toast-and-undo, complete right-click menus, and the pane in
 **Preview mode only** — built so splitting into N panes is an extension, not a rewrite.
 Removes the disposable scaffolding from M2, M2.1 and M2.2 rather than layering over it.
+
+**M2.5a.1 — make it look built.** M2.5a shipped correct structure with hand-rolled
+appearance, because the brief said to take Radix and avoid a visual component kit. That was
+wrong; see decision 18. This pass corrects it:
+
+- **Adopt `shadcn/ui`** and move every control onto it — buttons, tabs, dialogs, menus,
+  tooltips, sliders, inputs. Restyle to the dark, dense aesthetic; do not accept its light
+  defaults wholesale.
+- **Apply decisions 25 and 26** throughout: sizing scale, visible button surfaces, a step up
+  in text size, one selection state and no anchor outline.
+- **Navigation roots become Everything / Sorting Box / Favourites**, with the library root
+  itself as the Sorting Box — there is no `Sorting Box/` directory.
+- **Scrubber**: drop the year column, date follows the thumb while dragging, and the bar
+  below accounts for the scrubber's width instead of running under it.
+- **Selection bar**: drop *revert*, rebuild on the primitives.
+- **Remove the zoom toolbar** in the pane — no fit, no 1:1.
+- **Details move above the filmstrip** and expand upward.
+- **Remove the disabled Grid and Folders tabs.** They arrive in M2.5b; two dead controls
+  read as unfinished, which is the whole complaint.
 
 **M2.5b — the sorting surfaces.** The pane's **Grid** and **Folders** modes, all three drop
 targets, spring-loading, and inline folder creation in the folder pane.

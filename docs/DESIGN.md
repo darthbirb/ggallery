@@ -119,8 +119,13 @@ this one needs because filenames on disk are opaque UUIDs:
 
 Click selects, shift-click extends a range, ctrl-click toggles one, drag draws a marquee.
 Beyond that: **select all**, **invert selection**, and **clear selection**, each with a
-keyboard binding, plus a live count of what is selected. Every item operation above acts
-on the whole selection.
+keyboard binding *and* a visible control, plus a live count of what is selected. Every item
+operation above acts on the whole selection.
+
+**One visual state, not two.** Selection is a filled accent border. The shift-click anchor
+is not drawn at all — it is invisible bookkeeping, and rendering it competes with selection
+for the same meaning, which is what makes an inverted selection ambiguous. Keyboard focus
+uses `:focus-visible`, so it never appears after a mouse click.
 
 ### Tags
 
@@ -226,14 +231,18 @@ create and cannot remove.
 
 Three distinct things must be reachable, however a design chooses to express them:
 
-- **Everything** — every item in the library, ignoring folder structure entirely.
-- **Loose items** — items sitting at the top level and nowhere else. Not everything
-  recursively; just what has not been filed.
+- **Everything** — every item in the library, recursively, ignoring folder structure.
+- **Sorting Box** — items sitting at the top level and nowhere else. Not everything
+  recursively; just what has not been filed yet.
 - **The folder tree** — the folders the user actually made. **When there are none, it shows
   nothing.** Not a root node, not a placeholder branch.
 
-All three are already expressible: no filter, a non-recursive filter on the root folder,
-and the tree itself.
+Then **Favourites**, then the tree. All expressible already: no filter, a non-recursive
+filter on the root folder, `is:favorite`, and the tree itself.
+
+**The library root *is* the Sorting Box.** There is no `Sorting Box/` directory — anything
+sitting loose at the top level is by definition unfiled, which is the same statement. One
+less magic folder, and dropping files into the library root is the obvious gesture anyway.
 
 ### Direct manipulation — a requirement
 
@@ -287,9 +296,14 @@ favouriting something never reorders the tree, and the row you reach for stays w
 Folders accept drops. Right-click for new folder, rename, edit tags, set cover, set status.
 A single dot marks `WIP` and nothing else; see §1 *Folders*.
 
-**Timeline scrubber** — a thin strip down the right edge of the grid, marked with years
-and months. Dragging it jumps to that point in the sort order. At 40k+ items this is the
-difference between a browsable library and an endless scroll.
+**Timeline scrubber** — a thin strip down the right edge of the grid. Dragging it jumps to
+that point in the sort order. At 40k+ items this is the difference between a browsable
+library and an endless scroll.
+
+**No year or month labels down the strip.** A date follows the thumb while you drag it and
+is absent otherwise; a permanent column of years is visual noise for something you look at
+for one second at a time. The scrubber is part of the grid's own width — the bar beneath it
+must account for it rather than running underneath.
 
 **There is exactly one scrollbar.** The scrubber *is* the scroll affordance — the native
 scrollbar is hidden with `scrollbar-width: none` while the scroll container stays fully
@@ -340,13 +354,15 @@ no transition to design and no scroll position to restore.
 The selected item, fit to the pane. **Splits into N panes**, which is what makes it the
 only comparison surface the app needs:
 
-- *Images* — scroll to zoom, drag to pan, on-screen controls for 1:1 pixels and fit.
+- *Images* — scroll to zoom, drag to pan. **No zoom toolbar** — no fit button, no 1:1
+  button. Scroll and drag are the whole interaction.
 - *Video* — play/pause, scrub, frame-step, speed, **loop on by default**, and volume that
   persists between items.
 - Chevrons and arrows move through the current filter, in the grid's order. A filmstrip
   shows position and allows jumping.
-- **Details are small and collapsible** inside the pane. Collapsed shows filename,
-  dimensions and size only; expanded adds duration, codec, dates, source URL and tags —
+- **Details sit above the filmstrip and expand upward**, so the strip stays pinned to the
+  bottom edge and does not move when details open. Small and collapsible: collapsed shows
+  filename, dimensions and size; expanded adds duration, codec, dates, source URL and tags —
   inherited greyed, manual solid.
 - With nothing selected the pane shows an empty state. Folder identity belongs to the band.
 
@@ -456,18 +472,20 @@ directly editable, so click-driven and keyboard-driven use are the same mechanis
 
 ## 4. Sorting Box
 
-A real folder at `<root>/Sorting Box/`, watched live. Items appear from:
+**The library root itself**, watched live — not a subfolder. Anything loose at the top level
+is unfiled by definition, so a dedicated directory would only be a second way of saying the
+same thing. Items appear from:
 
 - The app's **Add Files** picker (`Ctrl+O`)
 - **Dragging from Explorer** onto the window
 - **Downloads** (M5)
 - **Pasting files into the folder** in Explorer — the watcher picks them up
 
-Subfolders inside it are allowed, so you can partially sort without committing.
+Files arriving at the root are renamed to UUIDs, hashed, thumbnailed, and checked against
+existing content hashes. Exact duplicates of something already in the library are flagged on
+arrival rather than after you have already sorted them.
 
-Files entering the Sorting Box are renamed to UUIDs, hashed, thumbnailed, and checked
-against existing content hashes. Exact duplicates of something already in the library are
-flagged on arrival rather than after you have already sorted them.
+Downloads land here too. Triage is finished when the root is empty.
 
 ### Triage without the keyboard
 
