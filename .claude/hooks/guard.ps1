@@ -120,22 +120,34 @@ try {
         'npx\s+(tsc|vite|tauri)|' +
         'tsc|' +
         'git\s+(status|diff|log|show|branch|ls-files|rev-parse|blame|check-ignore|describe|shortlog)|' +
-        'grep|rg|findstr|cat|head|tail|wc|ls|pwd|find|sed\s+-n|sort|uniq|echo|jq|' +
+        'grep|rg|findstr|cat|head|tail|wc|ls|pwd|find|sed\s+-n|sort|uniq|echo|jq|sleep|' +
         'Get-ChildItem|Get-Content|Get-Item|Test-Path|Select-String|Select-Object|' +
-        'Measure-Object|Resolve-Path|Get-Location|Write-Output' +
+        'Measure-Object|Resolve-Path|Get-Location|Write-Output|Start-Sleep' +
         ')\b'
+
+    # Launching a binary the project just built. Already reachable via `cargo run`,
+    # which is allowed — running the compiled exe directly is the same act spelled
+    # differently. Scoped to target/debug and target/release so this is not a
+    # licence to execute arbitrary paths.
+    $safeBuiltBinary = '^"?[^"]*[/\\]target[/\\](debug|release)[/\\][^"/\\]+"?$'
 
     # Bare `npm install` restores what package.json already pins and is routine.
     # `npm install <package>` adds a dependency — a supply-chain decision that
     # stays on ask. Same for cargo.
     $safeRestore = '^(npm\s+install|cargo\s+fetch)\s*$'
 
-    $segments = $body -split '(\&\&|\|\||;|\|)' | Where-Object { $_ -notmatch '^(\&\&|\|\||;|\|)$' }
-    $segments = $segments |
-        ForEach-Object { ($_ -replace '\s+\d?>&?\d*(?=\s|$)', '').Trim() } |
+    # Strip redirections before splitting, so `2>&1` is not mistaken for a
+    # background `&`. Then split on every separator, single `&` included.
+    $body = $body -replace '\s+\d?>&?\d*(?=\s|$)', ''
+
+    $segments = $body -split '(\&\&|\|\||;|\||\&)' |
+        Where-Object { $_ -notmatch '^(\&\&|\|\||;|\||\&)$' } |
+        ForEach-Object { $_.Trim() } |
         Where-Object { $_ }
 
-    $unsafe = $segments | Where-Object { $_ -notmatch $safe -and $_ -notmatch $safeRestore }
+    $unsafe = $segments | Where-Object {
+        $_ -notmatch $safe -and $_ -notmatch $safeRestore -and $_ -notmatch $safeBuiltBinary
+    }
 
     if ($segments.Count -gt 0 -and -not $unsafe) {
         Emit 'allow' 'Read-only or ordinary build command.'
