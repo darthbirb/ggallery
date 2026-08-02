@@ -173,7 +173,8 @@ docs/
 | M1.8 | The library is live — filesystem watcher, no re-index button | Next |
 | M2 | Folders as entities — archetypes, labels, tag inheritance | |
 | M2.1 | Folder and item operations — create, rename, move, delete | Next |
-| M2.5 | The interface — designed from scratch, interactively | |
+| M2.5a | The shell and the viewer — split layout, nav panel, pane, accent | Next |
+| M2.5b | The sorting surfaces — pane grid and folder modes, drops | |
 | M3 | Search — query parser, sectioned results | |
 | M4 | Sorting Box and triage — hotkey culling, undo, trash | |
 | M5 | Downloads — yt-dlp and gallery-dl integration | |

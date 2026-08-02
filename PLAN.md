@@ -545,7 +545,27 @@ This phase is deliberately conversational, and how much is asked matters:
   close button goes on.
 - **Never assume.** No blind choices on anything that shapes how the app is used.
 
-#### Phase 2 — Build. Only after the design is approved.
+#### Phase 2 — Build, in two passes
+
+Too much for one milestone, and split along the line the product cares about: **2a is "can I
+look at my library properly", 2b is "can I sort it fast".**
+
+**M2.5a — the shell and the viewer.** The split layout, the navigation panel, the folder
+band, the accent system, toast-and-undo, complete right-click menus, and the pane in
+**Preview mode only** — built so splitting into N panes is an extension, not a rewrite.
+Removes the disposable scaffolding from M2, M2.1 and M2.2 rather than layering over it.
+
+**M2.5b — the sorting surfaces.** The pane's **Grid** and **Folders** modes, all three drop
+targets, spring-loading, and inline folder creation in the folder pane.
+
+Neither ships until it looks finished. There is no polish phase.
+
+#### Build notes
+
+**Radix primitives are worth taking** for context menus, dialogs, dropdowns, tooltips and
+sliders — keyboard behaviour, focus trapping and dismissal are solved there and are tedious
+to get right by hand. Style them to the agreed design; do not adopt a visual component kit
+wholesale, since the design is bespoke.
 
 **Set up frontend testing here**, not earlier. `vitest` plus `@testing-library/react` with
 the IPC layer mocked, covering interaction rather than appearance: does picking an
