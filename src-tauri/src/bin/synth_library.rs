@@ -120,7 +120,7 @@ fn run() -> Result<()> {
     // measured here, same as the rename/move checks above.
     let retitle_cat = db::folders::id_for_rel(&conn, "category-15")?.expect("category-15 exists");
     let t8 = Instant::now();
-    db::folders::set_title(&conn, retitle_cat, "Category 15, Retitled")?;
+    db::folders::set_title(&conn, retitle_cat, "Category 15, Retitled", &db::journal::new_batch())?;
     let retitle_subtree = t8.elapsed();
 
     println!();

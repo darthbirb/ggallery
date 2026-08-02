@@ -43,6 +43,15 @@ pub struct Config {
     /// stores anywhere — deliberately outside the database.
     pub library_root: Option<String>,
     pub window: Option<WindowState>,
+    /// Panel widths, the folded and expanded states, the accent, tile size —
+    /// everything docs/DESIGN.md §2 says "persists between sessions alongside
+    /// window geometry", and explicitly never in the database.
+    ///
+    /// Deliberately opaque here. The shape belongs to `src/state/ui.ts`, which
+    /// gains a field or two in most later milestones; the backend's only job is
+    /// to write it next to the exe and hand it back. Nothing in Rust reads
+    /// inside it, so nothing in Rust has to change when it grows.
+    pub ui: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -82,6 +91,12 @@ impl Config {
     pub fn set_window(state: WindowState) -> Result<()> {
         let mut cfg = Config::load();
         cfg.window = Some(state);
+        cfg.save()
+    }
+
+    pub fn set_ui(prefs: serde_json::Value) -> Result<()> {
+        let mut cfg = Config::load();
+        cfg.ui = Some(prefs);
         cfg.save()
     }
 }
