@@ -148,6 +148,9 @@ export function getFolder(id: number): Promise<FolderDetail> {
   return invoke<FolderDetail>("get_folder", { id });
 }
 
+/** A folder has one name — this renames the directory to match whenever the
+ *  sanitised title differs from what's on disk. There is no separate
+ *  rename-directory call. */
 export function setFolderTitle(id: number, title: string): Promise<void> {
   return invoke<void>("set_folder_title", { id, title });
 }
@@ -218,12 +221,6 @@ export function createFolder(
   archetypeId: number | null,
 ): Promise<number> {
   return invoke<number>("create_folder", { parentId, name, archetypeId });
-}
-
-/** The directory move — independent of `setFolderTitle`, which touches only
- *  the display title. */
-export function renameFolderDir(id: number, name: string): Promise<void> {
-  return invoke<void>("rename_folder_dir", { id, name });
 }
 
 export function moveFolder(id: number, newParentId: number | null): Promise<void> {

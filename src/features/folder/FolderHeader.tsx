@@ -190,19 +190,6 @@ export function FolderHeader({
               <>
                 <button
                   type="button"
-                  title="Rename the directory on disk"
-                  onClick={() => {
-                    const name = prompt("Rename folder on disk to:", detail.title);
-                    if (name && name.trim()) {
-                      commit(() => ipc.renameFolderDir(folderId, name.trim()));
-                    }
-                  }}
-                  className="text-fg-dim hover:text-fg"
-                >
-                  rename
-                </button>
-                <button
-                  type="button"
                   onClick={() => setShowMove(true)}
                   className="text-fg-dim hover:text-fg"
                 >
