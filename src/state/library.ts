@@ -13,11 +13,43 @@ import type {
   VerifyReport,
 } from "../lib/types";
 
+/**
+ * The three navigation roots docs/DESIGN.md §2 requires are distinct things,
+ * not three shapes of one folder query: *Everything* ignores folder structure,
+ * *Loose items* is the top level and nothing beneath it, and a folder is a
+ * folder. Favourites is a fourth root, filtered from Everything.
+ *
+ * The library root is never presented as a folder — see `features/nav`.
+ */
+export type ViewKind = "everything" | "loose" | "favourites" | "folder";
+
 export interface Scope {
-  /** Folder rel_path, or null for the whole library. */
+  kind: ViewKind;
+  /** Folder rel_path when `kind` is "folder"; null otherwise. */
   folder: string | null;
   /** Folder views are recursive by default — PLAN.md decision 10. */
   recursive: boolean;
+}
+
+export const EVERYTHING: Scope = {
+  kind: "everything",
+  folder: null,
+  recursive: true,
+};
+
+/** What `listItems` is asked for, per root. */
+function query(scope: Scope): { folder: string | null; recursive: boolean } {
+  switch (scope.kind) {
+    case "everything":
+    case "favourites":
+      return { folder: null, recursive: true };
+    case "loose":
+      // `Some("")` and non-recursive: the root folder's own items. Distinct
+      // from `None`, which is the whole library.
+      return { folder: "", recursive: false };
+    case "folder":
+      return { folder: scope.folder, recursive: scope.recursive };
+  }
 }
 
 /** What a library not yet imported is waiting on — the Review screen's
@@ -63,6 +95,9 @@ export interface LibraryController {
   dismissVerifyIssue: () => void;
   retry: () => void;
   setScope: (scope: Scope) => void;
+  /** Re-read the current view. Every mutation ends in one of these, so the
+   *  grid, the tree and the counts all agree again. */
+  reload: () => void;
   dismissError: () => void;
   /** Re-fetch just the folder tree — for after a folder-header edit (title,
    *  status, favorite) that the sidebar needs to reflect. */
@@ -78,6 +113,8 @@ export interface LibraryController {
 const RELOAD_INTERVAL_MS = 4000;
 const RELOAD_WHILE_UNDER = 20000;
 const VERIFY_SAMPLE = 50;
+/** How often the Progress screen re-asks the queue whether it has settled. */
+const SETTLE_POLL_MS = 400;
 
 export function useLibrary(): LibraryController {
   const [info, setInfo] = useState<LibraryInfo | null>(null);
@@ -87,10 +124,7 @@ export function useLibrary(): LibraryController {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [scope, setScopeState] = useState<Scope>({
-    folder: null,
-    recursive: true,
-  });
+  const [scope, setScopeState] = useState<Scope>(EVERYTHING);
   const [refreshToken, setRefreshToken] = useState(0);
   const [failures, setFailures] = useState<IndexFailure[]>([]);
   const [pendingReview, setPendingReview] = useState<PendingReview | null>(null);
@@ -109,11 +143,6 @@ export function useLibrary(): LibraryController {
   /** Failure count the list was last fetched for, so it is only re-fetched
    *  when the number actually moves. */
   const loadedFailures = useRef(-1);
-  /** A brand-new library's very first progress read is "idle" too — nothing
-   *  has been queued yet, before the walk even starts — indistinguishable
-   *  from "idle because indexing finished" by phase alone. Only trusted once
-   *  a busy phase has actually been observed during this flow. */
-  const everBusyDuringFlow = useRef(false);
 
   const syncFailures = useCallback(async (count: number) => {
     if (count === loadedFailures.current) return;
@@ -131,11 +160,16 @@ export function useLibrary(): LibraryController {
 
   const load = useCallback(async (next: Scope) => {
     try {
+      const asked = query(next);
       const [rows, tree] = await Promise.all([
-        ipc.listItems(next.folder, next.recursive),
+        ipc.listItems(asked.folder, asked.recursive),
         ipc.folderTree(),
       ]);
-      setItems(rows);
+      // Favourites is filtered here rather than in SQL on purpose: the grid
+      // already takes the whole manifest in one call (see `list_items`), so
+      // this adds no query path for PLAN.md decision 20 to have to verify at
+      // 100k, and no index to maintain.
+      setItems(next.kind === "favourites" ? rows.filter((row) => row.favorite) : rows);
       setFolders(tree);
       lastReload.current = Date.now();
     } catch (err) {
@@ -158,7 +192,7 @@ export function useLibrary(): LibraryController {
       const opened = await ipc.openLibrary(path);
       setInfo(opened);
       setRemembered(opened.root);
-      const next = { folder: null, recursive: true };
+      const next = EVERYTHING;
       setScopeState(next);
       await load(next);
       const started = await ipc.indexProgress();
@@ -211,7 +245,6 @@ export function useLibrary(): LibraryController {
       setError(null);
       setFlowPhase("renaming");
       setRenameProgress(null);
-      everBusyDuringFlow.current = false;
       const unlisten = await ipc.onImportProgress(setRenameProgress);
 
       let executed: FsExecuteReport | null = null;
@@ -271,6 +304,11 @@ export function useLibrary(): LibraryController {
     [load],
   );
 
+  /** Re-read the current view — what every mutation calls once it lands. */
+  const reload = useCallback(() => {
+    void load(scopeRef.current);
+  }, [load]);
+
   const refreshFolders = useCallback(() => {
     (async () => {
       try {
@@ -291,7 +329,7 @@ export function useLibrary(): LibraryController {
         setRemembered(status.remembered);
         if (status.info) {
           setInfo(status.info);
-          await load({ folder: null, recursive: true });
+          await load(EVERYTHING);
           const current = await ipc.indexProgress();
           setProgress(current);
           loadedAt.current = current.items;
@@ -341,18 +379,42 @@ export function useLibrary(): LibraryController {
   // The "indexing" leg of the Progress screen: wait for the walk+hash+thumb
   // queue to genuinely settle, run verification silently, then hand off to
   // the gallery. Verification surfaces only on failure — DESIGN.md#first-import.
+  //
+  // This **asks** the queue rather than waiting to be told. Progress events are
+  // emitted only when the numbers change, so a library small enough to finish
+  // indexing before this screen appears emits its last event with nobody
+  // listening and then goes quiet forever — and the screen waits for an event
+  // that is never coming. Twenty-three files is small enough. Polling here is
+  // bounded and cheap: it runs only while this screen is up, and it stops the
+  // moment the queue is empty.
+  //
+  // An `idle` reading is trusted outright, with no "have I seen it busy yet?"
+  // guard, because `openReal` has already awaited `startIndex` by the time the
+  // phase becomes "indexing" — the job is queued before anyone looks. The
+  // ambiguity that guard existed for cannot arise here.
   useEffect(() => {
-    if (flowPhase !== "indexing" || !progress) return;
-
-    if (progress.phase !== "idle") {
-      everBusyDuringFlow.current = true;
-      return;
-    }
-    const trustworthy = (info?.itemCount ?? 0) > 0 || everBusyDuringFlow.current;
-    if (!trustworthy) return;
+    if (flowPhase !== "indexing") return;
 
     let cancelled = false;
-    (async () => {
+    let timer: number | undefined;
+
+    const settle = async () => {
+      let current: Progress;
+      try {
+        current = await ipc.indexProgress();
+      } catch {
+        // A failed read is not a reason to strand the user on this screen.
+        if (!cancelled) setFlowPhase("idle");
+        return;
+      }
+      if (cancelled) return;
+      setProgress(current);
+
+      if (current.phase !== "idle") {
+        timer = window.setTimeout(() => void settle(), SETTLE_POLL_MS);
+        return;
+      }
+
       try {
         const verify = await ipc.verifyImport(VERIFY_SAMPLE);
         const clean =
@@ -366,11 +428,14 @@ export function useLibrary(): LibraryController {
       } finally {
         if (!cancelled) setFlowPhase("idle");
       }
-    })();
+    };
+
+    void settle();
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, [flowPhase, progress, info]);
+  }, [flowPhase]);
 
   return {
     info,
@@ -394,6 +459,7 @@ export function useLibrary(): LibraryController {
     dismissVerifyIssue: () => setVerifyIssue(null),
     retry,
     setScope,
+    reload,
     dismissError: () => setError(null),
     refreshFolders,
   };
