@@ -43,11 +43,18 @@ interface TileNode {
 export interface TilePoolOptions {
   container: HTMLElement;
   onSelect: (id: number, modifiers: ClickModifiers) => void;
+  /** Right-click. The pool reports where and on what; the grid opens the
+   *  menu, because a recycled node cannot own a React portal. */
+  onContext: (id: number, x: number, y: number) => void;
+  /** Double-click — show this item in the pane. */
+  onActivate: (id: number) => void;
 }
 
 export class TilePool {
   private readonly container: HTMLElement;
   private readonly onSelect: (id: number, modifiers: ClickModifiers) => void;
+  private readonly onContext: (id: number, x: number, y: number) => void;
+  private readonly onActivate: (id: number) => void;
   private readonly nodes: TileNode[] = [];
   private readonly free: TileNode[] = [];
   private readonly active = new Map<number, TileNode>();
@@ -56,11 +63,16 @@ export class TilePool {
   private thumbsDir = "";
   private spritesDir = "";
   private selected: Set<number> = new Set();
+  /** The item the pane is previewing — one, and not necessarily in the
+   *  selection. Marked differently so both can be read at once. */
+  private current: number | null = null;
   private mark = 0;
 
   constructor(options: TilePoolOptions) {
     this.container = options.container;
     this.onSelect = options.onSelect;
+    this.onContext = options.onContext;
+    this.onActivate = options.onActivate;
   }
 
   setItems(items: GridItem[], thumbsDir: string, spritesDir: string): void {
@@ -75,6 +87,13 @@ export class TilePool {
     this.selected = ids;
     for (const node of this.active.values()) {
       node.root.classList.toggle("is-selected", ids.has(node.itemId));
+    }
+  }
+
+  setCurrent(id: number | null): void {
+    this.current = id;
+    for (const node of this.active.values()) {
+      node.root.classList.toggle("is-current", node.itemId === id);
     }
   }
 
@@ -176,6 +195,7 @@ export class TilePool {
     node.root.classList.toggle("is-video", item.kind === "video");
     node.root.classList.toggle("is-favorite", item.favorite);
     node.root.classList.toggle("is-selected", this.selected.has(item.id));
+    node.root.classList.toggle("is-current", this.current === item.id);
     node.root.classList.remove("is-scrubbing");
     node.scrub.style.backgroundImage = "";
     node.duration.textContent =
@@ -233,6 +253,17 @@ export class TilePool {
           shiftKey: event.shiftKey,
         });
       }
+    });
+    root.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      // React attaches its listeners at the root container, so stopping
+      // propagation here is what keeps the grid's own background menu from
+      // firing straight after this one and replacing it.
+      event.stopPropagation();
+      if (node.itemId >= 0) this.onContext(node.itemId, event.clientX, event.clientY);
+    });
+    root.addEventListener("dblclick", () => {
+      if (node.itemId >= 0) this.onActivate(node.itemId);
     });
     root.addEventListener("mouseenter", () => {
       if (node.kind !== "video") return;

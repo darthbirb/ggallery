@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { IconButton } from "../../components/Button";
+import { ConfirmDialog, Dialog } from "../../components/Dialog";
 import { formatCount } from "../../lib/format";
 import * as ipc from "../../lib/ipc";
 import type { TagSummary } from "../../lib/types";
@@ -20,6 +22,7 @@ export function TagsModal({ onClose, onChanged }: TagsModalProps) {
   const [tags, setTags] = useState<TagSummary[]>([]);
   const [filter, setFilter] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<TagSummary | null>(null);
 
   const refresh = async (query: string) => {
     try {
@@ -49,8 +52,6 @@ export function TagsModal({ onClose, onChanged }: TagsModalProps) {
   };
 
   const remove = (tag: TagSummary) => {
-    const label = tag.key ? `${tag.key}: ${tag.value}` : tag.value;
-    if (!confirm(`Delete "${label}"? It's used ${tag.usageCount} time(s).`)) return;
     (async () => {
       try {
         await ipc.deleteTag(tag.id);
@@ -62,76 +63,88 @@ export function TagsModal({ onClose, onChanged }: TagsModalProps) {
     })();
   };
 
+  const label = (tag: TagSummary) => (tag.key ? `${tag.key}: ${tag.value}` : tag.value);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="flex max-h-[82vh] w-[460px] flex-col overflow-hidden rounded-[6px] border border-line bg-panel shadow-xl">
-        <header className="flex items-center gap-2 border-b border-line px-4 py-3">
-          <span className="text-[14px] font-semibold">Tags</span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="ml-auto rounded-[3px] px-1.5 text-fg-dim hover:bg-hover hover:text-fg"
-          >
-            ✕
-          </button>
-        </header>
+    <>
+      <Dialog
+        open
+        onOpenChange={(open) => !open && onClose()}
+        title="Tags"
+        description="Rename a tag and it changes everywhere. Merging and aliases are M8's."
+        width={480}
+      >
+        <input
+          value={filter}
+          aria-label="Filter tags"
+          onChange={(event) => setFilter(event.target.value)}
+          placeholder="Filter…"
+          className="mb-3 w-full rounded-[4px] border border-line bg-ground px-2 py-1 text-[13px] text-fg placeholder:text-fg-dim focus:border-accent-d"
+        />
 
-        <div className="border-b border-line px-4 py-2">
-          <input
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-            placeholder="Filter…"
-            className="w-full rounded-[3px] border border-line-soft bg-ground px-1.5 py-0.5 text-fg placeholder:text-fg-dim"
-          />
-        </div>
+        {error && (
+          <p className="mb-3 rounded-[4px] border border-danger/40 bg-raised px-3 py-2 text-danger">
+            {error}
+          </p>
+        )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-4 text-[13px]">
-          {error && (
-            <p className="mb-3 rounded-[3px] border border-danger/40 bg-raised px-3 py-2 text-danger">
-              {error}
-            </p>
-          )}
+        <table className="w-full border-collapse text-left text-[13px]">
+          <tbody>
+            {tags.map((tag) => (
+              <tr key={tag.id} className="border-t border-line-soft/60">
+                {tag.key !== null && (
+                  <td className="py-1 pr-1 font-mono text-fg-dim">{tag.key}:</td>
+                )}
+                <td className="py-1 pr-2" colSpan={tag.key === null ? 2 : 1}>
+                  <input
+                    defaultValue={tag.value}
+                    key={tag.id + tag.value}
+                    aria-label={`Rename ${label(tag)}`}
+                    onBlur={(event) => rename(tag, event.target.value)}
+                    className="w-full rounded-[3px] border border-transparent bg-transparent px-1 py-0.5 text-fg hover:border-line-soft focus:border-accent-d"
+                  />
+                </td>
+                <td className="py-1 pr-2 font-mono text-[11px] text-fg-dim">
+                  {formatCount(tag.usageCount)}
+                </td>
+                <td className="py-1 text-right">
+                  <IconButton
+                    aria-label={`Delete ${label(tag)}`}
+                    onClick={() => setRemoving(tag)}
+                  >
+                    ×
+                  </IconButton>
+                </td>
+              </tr>
+            ))}
+            {tags.length === 0 && (
+              <tr>
+                <td colSpan={4} className="py-1.5 text-fg-dim">
+                  No tags{filter ? " match" : ""} yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </Dialog>
 
-          <table className="w-full border-collapse text-left">
-            <tbody>
-              {tags.map((tag) => (
-                <tr key={tag.id} className="border-t border-line-soft/60">
-                  {tag.key !== null && (
-                    <td className="py-1 pr-1 font-mono text-fg-dim">{tag.key}:</td>
-                  )}
-                  <td className="py-1 pr-2" colSpan={tag.key === null ? 2 : 1}>
-                    <input
-                      defaultValue={tag.value}
-                      key={tag.id + tag.value}
-                      onBlur={(event) => rename(tag, event.target.value)}
-                      className="w-full rounded-[3px] border border-transparent bg-transparent px-1 py-0.5 text-fg hover:border-line-soft focus:border-accent-d"
-                    />
-                  </td>
-                  <td className="py-1 pr-2 font-mono text-[11px] text-fg-dim">
-                    {formatCount(tag.usageCount)}
-                  </td>
-                  <td className="py-1 text-right">
-                    <button
-                      type="button"
-                      onClick={() => remove(tag)}
-                      className="px-1 text-fg-dim hover:text-danger"
-                    >
-                      ×
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {tags.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="py-1.5 text-fg-dim">
-                    No tags{filter ? " match" : ""} yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+      {removing && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && setRemoving(null)}
+          title={`Delete ${label(removing)}?`}
+          body={`It is used ${formatCount(removing.usageCount)} time${
+            removing.usageCount === 1 ? "" : "s"
+          }, and comes off everything it is on. This one is not undoable.`}
+          confirmLabel="Delete tag"
+          danger
+          onConfirm={() => {
+            const tag = removing;
+            setRemoving(null);
+            remove(tag);
+          }}
+        />
+      )}
+    </>
   );
 }
