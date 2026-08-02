@@ -11,9 +11,9 @@
 //!   see `check_settled`.
 //! - **Self-suppression.** `.gallery/` is never watched content (`should_ignore`),
 //!   and paths the app is itself mid-write on are registered with
-//!   `Suppressor` — currently just `fs::import::rename_on_arrival` — so the
-//!   watcher never feeds its own writes back to itself as arrivals or
-//!   deletions.
+//!   `Suppressor` — `fs::import::rename_on_arrival` and
+//!   `fs::relocate::retitle_folder` — so the watcher never feeds its own
+//!   writes back to itself as arrivals or deletions.
 //! - **Overflow or error.** `notify`'s Windows backend does not distinguish a
 //!   dropped-events buffer overflow from any other backend failure — both
 //!   surface identically as an `Err` on the event channel — so both are
@@ -26,6 +26,16 @@
 //!   `db::items::upsert` path the walker itself uses, which matches on
 //!   folder + disk name — so a modification updates the existing row in
 //!   place rather than inserting a second one.
+//!
+//! A fifth, added in M2.2: **directory renames.** Windows always reports a
+//! rename as a `RenameMode::From` event immediately followed by a
+//! `RenameMode::To` for the same operation (documented `ReadDirectoryChangesW`
+//! behaviour), so `handle_event` pairs them via `pending_rename_from` rather
+//! than treating each half as an independent remove/create — otherwise a
+//! folder renamed in Explorer would have every item beneath it retired and
+//! then re-indexed as unrelated, losing tags and favorites. `handle_dir_renamed`
+//! updates the existing folder row's title and path in place instead. See
+//! docs/DESIGN.md §1 "Folder names".
 
 use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
@@ -211,10 +221,24 @@ fn run(
     stop: &Arc<AtomicBool>,
 ) {
     let mut pending: HashMap<PathBuf, Pending> = HashMap::new();
+    // A `RenameMode::From` stashed here, with when it arrived, while its
+    // matching `RenameMode::To` is awaited — see `handle_event`'s doc
+    // comment. Flushed early by a subsequent `From` (a good sign the first
+    // was never getting a pair), and otherwise by `flush_stale_rename_from`
+    // once it has waited past `SETTLE` — the directory it named may have
+    // left the watched tree entirely, which fires no `To` at all.
+    let mut pending_rename_from: Option<(PathBuf, Instant)> = None;
 
     while !stop.load(Ordering::Relaxed) {
         match rx.recv_timeout(SETTLE_TICK) {
-            Ok(Ok(event)) => handle_event(paths, conn, suppressor, &mut pending, event),
+            Ok(Ok(event)) => handle_event(
+                paths,
+                conn,
+                suppressor,
+                &mut pending,
+                &mut pending_rename_from,
+                event,
+            ),
             Ok(Err(err)) => {
                 // Real events already in flight for paths we were waiting to
                 // settle are still worth trusting once the reconcile below
@@ -223,12 +247,32 @@ fn run(
                 // clean rather than settle-checking paths that may already
                 // be gone.
                 pending.clear();
+                pending_rename_from = None;
                 handle_watch_error(conn, rescanning, &err);
             }
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => break,
         }
         check_settled(paths, conn, &mut pending);
+        flush_stale_rename_from(paths, conn, &mut pending_rename_from);
+    }
+}
+
+/// A stashed `From` that has waited past `SETTLE` with no matching `To` is
+/// not going to get one — most likely the directory (or file) moved outside
+/// the watched tree. Retire it, the same as an ordinary removal.
+fn flush_stale_rename_from(
+    paths: &LibraryPaths,
+    conn: &Connection,
+    pending_rename_from: &mut Option<(PathBuf, Instant)>,
+) {
+    let stale = matches!(pending_rename_from, Some((_, since)) if since.elapsed() >= SETTLE);
+    if !stale {
+        return;
+    }
+    let (old, _) = pending_rename_from.take().expect("checked Some above");
+    if let Err(err) = handle_removed(paths, conn, &old) {
+        eprintln!("watcher could not retire {}: {err}", old.display());
     }
 }
 
@@ -252,11 +296,27 @@ fn handle_watch_error(conn: &Connection, rescanning: &Rescanning, err: &notify::
 /// actual stat happens in `check_settled`, so a create followed by a burst of
 /// modify events for the same path costs one hashmap insert, not one stat per
 /// event.
+///
+/// `RenameMode::From`/`RenameMode::To` need more care than a plain
+/// remove-then-create: Windows' `ReadDirectoryChangesW` always reports a
+/// rename as `FILE_ACTION_RENAMED_OLD_NAME` immediately followed by
+/// `FILE_ACTION_RENAMED_NEW_NAME` for that same operation (that ordering is
+/// documented Win32 behaviour, not a heuristic) — `notify`'s Windows backend
+/// carries neither a tracker nor a cookie to correlate them explicitly, so
+/// `pending_rename_from` stashes the old path and the very next `To` is
+/// assumed to be its pair. If a directory renamed in Explorer went through
+/// the ordinary remove-then-create path instead, `handle_removed` would
+/// retire every item beneath it and the settle path would re-index the new
+/// location as an unrelated arrival — losing tags, favorites and manual
+/// tags on every item in the subtree. `handle_dir_renamed` avoids that by
+/// updating the existing folder row in place. See docs/DESIGN.md §1
+/// "Folder names".
 fn handle_event(
     paths: &LibraryPaths,
     conn: &Connection,
     suppressor: &Suppressor,
     pending: &mut HashMap<PathBuf, Pending>,
+    pending_rename_from: &mut Option<(PathBuf, Instant)>,
     event: notify::Event,
 ) {
     for path in &event.paths {
@@ -264,14 +324,55 @@ fn handle_event(
             continue;
         }
         match event.kind {
-            EventKind::Remove(_) | EventKind::Modify(ModifyKind::Name(RenameMode::From)) => {
+            EventKind::Modify(ModifyKind::Name(RenameMode::From)) => {
+                // An unmatched From (e.g. the previous rename's target lay
+                // outside the watched tree, so no To ever arrived) is a real
+                // removal once a new From shows it is not getting one —
+                // `flush_stale_rename_from` catches the case where no
+                // further event ever arrives at all.
+                if let Some((old, _)) = pending_rename_from.take() {
+                    if let Err(err) = handle_removed(paths, conn, &old) {
+                        eprintln!("watcher could not retire {}: {err}", old.display());
+                    }
+                }
+                pending.remove(path);
+                *pending_rename_from = Some((path.clone(), Instant::now()));
+            }
+            EventKind::Modify(ModifyKind::Name(RenameMode::To)) => {
+                let Some((old, _)) = pending_rename_from.take() else {
+                    // No matching From — arrived from outside the watched
+                    // tree (a cross-volume move behaves like a plain copy).
+                    pending.entry(path.clone()).or_insert_with(Pending::new);
+                    continue;
+                };
+                // The old path no longer exists to `stat`; the new one does,
+                // and that is enough to tell a renamed directory from a
+                // renamed file.
+                let is_dir = std::fs::metadata(path).map(|m| m.is_dir()).unwrap_or(false);
+                if is_dir {
+                    if let Err(err) = handle_dir_renamed(paths, conn, &old, path) {
+                        eprintln!(
+                            "watcher could not process the rename {} -> {}: {err}",
+                            old.display(),
+                            path.display()
+                        );
+                    }
+                } else {
+                    // File renames are not this milestone's concern —
+                    // fall back to the pre-existing behaviour.
+                    if let Err(err) = handle_removed(paths, conn, &old) {
+                        eprintln!("watcher could not retire {}: {err}", old.display());
+                    }
+                    pending.entry(path.clone()).or_insert_with(Pending::new);
+                }
+            }
+            EventKind::Remove(_) => {
                 pending.remove(path);
                 if let Err(err) = handle_removed(paths, conn, path) {
                     eprintln!("watcher could not retire {}: {err}", path.display());
                 }
             }
             EventKind::Create(_)
-            | EventKind::Modify(ModifyKind::Name(RenameMode::To))
             | EventKind::Modify(ModifyKind::Data(_))
             | EventKind::Modify(ModifyKind::Any) => {
                 pending.entry(path.clone()).or_insert_with(Pending::new);
@@ -279,6 +380,51 @@ fn handle_event(
             _ => {}
         }
     }
+}
+
+/// A directory renamed **outside the app** — Explorer, a script, anything
+/// that did not go through `fs::relocate::retitle_folder` (which suppresses
+/// its own rename, so the watcher never sees it as external in the first
+/// place). Updates the title to match the new name, unless the current
+/// title already sanitises to it — in which case only the derived name
+/// changed and the title is left alone. See docs/DESIGN.md §1
+/// "Folder names".
+fn handle_dir_renamed(paths: &LibraryPaths, conn: &Connection, old_abs: &Path, new_abs: &Path) -> Result<()> {
+    let Ok(old_rel) = paths.to_rel(old_abs) else {
+        return Ok(());
+    };
+    let Ok(new_rel) = paths.to_rel(new_abs) else {
+        return Ok(());
+    };
+    if old_rel.is_empty() || new_rel.is_empty() {
+        return Ok(()); // the library root itself — not this milestone's problem
+    }
+
+    let Some(folder_id) = db::folders::id_for_rel(conn, &old_rel)? else {
+        // Never indexed under its old name (e.g. created and renamed before
+        // ever being walked) — nothing to update in place. Index it fresh
+        // at the new location, the same way a brand-new directory settles.
+        ensure_folder_chain(paths, conn, new_abs)?;
+        walk::index_subtree(paths, conn, new_abs)?;
+        return Ok(());
+    };
+
+    let current_title: String =
+        conn.query_row("SELECT title FROM folder WHERE id = ?1", [folder_id], |r| r.get(0))?;
+    let new_name = new_abs
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_default()
+        .to_string();
+
+    if crate::fs::relocate::sanitise_folder_name(&current_title) != new_name {
+        db::folders::set_title(conn, folder_id, &new_name)?;
+    }
+
+    db::folders::set_rel_path(conn, folder_id, &new_rel)?;
+    jobs::enqueue_rename_folder_subtree(conn, &old_rel, &new_rel)?;
+    db::journal::record_folder_rename_dir(conn, folder_id, &old_rel, &new_rel)?;
+    Ok(())
 }
 
 /// Soft-delete whatever `abs` was — an item if it names a file that was
@@ -798,5 +944,186 @@ mod tests {
             0,
             "retired, not left behind"
         );
+    }
+
+    // --- 5. directory renames (M2.2) --------------------------------------
+
+    fn rename_event(kind_mode: RenameMode, path: &Path) -> notify::Event {
+        notify::Event::new(EventKind::Modify(ModifyKind::Name(kind_mode))).add_path(path.to_path_buf())
+    }
+
+    #[test]
+    fn a_paired_directory_rename_updates_the_existing_folder_in_place() {
+        // The dumb remove-then-create path would retire every item beneath
+        // the old name and re-index the new one as unrelated, losing tags
+        // and favorites on the whole subtree — this is the bug the From/To
+        // pairing in `handle_event` exists to avoid.
+        let root = scratch("watch-dir-rename-title-updates");
+        let (paths, conn) = open_db(&root);
+        db::folders::upsert(&conn, "", "Library").unwrap();
+        let ana = db::folders::upsert(&conn, "ana", "Ana").unwrap();
+        std::fs::create_dir_all(root.join("Ana")).unwrap();
+        std::fs::rename(root.join("Ana"), root.join("Anastasia")).unwrap();
+
+        let mut pending = HashMap::new();
+        let mut pending_rename_from = None;
+        let suppressor = Suppressor::default();
+
+        handle_event(
+            &paths,
+            &conn,
+            &suppressor,
+            &mut pending,
+            &mut pending_rename_from,
+            rename_event(RenameMode::From, &root.join("Ana")),
+        );
+        assert!(pending_rename_from.is_some(), "the From half is stashed, not acted on yet");
+
+        handle_event(
+            &paths,
+            &conn,
+            &suppressor,
+            &mut pending,
+            &mut pending_rename_from,
+            rename_event(RenameMode::To, &root.join("Anastasia")),
+        );
+        assert!(pending_rename_from.is_none());
+
+        let detail = db::folders::get_detail(&conn, ana).unwrap().unwrap();
+        assert_eq!(detail.title, "Anastasia", "the title follows the external rename");
+        assert_eq!(detail.rel_path, "anastasia");
+    }
+
+    #[test]
+    fn a_paired_directory_rename_leaves_the_title_alone_when_it_already_sanitises_to_the_new_name() {
+        let root = scratch("watch-dir-rename-title-unchanged");
+        let (paths, conn) = open_db(&root);
+        db::folders::upsert(&conn, "", "Library").unwrap();
+        // Title already sanitises to "Ana-Trip" — simulating drift between
+        // the title and what's actually on disk (e.g. a database rebuilt
+        // from library.jsonl after the title was set but before the
+        // directory rename that should have followed it).
+        let folder = db::folders::upsert(&conn, "ana", "Ana/Trip").unwrap();
+        std::fs::create_dir_all(root.join("Ana")).unwrap();
+        std::fs::rename(root.join("Ana"), root.join("Ana-Trip")).unwrap();
+
+        let mut pending = HashMap::new();
+        let mut pending_rename_from = None;
+        let suppressor = Suppressor::default();
+
+        handle_event(
+            &paths,
+            &conn,
+            &suppressor,
+            &mut pending,
+            &mut pending_rename_from,
+            rename_event(RenameMode::From, &root.join("Ana")),
+        );
+        handle_event(
+            &paths,
+            &conn,
+            &suppressor,
+            &mut pending,
+            &mut pending_rename_from,
+            rename_event(RenameMode::To, &root.join("Ana-Trip")),
+        );
+
+        let detail = db::folders::get_detail(&conn, folder).unwrap().unwrap();
+        assert_eq!(
+            detail.title, "Ana/Trip",
+            "only the derived name changed — the title already explains it"
+        );
+        assert_eq!(detail.rel_path, "ana-trip");
+    }
+
+    #[test]
+    fn a_new_from_flushes_an_earlier_unmatched_one_immediately() {
+        let root = scratch("watch-dir-rename-flush-on-next-from");
+        let (paths, mut conn) = open_db(&root);
+        db::folders::upsert(&conn, "", "Library").unwrap();
+        std::fs::create_dir_all(root.join("Gone")).unwrap();
+        write_png(&root.join("Gone/photo.png"), 4, 4);
+        walk::index(&paths, &mut conn, &mut |_, _| {}).unwrap();
+        drain(&paths, &mut conn, &Suppressor::default());
+        assert_eq!(db::items::count(&conn).unwrap(), 1);
+
+        let mut pending = HashMap::new();
+        let mut pending_rename_from = None;
+        let suppressor = Suppressor::default();
+
+        // "Gone" leaves the watched tree entirely — no paired To will ever
+        // arrive for it.
+        std::fs::remove_dir_all(root.join("Gone")).unwrap();
+        handle_event(
+            &paths,
+            &conn,
+            &suppressor,
+            &mut pending,
+            &mut pending_rename_from,
+            rename_event(RenameMode::From, &root.join("Gone")),
+        );
+        assert!(pending_rename_from.is_some());
+
+        // A second, unrelated From is what proves the first was never
+        // getting a pair — it must flush immediately rather than wait out
+        // the settle timeout.
+        handle_event(
+            &paths,
+            &conn,
+            &suppressor,
+            &mut pending,
+            &mut pending_rename_from,
+            rename_event(RenameMode::From, &root.join("also-unrelated")),
+        );
+
+        assert_eq!(
+            db::items::count(&conn).unwrap(),
+            0,
+            "the item beneath the departed folder was retired"
+        );
+    }
+
+    #[test]
+    fn an_unpaired_from_is_flushed_once_it_has_waited_past_settle() {
+        // A directory moved *out* of the watched tree only ever fires the
+        // From half — nothing this app watches ever sees a matching To, and
+        // nothing may ever rename anything else to trigger the immediate
+        // flush either. `flush_stale_rename_from` is the safety net.
+        let root = scratch("watch-dir-rename-timeout-flush");
+        let (paths, mut conn) = open_db(&root);
+        db::folders::upsert(&conn, "", "Library").unwrap();
+        std::fs::create_dir_all(root.join("Gone")).unwrap();
+        write_png(&root.join("Gone/photo.png"), 4, 4);
+        walk::index(&paths, &mut conn, &mut |_, _| {}).unwrap();
+        drain(&paths, &mut conn, &Suppressor::default());
+        assert_eq!(db::items::count(&conn).unwrap(), 1);
+
+        std::fs::remove_dir_all(root.join("Gone")).unwrap();
+        // Backdated rather than actually slept for — same trick the settle
+        // tests above use.
+        let mut pending_rename_from = Some((
+            root.join("Gone"),
+            Instant::now() - SETTLE - Duration::from_millis(200),
+        ));
+
+        flush_stale_rename_from(&paths, &conn, &mut pending_rename_from);
+
+        assert!(pending_rename_from.is_none());
+        assert_eq!(
+            db::items::count(&conn).unwrap(),
+            0,
+            "the item beneath the departed folder was retired"
+        );
+    }
+
+    #[test]
+    fn a_fresh_unmatched_from_is_not_flushed_before_settle() {
+        let root = scratch("watch-dir-rename-not-yet-stale");
+        let (paths, conn) = open_db(&root);
+        let mut pending_rename_from = Some((root.join("Gone"), Instant::now()));
+
+        flush_stale_rename_from(&paths, &conn, &mut pending_rename_from);
+
+        assert!(pending_rename_from.is_some(), "not held long enough yet");
     }
 }
