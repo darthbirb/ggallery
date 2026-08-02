@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwind from "@tailwindcss/vite";
@@ -17,5 +18,15 @@ export default defineConfig({
   },
   worker: {
     format: "es",
+  },
+  // Interaction tests, not appearance tests — see PLAN.md §M2.5 "Build
+  // notes". `lib/ipc` is mocked per test file, so nothing here ever reaches
+  // Tauri, and jsdom is enough.
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./src/test/setup.ts"],
+    include: ["src/**/*.test.{ts,tsx}"],
+    css: false,
   },
 });
