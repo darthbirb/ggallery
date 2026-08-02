@@ -125,10 +125,19 @@ try {
         'Measure-Object|Resolve-Path|Get-Location|Write-Output' +
         ')\b'
 
-    $segments = $body -split '(\&\&|\|\||;|\|)' | Where-Object { $_ -notmatch '^(\&\&|\|\||;|\|)$' }
-    $segments = $segments | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+    # Bare `npm install` restores what package.json already pins and is routine.
+    # `npm install <package>` adds a dependency — a supply-chain decision that
+    # stays on ask. Same for cargo.
+    $safeRestore = '^(npm\s+install|cargo\s+fetch)\s*$'
 
-    if ($segments.Count -gt 0 -and -not ($segments | Where-Object { $_ -notmatch $safe })) {
+    $segments = $body -split '(\&\&|\|\||;|\|)' | Where-Object { $_ -notmatch '^(\&\&|\|\||;|\|)$' }
+    $segments = $segments |
+        ForEach-Object { ($_ -replace '\s+\d?>&?\d*(?=\s|$)', '').Trim() } |
+        Where-Object { $_ }
+
+    $unsafe = $segments | Where-Object { $_ -notmatch $safe -and $_ -notmatch $safeRestore }
+
+    if ($segments.Count -gt 0 -and -not $unsafe) {
         Emit 'allow' 'Read-only or ordinary build command.'
     }
 
