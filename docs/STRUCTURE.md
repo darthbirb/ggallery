@@ -161,7 +161,8 @@ state/
   library.ts          current root, index status
   selection.ts        selected items, last anchor for shift-click
   ui.ts               pane mode; pane width per mode; nav width and folded state;
-                      accent; folder-pane tile size; thumbnail size; sort; blur
+                      folder band expanded; accent; folder-pane tile size;
+                      thumbnail size; sort; blur
 
 features/             one folder per surface in DESIGN.md
   grid/               PORT FROM THE M0 SPIKE — architecture already validated

@@ -307,7 +307,11 @@ WebView's default menu appearing in a desktop app is a bug, not a placeholder.
 
 **Folder band** — a collapsed strip above the grid. Closed, it is one line: title, status
 chip, counts. Clicking expands it to cover, archetype fields edited in place, tags and
-notes. Expanded state is remembered per folder, in a JSON `ui` column on `folder`.
+notes.
+
+Expanded state is **global and remembered**, not per folder — it sits with panel widths and
+window geometry, never in the database. Per-folder state would reflow the grid every time
+you changed folder, and it is state nobody would curate.
 
 It must look right with **no archetype at all**, which is the default and commonest state —
 the app ships with none. An empty expanded band shows the cover, the counts and an

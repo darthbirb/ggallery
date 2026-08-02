@@ -582,9 +582,9 @@ Then implement the agreed design:
   control. Dragging a folder onto a tile nests it; a tile that would become its own
   descendant refuses visibly.
 - **Folder identity** — a collapsed band above the grid: one title line with status chip and
-  counts, expanding on click to cover, fields, tags and notes. Expanded state persists in a
-  JSON `ui` column on `folder`. Must look right with no archetype, which is the default and
-  commonest state.
+  counts, expanding on click to cover, fields, tags and notes. Expanded state is **global and
+  remembered**, alongside panel widths — not per folder, which would reflow the grid on every
+  navigation. Must look right with no archetype, which is the default and commonest state.
 - **Right-click menus** for folder, item, selection and empty space — complete, not a subset.
 
 **Subfolders are not shown in the grid.** The grid is media; structure lives in the tree and
