@@ -91,7 +91,12 @@ fs/
                       (and, once M4 builds it, the watcher) calls for anything arriving
                       after the library is marked imported
   watch.rs            filesystem watcher
-  trash.rs            soft delete and restore
+  relocate.rs         M2.1 — folder create/rename-directory/move and item move.
+                      Each function is the whole orchestration: disk, then the
+                      database, then the journal
+  trash.rs            soft delete — M2.1 pulls this forward from M4; restore
+                      tooling and the Ctrl+Z replayer are still M4's job
+  clipboard.rs        M2.1 — real Windows CF_HDROP file-copy to the clipboard
 
 sidecar/
   mod.rs              tools/ resolution, version pinning, checksum verification

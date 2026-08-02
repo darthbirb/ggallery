@@ -171,6 +171,41 @@ Folders can be favorited too; that is what pins them to the top of the sidebar.
 
 ## 2. Window layout
 
+The layout below is **one proposal, drawn early**. M2.5 designs the interface from scratch
+and may reject it. The two subsections that follow are different: they are requirements any
+design must satisfy, not suggestions.
+
+### Navigation roots — a requirement
+
+**The library root is not a folder in the interface.** It exists in the database because
+items at the top level need somewhere to belong, but presenting it as a node called
+"Library" that everything nests under is wrong: it implies a container the user did not
+create and cannot remove.
+
+Three distinct things must be reachable, however a design chooses to express them:
+
+- **Everything** — every item in the library, ignoring folder structure entirely.
+- **Loose items** — items sitting at the top level and nowhere else. Not everything
+  recursively; just what has not been filed.
+- **The folder tree** — the folders the user actually made. **When there are none, it shows
+  nothing.** Not a root node, not a placeholder branch.
+
+All three are already expressible: no filter, a non-recursive filter on the root folder,
+and the tree itself.
+
+### Direct manipulation — a requirement
+
+The workflow this app replaces is dragging files between two Explorer windows. **Moving
+items into folders, and folders into folders, must be possible by direct manipulation** —
+picking something up and putting it somewhere. An interface that can only move things
+through a context menu is a regression over what the user does today, however tidy the menu
+is.
+
+The gesture is M2.5's to design. That it must exist is not.
+
+Dragging *into* the window from Explorer already works. Dragging *out* to Explorer is a
+separate, harder problem — clipboard copy (§1) covers that need for now.
+
 ```
 ┌───────────────────────────────────────────────────────────────────────┐
 │  ⌕ search / query bar                         [size] [sort] [⧉] [⌘K]  │

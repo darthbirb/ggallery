@@ -422,6 +422,18 @@ several and may be rejected in whole or in part. Concluding that the sidebar bel
 elsewhere, that the query bar should work differently, or that the whole layout model is
 wrong are all legitimate outcomes.
 
+#### Requirements the design must satisfy
+
+Almost everything is open. These are not:
+
+- **The library root is not a folder.** *Everything*, *loose items at the top level*, and
+  *the folder tree* are three distinct things, and an empty tree renders as empty rather
+  than as a lone root node. [docs/DESIGN.md](docs/DESIGN.md) §2 *Navigation roots*.
+- **Moving items and folders must work by direct manipulation.** The workflow being
+  replaced is dragging between two Explorer windows; requiring a context menu for every
+  move is a regression. The gesture is open, its existence is not. §2 *Direct
+  manipulation*.
+
 #### Phase 1 — Design. Nothing is built.
 
 1. Read the full scope in [docs/DESIGN.md](docs/DESIGN.md): what this app is for, the
