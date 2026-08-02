@@ -38,6 +38,27 @@ are meaningless.
 
 ---
 
+## Filesystem watching
+
+**A rename arrives as a `From`/`To` pair, and treating the halves independently destroys
+data.** Windows emits both events adjacently for a single rename. Handled as an unrelated
+removal followed by an unrelated creation, renaming a folder in Explorer retires every item
+beneath it and re-indexes the same files as new ones — silently discarding tags, favorites,
+notes and every other row keyed to the old identity.
+
+The symptom appears long after the cause, looks like unexplained data loss, and is not
+recoverable from anything the app keeps. Pair the events. Update the folder in place.
+
+An unmatched `From` is a real removal — something left the watched tree — but it can only
+be known to be unmatched once no `To` follows. Flush it when the next `From` arrives, or
+after the settle window expires.
+
+**Derive a moved folder's destination name from its title, never from `rel_path`.**
+`rel_path` is stored lower-cased for comparison; using it as a source for a real directory
+name silently lower-cases every folder that gets moved.
+
+---
+
 ## Thumbnails
 
 **WebP, via the `webp` crate (real libwebp bindings), lossy q78.** Measured against AVIF at

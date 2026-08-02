@@ -5,7 +5,10 @@
 //! thumbnailing — M2 adds no query that touches either) and times the query
 //! paths M2 introduces: the effective-tag cache's full-library and
 //! single-folder rebuilds, the per-item rebuild `jobs::worker::run_hash` now
-//! does inline for every new item, and the sidebar's folder-tree query.
+//! does inline for every new item, and the sidebar's folder-tree query. M2.1
+//! adds the folder-rename and folder-move subtree job bodies; M2.2 adds
+//! `set_title`'s own subtree fan-out, since a folder now has one name and
+//! retitling drives both.
 //!
 //! Usage: `cargo run --release --bin synth_library -- --items 100000`
 //! (release — see CLAUDE.md: debug numbers are 6-40x slower and meaningless
@@ -108,6 +111,18 @@ fn run() -> Result<()> {
     db::tags::rebuild_subtree(&conn, "category-10-moved")?;
     let move_subtree = t7.elapsed();
 
+    // M2.2: a folder now has one name — retitling drives both of the above.
+    // `set_title` itself is the other half: title is a tag, so retitling a
+    // folder with many descendants fans out through `enqueue_retag` into the
+    // exact same `rebuild_subtree` the "leaf-level" check above exercises,
+    // just over a category-sized subtree instead of a single leaf's. The
+    // directory rename this also triggers is a single O(1) OS call — not
+    // measured here, same as the rename/move checks above.
+    let retitle_cat = db::folders::id_for_rel(&conn, "category-15")?.expect("category-15 exists");
+    let t8 = Instant::now();
+    db::folders::set_title(&conn, retitle_cat, "Category 15, Retitled")?;
+    let retitle_subtree = t8.elapsed();
+
     println!();
     report(
         "root-level rebuild_subtree (whole library)",
@@ -133,6 +148,11 @@ fn run() -> Result<()> {
     report(
         &format!("move_folder_subtree, rewrite+retag ({LEAVES_PER_CATEGORY} descendants)"),
         move_subtree,
+        Duration::from_secs(3),
+    );
+    report(
+        &format!("retitle_folder's set_title fan-out ({LEAVES_PER_CATEGORY} descendants)"),
+        retitle_subtree,
         Duration::from_secs(3),
     );
 
