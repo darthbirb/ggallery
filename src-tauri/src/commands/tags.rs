@@ -48,3 +48,39 @@ pub async fn remove_item_tag(state: State<'_, AppState>, item_id: i64, tag_id: i
     })
     .await
 }
+
+// --- rename / delete a tag (M2.1) — the minimum that stops the vocabulary
+// rotting; see docs/DESIGN.md "Item operations" and PLAN.md §M2.1.
+
+#[tauri::command]
+pub async fn list_tags(
+    state: State<'_, AppState>,
+    filter: Option<String>,
+) -> Result<Vec<db::tags::TagSummary>> {
+    let library = state.library()?;
+    blocking(move || {
+        let conn = library.conn()?;
+        db::tags::list_tags(&conn, filter.as_deref())
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn rename_tag(state: State<'_, AppState>, tag_id: i64, value: String) -> Result<()> {
+    let library = state.library()?;
+    blocking(move || {
+        let conn = library.conn()?;
+        db::tags::rename_tag(&conn, tag_id, &value)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn delete_tag(state: State<'_, AppState>, tag_id: i64) -> Result<()> {
+    let library = state.library()?;
+    blocking(move || {
+        let conn = library.conn()?;
+        db::tags::delete_tag(&conn, tag_id)
+    })
+    .await
+}

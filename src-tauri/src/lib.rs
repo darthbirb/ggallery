@@ -227,6 +227,7 @@ impl AppState {
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             commands::library::open_library,
@@ -257,11 +258,36 @@ pub fn run() {
             commands::folders::remove_folder_tag,
             commands::folders::list_folder_statuses,
             commands::folders::list_archetypes,
-            commands::folders::scan_folder_name_parse,
-            commands::folders::apply_folder_name_parse,
+            commands::folders::create_folder,
+            commands::folders::rename_folder_dir,
+            commands::folders::move_folder,
+            commands::folders::delete_folder,
+            commands::folders::create_archetype,
+            commands::folders::rename_archetype,
+            commands::folders::delete_archetype,
+            commands::folders::count_folders_using_archetype,
+            commands::folders::add_archetype_field,
+            commands::folders::reorder_archetype_fields,
+            commands::folders::archetype_field_usage,
+            commands::folders::remove_archetype_field,
+            commands::folders::create_folder_status,
+            commands::folders::rename_folder_status,
+            commands::folders::recolour_folder_status,
+            commands::folders::reorder_folder_statuses,
+            commands::folders::count_folders_by_status,
+            commands::folders::remove_folder_status,
+            commands::items::move_items,
+            commands::items::delete_items,
+            commands::items::reveal_item,
+            commands::items::open_item,
+            commands::items::copy_item_file,
+            commands::items::copy_item_path,
             commands::tags::item_effective_tags,
             commands::tags::add_item_tag,
             commands::tags::remove_item_tag,
+            commands::tags::list_tags,
+            commands::tags::rename_tag,
+            commands::tags::delete_tag,
         ])
         .setup(|app| {
             build_window(app.handle())?;

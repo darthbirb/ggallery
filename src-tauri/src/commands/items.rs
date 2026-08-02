@@ -3,8 +3,10 @@ use tauri::State;
 use crate::commands::blocking;
 use crate::db;
 use crate::db::items::{GridItem, Scope};
-use crate::error::Result;
+use crate::error::{AppError, Result};
 use crate::fs::paths::normalise_rel;
+use crate::fs::relocate::MoveItemsReport;
+use crate::fs::trash::TrashItemsReport;
 use crate::AppState;
 
 /// Every row the grid will draw, in one call.
@@ -28,6 +30,95 @@ pub async fn list_items(
     blocking(move || {
         let conn = library.conn()?;
         db::items::list(&conn, &scope)
+    })
+    .await
+}
+
+// --- M2.1: move, delete, and the OS-integration escape hatches an app that
+// renames everything to a UUID owes the user — see docs/DESIGN.md "Item
+// operations".
+
+#[tauri::command]
+pub async fn move_items(
+    state: State<'_, AppState>,
+    item_ids: Vec<i64>,
+    dest_folder_id: i64,
+) -> Result<MoveItemsReport> {
+    let library = state.library()?;
+    blocking(move || {
+        let conn = library.conn()?;
+        let batch = db::journal::new_batch();
+        crate::fs::relocate::move_items(&library.paths, &conn, &item_ids, dest_folder_id, &batch)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn delete_items(
+    state: State<'_, AppState>,
+    item_ids: Vec<i64>,
+) -> Result<TrashItemsReport> {
+    let library = state.library()?;
+    blocking(move || {
+        let conn = library.conn()?;
+        let batch = db::journal::new_batch();
+        crate::fs::trash::trash_items(&library.paths, &conn, &item_ids, &batch)
+    })
+    .await
+}
+
+fn item_abs_path(library: &crate::Library, item_id: i64) -> Result<std::path::PathBuf> {
+    let conn = library.conn()?;
+    let item = db::items::rename_target(&conn, item_id)?
+        .ok_or_else(|| AppError::invalid("item no longer exists"))?;
+    library.paths.item_path(&item.folder_rel, &item.disk_name)
+}
+
+#[tauri::command]
+pub async fn reveal_item(app: tauri::AppHandle, state: State<'_, AppState>, item_id: i64) -> Result<()> {
+    let library = state.library()?;
+    blocking(move || {
+        let path = item_abs_path(&library, item_id)?;
+        use tauri_plugin_opener::OpenerExt;
+        app.opener()
+            .reveal_item_in_dir(path)
+            .map_err(|err| AppError::invalid(err.to_string()))
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn open_item(app: tauri::AppHandle, state: State<'_, AppState>, item_id: i64) -> Result<()> {
+    let library = state.library()?;
+    blocking(move || {
+        let path = item_abs_path(&library, item_id)?;
+        use tauri_plugin_opener::OpenerExt;
+        app.opener()
+            .open_path(path.to_string_lossy().to_string(), None::<String>)
+            .map_err(|err| AppError::invalid(err.to_string()))
+    })
+    .await
+}
+
+/// Real Windows `CF_HDROP` file copy — pasting into Explorer or elsewhere
+/// produces the actual file. Known limitation: the pasted file carries its
+/// on-disk UUID name; see `fs::clipboard`'s module doc.
+#[tauri::command]
+pub async fn copy_item_file(state: State<'_, AppState>, item_id: i64) -> Result<()> {
+    let library = state.library()?;
+    blocking(move || {
+        let path = item_abs_path(&library, item_id)?;
+        crate::fs::clipboard::copy_file(&path)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn copy_item_path(state: State<'_, AppState>, item_id: i64) -> Result<()> {
+    let library = state.library()?;
+    blocking(move || {
+        let path = item_abs_path(&library, item_id)?;
+        crate::fs::clipboard::copy_text(&path.to_string_lossy())
     })
     .await
 }
