@@ -23,6 +23,7 @@ CREATE TABLE folder (
   status        TEXT    NOT NULL DEFAULT 'active',  -- active|wip|done|archived
   favorite      INTEGER NOT NULL DEFAULT 0,         -- pinned in sidebar
   notes         TEXT,
+  ui            TEXT,                    -- JSON: per-folder UI state (band expanded, …)
   last_added_at INTEGER,                   -- newest item added beneath, recursive
   created_at    INTEGER NOT NULL
 );

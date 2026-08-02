@@ -160,7 +160,8 @@ lib/
 state/
   library.ts          current root, index status
   selection.ts        selected items, last anchor for shift-click
-  ui.ts               panel visibility, thumbnail size, sort, blur toggle
+  ui.ts               pane mode; pane width per mode; nav width and folded state;
+                      accent; folder-pane tile size; thumbnail size; sort; blur
 
 features/             one folder per surface in DESIGN.md
   grid/               PORT FROM THE M0 SPIKE — architecture already validated
@@ -169,7 +170,7 @@ features/             one folder per surface in DESIGN.md
     Scrubber.tsx
     useJustifiedLayout.ts
     layoutWorker.ts
-  sidebar/
+  nav/                the navigation panel — roots, pinned, tree, searches, queues
   indexing/           index progress readout and the per-file failure list
   import/             M1.7 — the startup flow's full-window Review and Progress
                       screens (Choose folder is the picker itself, in App.tsx),
@@ -178,14 +179,19 @@ features/             one folder per surface in DESIGN.md
                       already-open library
   settings/           M1.6 — deliberately minimal, just Normalise filenames for now;
                       the real Settings screen is M9's job
-  folder/             folder header, archetype fields, status
-  preview/            the resizable right panel — preview, details, tags
+  folder/             the folder band — title, status chip, fields, tags, notes
+  pane/               the right half of the split. ONE feature, three modes:
+    Pane.tsx            shell, mode switch, resize, close
+    PreviewMode.tsx     selected item; splits into N panes, synced pan/zoom,
+                        shared timeline — M6, M7 and M10 all render into this
+    GridMode.tsx        a second grid scoped anywhere; accepts drops
+    FolderMode.tsx      destination tiles, breadcrumb, filter box
   search/
-  theatre/            in-app large view; multi-view lands here in M10
   triage/             M4
   downloads/          M5
-  review/             M6 — compression comparison
-  duplicates/         M7
+  review/             M6 — Pending Review queue and its list; the comparison
+                      itself renders into pane/PreviewMode, not here
+  duplicates/         M7 — grouping and resolution; comparison likewise
   storage/            M8
 
 components/           shared primitives only — button, dialog, chip, tooltip
@@ -223,7 +229,7 @@ functions, so a backend signature change breaks at compile time in one place.
 | M2 | `commands/folders`, `commands/tags`, `db/tags`, `features/folder`, `bin/synth_library` |
 | M1.8 | `fs/watch.rs`, transient index readout |
 | M2.1 | `fs/trash.rs` (pulled forward from M4), folder/item move and rename in `fs/`, `commands/folders` and `commands/items` extensions |
-| M2.5 | whatever the design phase concludes — `components/`, `features/preview`, `features/theatre` are expected but not assumed |
+| M2.5 | `features/pane` (all three modes), `features/nav`, folder band in `features/folder`, `components/`, accent tokens |
 | M3 | `query/`, `commands/search`, `features/search` |
 | M4 | `commands/triage`, `db/journal` (move/trash/tag writers, the Ctrl+Z replayer), `fs/trash`, `features/triage` |
 | M5 | `sidecar/ytdlp`, `sidecar/gallerydl`, `commands/downloads`, `features/downloads` |

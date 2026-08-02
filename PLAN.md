@@ -107,6 +107,30 @@ folder holds everything, so backup is "copy the folder".
     is how folder creation went missing for nine milestones: the menu item was specced
     twice and the capability never once.
 
+23. **Nothing is keyboard-only.** Every action has a visible control. Keys are a second
+    path to something already on screen, never the only path. If an action can only be
+    performed by knowing a shortcut, it is not finished.
+
+    This governs every milestone, not just the interface one. Two consequences already
+    identified: `Ctrl+Z` alone is not a path to undo, so **every destructive action ends in
+    a toast naming what happened with an Undo button** — which also makes the journal
+    discoverable, which it currently is not. And triage, specced in
+    [docs/DESIGN.md](docs/DESIGN.md) §4 almost entirely in keystrokes, needs its mouse path:
+    the ordinary window, Sorting Box in the grid, folder pane open. Hotkeys stay; they stop
+    being the only route.
+
+    Right-click menus must be complete, not a subset.
+
+24. **One accent, chosen from a fixed set.** Exactly one hue carries selection, focus,
+    active tab, drop acceptance and scrubber position. The user picks it from a short list —
+    Slate (default), Teal, Violet, Rose, Moss, Amber — so every value can be contrast-checked
+    against the same greys rather than trusting a free colour picker.
+
+    Green and red stay reserved for meaning — kept, saved, deleted, failed — and are never
+    the accent. Swap `--color-accent` / `--color-accent-d` via a `data-accent` attribute on
+    the root; `--color-good` and `--color-danger` are fixed. `--color-info` is deleted; it
+    collides with the default accent.
+
 ## Non-goals
 
 Deliberately excluded. Do not build these without an explicit decision to reverse:
@@ -534,9 +558,42 @@ It waits for M2.5 because this milestone replaces the interface wholesale; tests
 against M2's throwaway UI would be thrown away with it. From M2.5 onward the UI is stable
 enough to be worth testing, and every later milestone inherits the harness.
 
-Then implement it, including the surfaces waiting on this milestone: the preview panel,
-theatre view with left/right navigation and a filmstrip, resizable panels, and right-click
-menus for folder, item, selection and empty space.
+Then implement the agreed design:
+
+- **The split.** Grid always on the left; a second pane on the right, drag-resizable, fully
+  closable, widths remembered per mode and editable in Settings. **There is no theatre
+  view** — full-window is the pane maximised.
+- **The pane is polymorphic**, switched by a labelled three-way control in its own header:
+  *Preview* (the selected item; splits into N panes, which is what M6, M7 and M10 consume),
+  *Grid* (a second grid scoped anywhere, with its own sort and tile size, accepting drops),
+  and *Folders* (the destination tiles). Preview details are small and collapsible.
+- **The navigation panel** — resident, ~200px, drag-resizable, folded by a visible control,
+  width and state remembered, folding to a 44px icon strip that keeps queue badges visible
+  and every root a drop target. Groups: Library (Everything / Loose items / Favourites, above
+  the tree and never nodes in it), Pinned, Folders, Saved searches, Queues.
+- **The folder pane** — one flat field per level, no sections and no reordering, so a folder
+  stays where it was and the drag becomes muscle memory. Tiles show cover, title and count,
+  the count reading `610 → 616` mid-drag. Single click drills in without moving the main
+  grid; double click navigates the main grid. Breadcrumb and Up button at the top, both drop
+  targets. Filter box pinned to the bottom searching title and path across the whole library
+  flat, with parent paths shown under titles whenever the list is flat, and clearing restores
+  position. A *＋ New folder in ‹parent›* tile always present, plus a *Create "roo" in Trips*
+  row when nothing matches — this is the inline folder creation §4 needs, as a visible
+  control. Dragging a folder onto a tile nests it; a tile that would become its own
+  descendant refuses visibly.
+- **Folder identity** — a collapsed band above the grid: one title line with status chip and
+  counts, expanding on click to cover, fields, tags and notes. Expanded state persists in a
+  JSON `ui` column on `folder`. Must look right with no archetype, which is the default and
+  commonest state.
+- **Right-click menus** for folder, item, selection and empty space — complete, not a subset.
+
+**Subfolders are not shown in the grid.** The grid is media; structure lives in the tree and
+the folder pane.
+
+**Drop targets** are folder tiles, tree rows, and the pane in Grid mode. Nothing appears or
+rearranges mid-drag — no dock, no mode switch. Spring-loading on hover is the single
+exception, on tree rows and folder tiles. Every drop ends in a toast naming the destination
+with an Undo button.
 
 Separated from M2 deliberately. Folded together, the data work eats the schedule and the
 interface arrives as an afterthought. Given its own milestone, it also establishes the
@@ -564,8 +621,11 @@ cookie support (Instagram will not work without it).
 
 ### M6 — Compression and review
 
-Preset management, HandBrakeCLI and image encoding jobs, Pending Review queue,
-side-by-side comparison for images and video, lineage, trash integration.
+Preset management, HandBrakeCLI and image encoding jobs, Pending Review queue, lineage,
+trash integration.
+
+**Comparison renders into the pane**, not a screen of its own — the split Preview mode with
+two panes, synced pan and zoom, and a shared timeline. Same for M7.
 
 ### M7 — Duplicates
 
@@ -585,6 +645,9 @@ rebuild, backup verification.
 
 Up to twelve items in theatre view at once, all playing, adaptive layout, one audio solo.
 Specified in [docs/DESIGN.md](docs/DESIGN.md).
+
+**Lands inside the pane**, not as its own screen: multi-view is the pane's Preview mode with
+more panes, the same control M6 and M7 use.
 
 **Starts with a measurement, not a build.** Find out how many concurrent video streams
 actually hold frame rate on the target machine before committing to twelve — hardware

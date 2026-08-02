@@ -28,8 +28,14 @@ A folder is a real directory on disk *and* a record in the database. It has:
 - **Flags** — plain tags. `archived`, `favourite`.
 - **Cover** — an item inside it, chosen manually or picked automatically.
 - **Count** — items directly inside, and items recursively beneath.
-- **Status** — `Active` / `WIP` / `Done` / `Archived`, user-editable set. Renders as a
-  coloured dot in the sidebar tree and is queryable as `status:wip`.
+- **Status** — `Active` / `WIP` / `Done` / `Archived`, user-editable set. Renders as a text
+  chip in the folder band and is queryable as `status:wip`.
+
+  **One mark, not four.** The tree shows a single dot for `WIP` and nothing for any other
+  status. Four colours on every row is a legend you have to learn, sitting where you least
+  need it; one mark meaning "needs more", with absence meaning nothing to say, is
+  glanceable without a key. This is what keeps WIP *ambient* — a saved search is opt-in, and
+  "I forgot this folder was unfinished" is exactly the failure it cannot catch.
 - **Last added** — tracked automatically. Makes WIP actionable: the folder list can be
   sorted by staleness, surfacing *"Ana — WIP — nothing new in 5 months"* instead of a
   flag you set once and forgot.
@@ -243,36 +249,43 @@ Dragging *into* the window from Explorer already works. Dragging *out* to Explor
 separate, harder problem — clipboard copy (§1) covers that need for now.
 
 ```
-┌───────────────────────────────────────────────────────────────────────┐
-│  ⌕ search / query bar                         [size] [sort] [⧉] [⌘K]  │
-├────────────┬────────────────────────────────────────┬─┬──────────────┤
-│  SIDEBAR   │           FOLDER HEADER                │ │  INSPECTOR   │
-│            │  ┌──────────────────────────────────┐  │2│              │
-│  Library   │  │ ▣  Ana            Person   ● WIP │  │0│ selection or │
-│  ★ Ana     │  │    instagram  @ana               │  │2│ folder info  │
-│   People   │  │    tiktok     @ana_x             │  │5│              │
-│    Ana   ● │  │    youtube    —                  │  │ │ tags         │
-│    Sara  ○ │  │    2,481 items · 14 subfolders   │  │2│ metadata     │
-│   Places   │  │    last added: 5 months ago      │  │0│ notes        │
-│            │  └──────────────────────────────────┘  │2│ actions      │
-│  Tags      │                                        │4│              │
-│  ★ Favorites│           MEDIA GRID                  │ │              │
-│  Searches  │      (justified, virtualized)          │2│              │
-│  ─────     │                                        │0│              │
-│  Sorting   │                                        │2│              │
-│    Box  142│                                        │3│              │
-│  Pending  8│                                        │ │              │
-│  Trash     │                                        │↕│              │
-└────────────┴────────────────────────────────────────┴─┴──────────────┘
-                                                        ↑
-                                              timeline scrubber
+┌────────────────────────────────────────────────────────────────────────┐
+│  ‹ People / Ana      ⌕ query                       [size] [sort] [⌘K]  │
+├──────────┬──────────────────────────────────┬──────────────────────────┤
+│   NAV    │ ▸ Ana  ●WIP  2,481 items         │  Preview │ Grid │ Folders│
+│          ├──────────────────────────────────┤──────────────────────────┤
+│Everything│                                  │                          │
+│Loose     │                                  │                          │
+│Favourites│                                  │                          │
+│          │           MEDIA GRID           │s│        THE PANE          │
+│Pinned    │      (justified, virtualized)  │c│                          │
+│ Ana      │                                │r│   one of three modes     │
+│          │                                │u│                          │
+│Folders   │                                │b│                          │
+│ People   │                                │ │                          │
+│  Ana   ● │                                │ │                          │
+│ Places   │                                  │                          │
+│Searches  │                                  │                          │
+│Queues    │                                  │                          │
+│ Sorting¹⁴²│                                 │                          │
+└──────────┴──────────────────────────────────┴──────────────────────────┘
+      ↑                    ↑                              ↑
+ folds to 44px    folder band, collapsed     drag-resizable, fully closable
 ```
 
-**Sidebar** — collapsible sections. Library (folder tree), Tags, Favorites, Saved
-Searches, then a divider and the three queues: Sorting Box, Pending Review, Trash, each
-with a count badge. Pinned folders float above the tree. Each folder shows a coloured
-status dot. Folders accept drops. Right-click for new folder, rename, edit tags, set
-cover, set status.
+**Navigation panel** — resident, ~200px, drag-resizable, folded away by a visible control.
+Width and folded state remembered; **never summoned by a keypress**. Folded, it becomes a
+44px icon strip that keeps queue badges on screen and every root a drop target.
+
+Groups, in order: **Library** (Everything, Loose items, Favourites — above the tree, never
+nodes in it), **Pinned**, **Folders**, **Saved searches**, **Queues** (Sorting Box, Pending
+Review, Trash, each with a count badge).
+
+Pinned folders live in their own group above the tree rather than floating within it — so
+favouriting something never reorders the tree, and the row you reach for stays where it was.
+
+Folders accept drops. Right-click for new folder, rename, edit tags, set cover, set status.
+A single dot marks `WIP` and nothing else; see §1 *Folders*.
 
 **Timeline scrubber** — a thin strip down the right edge of the grid, marked with years
 and months. Dragging it jumps to that point in the sort order. At 40k+ items this is the
@@ -283,86 +296,106 @@ scrollbar is hidden with `scrollbar-width: none` while the scroll container stay
 functional (wheel, keyboard, and programmatic scrolling all work unchanged). Showing both
 is redundant and looks unfinished.
 
-**Panels are resizable.** The sidebar and the preview panel both have drag handles, with
-a sensible minimum width and a maximum of roughly half the window. Widths persist between
-sessions alongside window geometry. Double-clicking a handle resets that panel to its
-default width.
+**Panels are resizable.** The navigation panel and the pane both have drag handles, with a
+sensible minimum width. Widths persist between sessions alongside window geometry, are
+remembered *per pane mode*, and are editable in Settings. Double-clicking a handle resets
+that panel to its default width.
 
 **The native context menu is suppressed everywhere.** Right-click opens the app's own menu
 appropriate to what was clicked — a folder, an item, a selection, or empty space. A
 WebView's default menu appearing in a desktop app is a bug, not a placeholder.
 
-**Folder header** — appears when viewing a folder. Cover thumbnail, title, archetype
-badge, labelled fields edited inline (click the dash, type, done), flags as chips, counts.
-This is where you fill in Instagram handles. Collapsible; collapsed state is remembered.
+**Folder band** — a collapsed strip above the grid. Closed, it is one line: title, status
+chip, counts. Clicking expands it to cover, archetype fields edited in place, tags and
+notes. Expanded state is remembered per folder, in a JSON `ui` column on `folder`.
+
+It must look right with **no archetype at all**, which is the default and commonest state —
+the app ships with none. An empty expanded band shows the cover, the counts and an
+*＋ add field* control, not a row of blank labels.
 
 **Grid** — justified rows, sized by a slider. Video items show a duration badge and
 scrub through their sprite strip on hover. Selection is click, shift-click for range,
 ctrl-click to toggle, drag for marquee. Sort by captured date, added date, size,
 duration, or random.
 
-**Preview panel** — the right panel, toggled with `I`. Single-clicking an item shows it
-here at a usable size, roughly a third to a half of the window and drag-resizable. This is
-the primary way media gets looked at: the workflow is comparing and triaging against the
-grid, not presenting one image at a time, so the grid must stay visible while you inspect.
+**Subfolders are not shown in the grid.** The grid is media. Structure lives in the
+navigation panel and the folder pane, and mixing folder tiles into a media grid makes both
+worse — you cannot scan pictures past interruptions, and folders are easier to hit in a list.
 
-The panel is preview on top, details below:
+### The pane
 
-- **Preview** — the image or video, fit to the panel. Video plays inline, muted, **looping
-  by default**. Click the preview to go fullscreen.
-- **Details** — filename, dimensions, duration, codec, size, dates, source URL if it came
-  from a download.
-- **Tags** — inherited render greyed, manual render solid, so it is always obvious which
-  came from where. Multi-selection shows shared tags and allows bulk add/remove. Tag entry
-  is a combobox with autocomplete over existing keys and values.
-- With nothing selected, the panel is empty or shows the previous item. Folder identity
-  lives in its own collapsed band above the grid, not here.
-- The panel is **drag-resizable and fully closable**, with its width remembered. It can also
-  hold a second grid, or a filterable grid of folders used as drop targets — see
-  [PLAN.md](../PLAN.md) §M2.5 *Settled in phase 1*.
+The right half of the split, and the single most reused surface in the app. Drag-resizable,
+**fully closable**, widths remembered per mode and editable in Settings. A labelled
+three-way control in its own header switches what it holds.
 
-### Theatre view
+**There is no theatre view.** Full-window is the pane maximised — one control, one state,
+no transition to design and no scroll position to restore.
 
-A large view rendered **inside the app window** — not OS fullscreen, no display mode
-change, no window chrome disappearing. It is a view that takes over the window, with a
-back button, and `Esc` also returns.
+#### Preview mode
 
-Opened by double-clicking an item, pressing `Enter`, or the **Fullscreen** button in the
-preview panel. Returning puts the grid back exactly where it was, scrolled to the item you
-were looking at.
+The selected item, fit to the pane. **Splits into N panes**, which is what makes it the
+only comparison surface the app needs:
 
-- Left and right arrows, or on-screen chevrons, move through the current filter — the same
-  set the grid is showing, in the same order.
-- A filmstrip along the bottom shows position and allows jumping.
-- *Images* — scroll to zoom, drag to pan, `1` for 1:1 pixels, `0` to fit.
-- *Video* — play/pause, scrub, frame-step with arrows, speed control, **loop on by
-  default**, and volume that persists between items.
-- `F` favorites, `T` tags, `Del` trashes, `A` adds to multi-view.
+- *Images* — scroll to zoom, drag to pan, on-screen controls for 1:1 pixels and fit.
+- *Video* — play/pause, scrub, frame-step, speed, **loop on by default**, and volume that
+  persists between items.
+- Chevrons and arrows move through the current filter, in the grid's order. A filmstrip
+  shows position and allows jumping.
+- **Details are small and collapsible** inside the pane. Collapsed shows filename,
+  dimensions and size only; expanded adds duration, codec, dates, source URL and tags —
+  inherited greyed, manual solid.
+- With nothing selected the pane shows an empty state. Folder identity belongs to the band.
 
-### Multi-view
+Multi-pane preview is one mechanism with three uses: **compression review** (M6) and
+**duplicate comparison** (M7) are two panes with synced pan, zoom and a shared timeline;
+**multi-view** (M10) is up to twelve, all playing, looping, muted, with one pane soloing
+audio on click. Layout adapts — 2 side by side, 3–4 as 2×2, 5–6 as 3×2, 7–9 as 3×3, 10–12
+as 4×3.
 
-Theatre view holds **one item by default and up to twelve**. An **Add** control appends
-the current item to the set; each pane has its own remove control. The layout adapts to
-the count:
+Multi-view still carries a real performance risk and is still measured before it is built:
+twelve concurrent video elements can exhaust hardware decode sessions and fall back silently
+to software. If the honest number is six, the cap is six, and panes past it show a poster
+frame with a click-to-play control rather than stuttering.
 
-```
- 1 → full         2 → side by side      3–4 → 2×2
- 5–6 → 3×2        7–9 → 3×3            10–12 → 4×3
-```
+#### Grid mode
 
-Every video in the set plays simultaneously, looping, muted. Clicking a pane solos its
-audio — one unmuted at a time, because twelve soundtracks at once is noise, not a feature.
-Clicking a pane's expand control drops back to that item alone.
+A second grid, scoped anywhere in the library, with its own sort and tile size. Two folders
+side by side, or a query against a folder. **It accepts drops** — drag items in and they
+move there.
 
-**This carries a real performance risk and must be measured before it is built.** Twelve
-concurrent video elements can exhaust the GPU's hardware decode sessions and silently fall
-back to software decode; twelve 1080p software-decoded streams will saturate the CPU. The
-milestone starts with a throwaway check of how many concurrent streams actually hold frame
-rate on the target machine.
+#### Folders mode
 
-If the honest number is lower than twelve, the cap becomes that number rather than the
-design being forced. Panes beyond whatever decodes cleanly show a poster frame with a
-click-to-play control instead of failing silently.
+Destination tiles, and the reason the two-Explorer-window workflow is beaten rather than
+tied.
+
+- **One flat field per level.** No sections, no reordering, no sorting by recency — a folder
+  is where it was last time, which is what lets the drag become muscle memory.
+- **Tiles** show cover, title and item count. During a drag the count previews the result:
+  `610 → 616`.
+- **Single click drills in**; the main grid does not move. **Double click** navigates the
+  main grid there.
+- **Breadcrumb and an Up button** at the top. Both are drop targets.
+- **A filter box pinned to the bottom** searches title and path across the whole library,
+  flat, ignoring wherever you had drilled to. Clearing it restores your position. Whenever
+  the list is flat, parent paths render under titles so two folders with the same name are
+  distinguishable.
+- **A *＋ New folder in ‹parent›* tile is always present**, and when nothing matches what you
+  typed, a *Create "roo" in Trips* row appears. This is the inline folder creation §4 needs,
+  as a visible control rather than a keystroke.
+- **Dragging a folder onto a tile nests it.** A tile that would become its own descendant
+  refuses visibly rather than silently doing nothing.
+
+### Drops
+
+Three targets: **folder tiles**, **tree rows**, and **the pane in Grid mode**.
+
+**Nothing appears or rearranges mid-drag** — no dock sliding in, no automatic mode switch.
+Targets that were on screen when you picked something up are the targets when you put it
+down. The single exception is **spring-loading**: hovering a tree row or folder tile opens
+it, so a nested destination can be reached without setting it up first.
+
+**Every drop ends in a toast** naming the destination with an Undo button, and the
+destination's count ticks up.
 
 ### Animated media
 
@@ -432,6 +465,15 @@ Files entering the Sorting Box are renamed to UUIDs, hashed, thumbnailed, and ch
 against existing content hashes. Exact duplicates of something already in the library are
 flagged on arrival rather than after you have already sorted them.
 
+### Triage without the keyboard
+
+Triage below is written in keystrokes, and it must not require them. **The mouse path is the
+ordinary window**: Sorting Box in the grid, the pane in Folders mode, drag onto a tile. No
+mode to enter, no hotkeys to have assigned, nothing to learn first — the same surface used
+for everything else, pointed at the queue.
+
+The fullscreen culler is the accelerator for when you want it, not the only way in.
+
 ### Triage — fullscreen (default)
 
 ```
@@ -494,13 +536,13 @@ Sortable by savings, size, or duration. Multi-select with a bulk **Keep compress
 so the eighty obvious 90% wins clear in one action, and your attention goes to the
 marginal ones. Clicking a row opens compare view.
 
-**Compare view** — side by side, keyboard driven:
+**Compare view** — the pane in Preview mode, split into two. Not a screen of its own; see
+§2 *The pane*.
 
-- *Images* — two panes with synchronised pan and zoom, a 1:1 pixel toggle, and a
-  wipe-slider mode for A/B on a single image.
+- *Images* — synchronised pan and zoom, a 1:1 toggle, and a wipe-slider mode for A/B on a
+  single image.
 - *Video* — two players sharing one timeline. Play, pause, scrub and frame-step move
-  both in lockstep. Arrow keys step frames, which is where compression artifacts
-  actually show.
+  both in lockstep. Frame-stepping is where compression artifacts actually show.
 - A persistent stats bar: size, bitrate, resolution, codec, and the delta.
 - `Enter` keeps compressed, `O` keeps original, `→` next, `Ctrl+Z` undoes.
 
@@ -543,9 +585,9 @@ one.
 
 ## 7. Duplicates
 
-Perceptual hashing for images; sampled-frame hashing for video. Groups are surfaced in a
-review screen reusing the compression compare view, with resolution, bitrate, size and
-date shown against each candidate.
+Perceptual hashing for images; sampled-frame hashing for video. Groups are surfaced in the
+pane's split Preview mode — the same surface compression review uses — with resolution,
+bitrate, size and date shown against each candidate.
 
 Choosing a keeper merges the loser's manual tags into it before trashing, so you never
 lose tagging work by deduplicating.
@@ -562,8 +604,26 @@ operation as one step. This is what makes fast triage comfortable.
 **Trash** — soft delete. Files move to `.gallery/trash/` preserving their relative path;
 the database row keeps a `deleted_at`. Restorable until purged.
 
-**Keyboard** — every primary action has a binding, and destination hotkeys are
-user-assigned. A `?` overlay lists them.
+**Nothing is keyboard-only.** Every action has a visible control; keys are a second path to
+something already on screen. If an action can only be performed by knowing a shortcut, it is
+not finished. Locked decision 23.
+
+This is why **every destructive action ends in a toast naming what happened with an Undo
+button** — `Ctrl+Z` alone is not a path to undo, and the toast is also what makes the
+journal discoverable at all.
+
+Controls that must exist visibly, not only as bindings: select all, invert, clear;
+favourite; delete; reveal in Explorer; open with; copy file; copy path; blur; fold the
+navigation panel; negate a query term. Right-click menus are complete, not a subset.
+
+Keys remain for everything, destination hotkeys are user-assigned, and a `?` overlay lists
+them — as an accelerator layer over a fully usable mouse interface.
+
+**Colour** — exactly one accent hue carries selection, focus, active tab, drop acceptance
+and scrubber position, chosen by the user from a fixed set: Slate (default), Teal, Violet,
+Rose, Moss, Amber. Fixed rather than free so every value is contrast-checked against the
+same greys. Green and red are reserved for meaning — kept, saved, deleted, failed — and are
+never the accent. Locked decision 24.
 
 **Single instance** — a lock file in `.gallery/` prevents two copies opening the same
 library.
