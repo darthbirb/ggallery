@@ -24,8 +24,6 @@ use uuid::Uuid;
 
 const CATEGORIES: usize = 20;
 const LEAVES_PER_CATEGORY: usize = 100;
-/// Person, seeded with id 1 in `002_folder_metadata.sql`.
-const PERSON_ARCHETYPE: i64 = 1;
 
 fn main() {
     if let Err(err) = run() {
@@ -90,6 +88,26 @@ fn run() -> Result<()> {
     let tree = db::folders::tree(&conn)?;
     let tree_query = t5.elapsed();
 
+    // M2.1: subtree path rewrite, and the combined move (rewrite + retag) —
+    // PLAN.md §M2.1's "verify subtree cases at scale" requirement. Both time
+    // exactly the RENAME_FOLDER_SUBTREE / MOVE_FOLDER_SUBTREE job bodies;
+    // the physical directory rename itself is a single O(1) OS call
+    // regardless of subtree size, so it is not what this measures — same
+    // "DB-only, no IO" reasoning as decision 20's other checks here.
+    let rename_cat =
+        db::folders::id_for_rel(&conn, "category-05")?.expect("category-05 exists");
+    db::folders::set_rel_path(&conn, rename_cat, "category-05-renamed")?;
+    let t6 = Instant::now();
+    db::folders::rewrite_subtree_paths(&conn, "category-05", "category-05-renamed")?;
+    let rename_subtree = t6.elapsed();
+
+    let move_cat = db::folders::id_for_rel(&conn, "category-10")?.expect("category-10 exists");
+    db::folders::set_rel_path(&conn, move_cat, "category-10-moved")?;
+    let t7 = Instant::now();
+    db::folders::rewrite_subtree_paths(&conn, "category-10", "category-10-moved")?;
+    db::tags::rebuild_subtree(&conn, "category-10-moved")?;
+    let move_subtree = t7.elapsed();
+
     println!();
     report(
         "root-level rebuild_subtree (whole library)",
@@ -107,16 +125,31 @@ fn run() -> Result<()> {
         tree_query,
         Duration::from_millis(500),
     );
+    report(
+        &format!("rename_folder_subtree ({LEAVES_PER_CATEGORY} descendants)"),
+        rename_subtree,
+        Duration::from_millis(500),
+    );
+    report(
+        &format!("move_folder_subtree, rewrite+retag ({LEAVES_PER_CATEGORY} descendants)"),
+        move_subtree,
+        Duration::from_secs(3),
+    );
 
     Ok(())
 }
 
 /// Category folders → leaf folders, matching the "folder counts in the
 /// thousands" scale `db::folders::tree`'s own doc comment already assumes.
-/// Every tenth leaf gets the Person archetype applied, so archetype
-/// resolution is exercised at scale too, not just for one folder.
+/// Every tenth leaf gets a synthetic archetype applied, so archetype
+/// resolution is exercised at scale too, not just for one folder. Nothing
+/// is seeded (PLAN.md decision 21), so the archetype used here is created
+/// on the spot, the same way a real user would from Settings.
 fn build_tree(conn: &rusqlite::Connection) -> Result<Vec<i64>> {
     db::folders::upsert(conn, "", "Library")?;
+    let person = db::folders::create_archetype(conn, "Person")?;
+    db::folders::add_archetype_field(conn, person, "instagram", "handle", false)?;
+
     let mut leaves = Vec::with_capacity(CATEGORIES * LEAVES_PER_CATEGORY);
 
     for c in 0..CATEGORIES {
@@ -128,7 +161,7 @@ fn build_tree(conn: &rusqlite::Connection) -> Result<Vec<i64>> {
             let rel = format!("{cat_rel}/leaf-{l:03}");
             let id = db::folders::upsert(conn, &rel, &format!("Leaf {c:02}-{l:03}"))?;
             if l % 10 == 0 {
-                db::folders::apply_archetype(conn, id, PERSON_ARCHETYPE)?;
+                db::folders::apply_archetype(conn, id, person)?;
                 db::folders::set_label(conn, id, "instagram", &format!("@leaf{c}{l}"))?;
             }
             leaves.push(id);
