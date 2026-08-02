@@ -17,6 +17,7 @@
 import { formatDuration } from "../../lib/format";
 import { assetUrl } from "../../lib/ipc";
 import type { GridItem } from "../../lib/types";
+import type { ClickModifiers } from "../../state/selection";
 import type { LayoutResult } from "./layoutWorker";
 
 /** Frames in a scrub strip. Must match `media::sprites::FRAMES`. */
@@ -41,12 +42,12 @@ interface TileNode {
 
 export interface TilePoolOptions {
   container: HTMLElement;
-  onSelect: (id: number) => void;
+  onSelect: (id: number, modifiers: ClickModifiers) => void;
 }
 
 export class TilePool {
   private readonly container: HTMLElement;
-  private readonly onSelect: (id: number) => void;
+  private readonly onSelect: (id: number, modifiers: ClickModifiers) => void;
   private readonly nodes: TileNode[] = [];
   private readonly free: TileNode[] = [];
   private readonly active = new Map<number, TileNode>();
@@ -54,7 +55,7 @@ export class TilePool {
   private items: GridItem[] = [];
   private thumbsDir = "";
   private spritesDir = "";
-  private selectedId: number | null = null;
+  private selected: Set<number> = new Set();
   private mark = 0;
 
   constructor(options: TilePoolOptions) {
@@ -70,11 +71,10 @@ export class TilePool {
     for (const node of this.nodes) node.itemId = -1;
   }
 
-  setSelected(id: number | null): void {
-    if (this.selectedId === id) return;
-    this.selectedId = id;
+  setSelected(ids: Set<number>): void {
+    this.selected = ids;
     for (const node of this.active.values()) {
-      node.root.classList.toggle("is-selected", node.itemId === id);
+      node.root.classList.toggle("is-selected", ids.has(node.itemId));
     }
   }
 
@@ -175,7 +175,7 @@ export class TilePool {
 
     node.root.classList.toggle("is-video", item.kind === "video");
     node.root.classList.toggle("is-favorite", item.favorite);
-    node.root.classList.toggle("is-selected", item.id === this.selectedId);
+    node.root.classList.toggle("is-selected", this.selected.has(item.id));
     node.root.classList.remove("is-scrubbing");
     node.scrub.style.backgroundImage = "";
     node.duration.textContent =
@@ -225,8 +225,14 @@ export class TilePool {
     img.addEventListener("error", () => {
       node.failed = true;
     });
-    root.addEventListener("click", () => {
-      if (node.itemId >= 0) this.onSelect(node.itemId);
+    root.addEventListener("click", (event) => {
+      if (node.itemId >= 0) {
+        this.onSelect(node.itemId, {
+          ctrlKey: event.ctrlKey,
+          metaKey: event.metaKey,
+          shiftKey: event.shiftKey,
+        });
+      }
     });
     root.addEventListener("mouseenter", () => {
       if (node.kind !== "video") return;

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { GridItem } from "../../lib/types";
+import type { SelectionController } from "../../state/selection";
 import type { LayoutResult } from "./layoutWorker";
 import { Scrubber, type ScrubberHandle } from "./Scrubber";
 import { TilePool } from "./Tile";
@@ -17,8 +18,7 @@ interface GridProps {
   thumbsDir: string;
   spritesDir: string;
   tileHeight: number;
-  selectedId: number | null;
-  onSelect: (id: number | null) => void;
+  selection: SelectionController;
   /** Bumped while indexing so tiles whose thumbnail did not exist yet retry. */
   refreshToken: number;
 }
@@ -28,8 +28,7 @@ export function Grid({
   thumbsDir,
   spritesDir,
   tileHeight,
-  selectedId,
-  onSelect,
+  selection,
   refreshToken,
 }: GridProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -38,6 +37,15 @@ export function Grid({
   const scrubberRef = useRef<ScrubberHandle>(null);
   const layoutRef = useRef<LayoutResult | null>(null);
   const frameRef = useRef(0);
+
+  // `selection.click` changes identity whenever `items` or the shift-click
+  // anchor changes — e.g. on every reload while indexing. The tile pool must
+  // still be built exactly once (ENGINEERING-NOTES.md §1: recreating it on
+  // every items reload would reintroduce the GC-churn fling regression), so
+  // the pool's stable `onSelect` reads through a ref to whatever the latest
+  // click handler is, rather than closing over one directly.
+  const selectionClickRef = useRef(selection.click);
+  selectionClickRef.current = selection.click;
 
   const [width, setWidth] = useState(0);
   const layout = useJustifiedLayout(
@@ -80,13 +88,16 @@ export function Grid({
   useEffect(() => {
     const container = contentRef.current;
     if (!container) return;
-    const pool = new TilePool({ container, onSelect });
+    const pool = new TilePool({
+      container,
+      onSelect: (id, modifiers) => selectionClickRef.current(id, modifiers),
+    });
     poolRef.current = pool;
     return () => {
       pool.destroy();
       poolRef.current = null;
     };
-  }, [onSelect]);
+  }, []);
 
   useEffect(() => {
     const scroller = scrollRef.current;
@@ -112,8 +123,8 @@ export function Grid({
   }, [layout, schedule]);
 
   useEffect(() => {
-    poolRef.current?.setSelected(selectedId);
-  }, [selectedId]);
+    poolRef.current?.setSelected(selection.selected);
+  }, [selection.selected]);
 
   useEffect(() => {
     poolRef.current?.retryMissing();
@@ -153,7 +164,7 @@ export function Grid({
         style={{ padding: PADDING }}
         onScroll={schedule}
         onClick={(event) => {
-          if (event.target === event.currentTarget) onSelect(null);
+          if (event.target === event.currentTarget) selection.clear();
         }}
       >
         <div ref={contentRef} className="relative w-full" />
