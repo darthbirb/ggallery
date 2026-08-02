@@ -61,7 +61,17 @@ this one needs because filenames on disk are opaque UUIDs:
   most useful escape hatch in an app that renames everything to a UUID.
 - **Open with the default application** — hand the file to whatever the OS associates with
   it, for the cases this app deliberately does not handle.
-- **Copy** the file, or its absolute path, to the clipboard.
+- **Copy the file** to the clipboard, so `Ctrl+V` into Explorer, a chat window or an email
+  pastes the actual file. This needs Windows' native `CF_HDROP` clipboard format, which
+  Tauri's clipboard plugin does not cover — `clipboard-win` does, and the Windows-only
+  dependency costs nothing in a Windows-only app.
+
+  **Known limitation, fixed with Export in M8:** the file is put on the clipboard under its
+  real name on disk, which is a UUID. Pasting it elsewhere produces `a3f2c1d4.jpg`. The fix
+  is to stage a copy under a reconstructed name first, and that naming logic belongs with
+  Export rather than being written twice.
+- **Copy the absolute path** as plain text — a separate action, for when a path is what you
+  actually want.
 
 ### Selection
 
@@ -504,8 +514,13 @@ vocabulary rots within a year, and the whole searchability premise goes with it.
 
 **Export.** Because filenames on disk are UUIDs, getting media *out* needs a first-class
 path. Select any items, choose Export, pick a destination, and they are copied out with
-reconstructed names — `Ana - 2024-06-12 - 003.jpg` — using a configurable pattern built
-from folder title, captured date, and index. Originals are never touched.
+reconstructed names — folder title, captured date and an index — using a configurable
+pattern. Originals are never touched.
+
+The same name reconstruction then upgrades **copy-to-clipboard** (§1 *Item operations*),
+which until now puts files on the clipboard under their UUID names: stage a copy under the
+reconstructed name, put that on the clipboard, and pasting anywhere produces something
+readable. One implementation, two surfaces — which is why the naming was left out of M2.1.
 
 **Integrity check.** Re-hashes every file and reports anything missing, moved unexpectedly,
 or corrupted. Run it after moving the library to a new machine to confirm the copy was

@@ -394,7 +394,10 @@ Specified in [docs/DESIGN.md](docs/DESIGN.md) §1 *Folder operations*, *Item ope
 - **Delete items** from the grid, not only from triage and theatre view.
 - **Reveal in Explorer** and **open with the default application** — the escape hatches an
   app that renames everything to a UUID owes the user.
-- **Copy** the file or its absolute path to the clipboard.
+- **Copy the file** to the clipboard via `clipboard-win` and `CF_HDROP`, so `Ctrl+V`
+  pastes a real file rather than a string. Copy-path stays a separate action. The file goes
+  on the clipboard under its UUID name; staging a copy under a reconstructed name waits for
+  M8, where that logic already has to exist for Export.
 - **Select all, invert, clear**, each bound, with a live selection count.
 - **Rename and delete a tag.** Tags are created inline from M2 onward, so without this a
   typo is permanent until M8's management screen. The full screen — merge, aliases, usage
