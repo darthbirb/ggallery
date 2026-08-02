@@ -41,9 +41,10 @@ CREATE TABLE folder_status (               -- user-editable value set
 through every ancestor. That is what makes `status:wip sort:staleness` a usable to-do
 list rather than a set of labels you forgot you applied.
 
-`title` is separate from the directory name so folders can be renamed for display
-without churning the filesystem, and so titles can contain characters Windows forbids
-in paths.
+`title` is what the user typed; the last segment of `rel_path` is derived from it by
+sanitising for the filesystem, so a title may legitimately differ from its directory name
+(forbidden characters, length caps, sibling collisions). They are not independently
+editable — renaming a folder changes both. See [DESIGN.md](DESIGN.md) §1 *Folder names*.
 
 ### Items
 

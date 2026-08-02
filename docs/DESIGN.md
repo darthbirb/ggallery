@@ -34,9 +34,8 @@ Folders are created, renamed, moved and deleted from inside the app. Every one o
 changes the filesystem and the database together, and the filesystem is authoritative:
 
 - **Create** — makes the directory on disk and the record, with an optional archetype.
-- **Rename** — the display title and the directory name are separate. Changing the title
-  alone touches only the record. Renaming the directory moves it on disk, and every
-  descendant's `rel_path` updates with it.
+- **Rename** — there is one name. Retitling a folder renames its directory to match, and
+  every descendant's `rel_path` updates with it. See *Folder names* below.
 - **Move** — dragging a folder onto another, or a menu action. Descendant paths and the
   effective-tag cache both follow, because inherited tags are recomputed from the new
   ancestry.
@@ -49,6 +48,32 @@ rebuild for that item.
 
 **All of these are journalled** so `Ctrl+Z` reaches them once the replayer lands. Renames
 of *files* remain the exception — see §10.
+
+### Folder names
+
+**A folder has one name.** The title is what the user types; the directory on disk is
+derived from it. Renaming is a single act with a single visible result.
+
+Files are opaque UUIDs by design, so directory names are the only human-readable structure
+left on disk. Making them UUIDs too — or letting them drift permanently out of step with
+the title — would leave a library that cannot be browsed, backed up selectively, or
+understood without the app running. That contradicts the premise the whole design rests on.
+
+The derived name is the title, made safe for Windows:
+
+- Characters the filesystem forbids (`\ / : * ? " < > |`) are replaced with `-`.
+- Trailing dots and spaces are stripped; Windows silently drops them anyway.
+- Reserved device names (`CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`) get a
+  trailing `_`.
+- The segment is capped in length, so deep nesting does not hit the path limit.
+- If the result collides with a sibling directory, ` (2)`, ` (3)` and so on are appended.
+  The *title* is untouched by this — two folders may legitimately share a title.
+- If the title sanitises to nothing at all, the directory keeps its previous name and the
+  title still changes. Better a mismatch than a nameless directory.
+
+Renaming a directory **in Explorer** updates the title to match, unless the current title
+already sanitises to that new name — in which case only the derived name changed and the
+title is left alone.
 
 ### Item operations
 

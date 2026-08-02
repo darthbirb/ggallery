@@ -410,6 +410,25 @@ effective-tag rebuild.
 UI is disposable scaffolding again: whatever is cheapest to exercise the operations. M2.5
 designs where these controls actually live.
 
+### M2.2 — One folder name
+
+M2.1 made the display title and the directory name independently editable. That was my
+call and it was wrong: two operations behind what reads as one control, with a silent
+failure mode — a folder keeps whatever name it was born with unless you separately
+remember to rename the directory.
+
+Collapse them. Retitling renames the directory, derived from the title and sanitised for
+Windows; the subtree-rename job M2.1 already built does the work, and at 105ms over 100
+descendants the churn that motivated the split is not worth avoiding.
+
+Specified in [docs/DESIGN.md](docs/DESIGN.md) §1 *Folder names*: forbidden characters,
+reserved device names, trailing dots and spaces, a length cap, sibling collisions, and
+what happens when a title sanitises to nothing. Renaming a directory in Explorer updates
+the title, unless the title already sanitises to that name.
+
+**Do this before M2.5**, small as it is — otherwise the redesign ships two rename controls
+that immediately collapse into one.
+
 ### M2.5 — The interface, designed from scratch
 
 **This is a design milestone, not a restyling job.** It does not improve the existing
