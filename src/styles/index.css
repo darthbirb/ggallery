@@ -1,8 +1,7 @@
 @import "tailwindcss";
 
-/* Palette from docs/mockup.html. The app chrome is always dark by design —
-   media must be the brightest thing on screen — with cool-biased neutrals so
-   photo colour reads true. */
+/* The app chrome is always dark by design — media must be the brightest
+   thing on screen — with cool-biased neutrals so photo colour reads true. */
 @theme {
   --color-ground: #15171b;
   --color-panel: #1b1e23;
@@ -13,16 +12,53 @@
   --color-fg: #e3e6ec;
   --color-fg-mid: #a2a9b4;
   --color-fg-dim: #6f7783;
-  --color-accent: #d9954b;
-  --color-accent-d: #8a5c26;
+
+  /* One accent, swapped wholesale by `data-accent` below — locked decision
+     24. These are Slate's values; `:root` carries the default so anything
+     rendered before the preference loads is already correct rather than
+     briefly wrong. */
+  --color-accent: #8ba6cc;
+  --color-accent-d: #47597a;
+
+  /* Fixed, and never the accent: green and red mean kept/saved and
+     deleted/failed. `--color-info` is deleted — it collided with the default
+     accent, which is exactly the confusion decision 24 exists to prevent. */
   --color-good: #5f9e6e;
-  --color-info: #5b8fc9;
   --color-danger: #c25a4a;
 
   --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system,
     sans-serif;
   --font-mono: "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace,
     monospace;
+}
+
+/* The fixed set, contrast-checked against the greys above rather than trusted
+   to a free colour picker. `-d` is the deep variant borders and rests use;
+   the bright one carries selection, focus, active tab, drop acceptance and
+   scrubber position. Moss is a yellow-green, kept clear of `--color-good`. */
+:root[data-accent="slate"] {
+  --color-accent: #8ba6cc;
+  --color-accent-d: #47597a;
+}
+:root[data-accent="teal"] {
+  --color-accent: #58b3a7;
+  --color-accent-d: #2c6660;
+}
+:root[data-accent="violet"] {
+  --color-accent: #a68ce2;
+  --color-accent-d: #574a8c;
+}
+:root[data-accent="rose"] {
+  --color-accent: #dc8199;
+  --color-accent-d: #7d4353;
+}
+:root[data-accent="moss"] {
+  --color-accent: #9bb268;
+  --color-accent-d: #56663a;
+}
+:root[data-accent="amber"] {
+  --color-accent: #d9954b;
+  --color-accent-d: #8a5c26;
 }
 
 @layer base {
@@ -43,6 +79,18 @@
     overflow: hidden;
     user-select: none;
     cursor: default;
+  }
+
+  /* Mouse-first, but focus must never be invisible — the accent carries it,
+     the same hue as selection, so "where am I" reads the same either way. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+  }
+
+  input,
+  textarea {
+    user-select: text;
   }
 
   ::-webkit-scrollbar {
@@ -76,6 +124,33 @@
   display: none;
 }
 
+/* --- drag handles --------------------------------------------------------
+   The panel edges. A 5px hit area over a 1px line: wide enough to grab
+   without aiming, narrow enough that the layout does not shift. */
+
+.resizer {
+  position: relative;
+  flex: none;
+  width: 5px;
+  margin: 0 -2px;
+  z-index: 20;
+  cursor: col-resize;
+  background: transparent;
+}
+
+.resizer::after {
+  content: "";
+  position: absolute;
+  inset: 0 2px;
+  background: transparent;
+  transition: background 90ms linear;
+}
+
+.resizer:hover::after,
+.resizer.is-dragging::after {
+  background: var(--color-accent);
+}
+
 /* --- recycled grid tiles -------------------------------------------------
    These nodes are created once by TilePool and repositioned for the life of
    the window, so their styling lives here rather than in utility classes on a
@@ -99,6 +174,17 @@
 
 .tile.is-selected {
   border-color: var(--color-accent);
+}
+
+/* The item the pane is previewing, which is not always the whole selection —
+   a filled corner rather than a second ring, so it reads alongside one. */
+.tile.is-current::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+  pointer-events: none;
+  z-index: 1;
 }
 
 .tile-img {
@@ -162,4 +248,37 @@
 
 .tile.is-favorite .tile-fav {
   display: block;
+}
+
+/* --- Radix overlays ------------------------------------------------------
+   Primitives are taken for their keyboard behaviour, focus trapping and
+   dismissal; every pixel of the look is ours. These are the two animations
+   shared across menus, dialogs and toasts. */
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes surface-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.overlay-in {
+  animation: overlay-in 110ms ease-out;
+}
+
+.surface-in {
+  animation: surface-in 110ms ease-out;
 }

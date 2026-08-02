@@ -212,6 +212,11 @@ export interface FolderDetail {
   archetypeName: string | null;
   fields: ArchetypeFieldValue[];
   flags: FolderFlag[];
+  /** Cache-relative thumbnail of the cover: the item chosen, or the newest
+   *  item beneath the folder when nothing has been. */
+  coverThumb: string | null;
+  /** Set only when the cover was chosen rather than picked automatically. */
+  coverItemId: number | null;
 }
 
 export interface FolderStatusDef {
@@ -267,9 +272,53 @@ export interface ItemOpError {
 export interface MoveItemsReport {
   moved: number;
   errors: ItemOpError[];
+  /** The journal batch — what the toast's Undo button hands to `undoBatch`. */
+  batchId: string;
 }
 
 export interface TrashItemsReport {
   trashed: number;
   errors: ItemOpError[];
+  batchId: string;
+}
+
+// --- M2.5a: the pane, and the undo behind the toast ----------------------
+
+/** One item in full — the pane's Preview mode. Wider than `GridItem` on
+ *  purpose: this is fetched one row at a time, not 100k. */
+export interface ItemDetail {
+  id: number;
+  kind: "image" | "video" | "other";
+  /** Absolute path to the file, for `assetPath()`. The database never stores
+   *  one; the backend resolves it per call. */
+  path: string;
+  /** `ab/cd/<uuid>.webp`, so the preview can show something while the
+   *  original decodes. */
+  thumb: string;
+  diskName: string;
+  origName: string | null;
+  folderId: number;
+  folderRel: string;
+  folderTitle: string;
+  sizeBytes: number;
+  width: number | null;
+  height: number | null;
+  durationMs: number | null;
+  codec: string | null;
+  bitrate: number | null;
+  capturedAt: number | null;
+  /** Where `capturedAt` came from, so a guess is never mistaken for
+   *  metadata — DESIGN.md §1 "Items". */
+  capturedSrc: string | null;
+  addedAt: number;
+  favorite: boolean;
+  notes: string | null;
+  hash: string;
+  /** M5 fills this in; null until downloads exist. */
+  sourceUrl: string | null;
+}
+
+export interface UndoReport {
+  reversed: number;
+  errors: string[];
 }

@@ -47,14 +47,20 @@ error.rs              AppError, Result alias, serialisation for the frontend
 
 commands/             every #[tauri::command] lives here and nowhere else
   mod.rs
-  library.rs          open, close, pick root, status
+  library.rs          open, close, pick root, status, and the interface
+                      preferences stored in gallery.config.json — panel
+                      widths, folded/expanded state, accent. They sit with
+                      window geometry because they describe the installation,
+                      not the library
   items.rs            paged queries, item metadata
   import.rs           M1.5 — scan, dry run, execute, verify for the UUID rename
   folders.rs          CRUD, tags, archetypes, status, cover
   tags.rs             create, rename, merge, alias
   search.rs           run a parsed query
   jobs.rs             queue control, progress subscription
-  triage.rs           move, trash, restore, undo
+  triage.rs           move, trash, restore, undo. M2.5a creates it early for
+                      `undo_batch` alone — the toast's Undo button. The rest,
+                      and the Ctrl+Z stack replayer, are M4's
   downloads.rs        M5
   compression.rs      M6
   duplicates.rs       M7
@@ -94,8 +100,13 @@ fs/
   relocate.rs         M2.1 — folder create/rename-directory/move and item move.
                       Each function is the whole orchestration: disk, then the
                       database, then the journal
-  trash.rs            soft delete — M2.1 pulls this forward from M4; restore
-                      tooling and the Ctrl+Z replayer are still M4's job
+  trash.rs            soft delete — M2.1 pulls this forward from M4; the
+                      Ctrl+Z replayer is still M4's job. M2.5a adds
+                      `restore_from_trash`, the half its undo needs
+  undo.rs             M2.5a — reversing one journalled batch, which is what
+                      the toast's Undo calls. Same shape as `relocate` and
+                      `trash`: disk first, then the database. The stack
+                      replayer that walks the journal backwards is M4's
   clipboard.rs        M2.1 — real Windows CF_HDROP file-copy to the clipboard
 
 sidecar/
@@ -158,11 +169,17 @@ lib/
   format.ts           sizes, durations, dates — one implementation, used everywhere
 
 state/
-  library.ts          current root, index status
-  selection.ts        selected items, last anchor for shift-click
+  library.ts          current root, index status, the current view
+  selection.ts        selected items, the current item, shift-click anchor
+  toasts.ts           M2.5a — the toast queue. Every destructive operation
+                      ends in one, and it is the only visible path to the
+                      undo journal (locked decision 23)
   ui.ts               pane mode; pane width per mode; nav width and folded state;
                       folder band expanded; accent; folder-pane tile size;
-                      thumbnail size; sort; blur
+                      thumbnail size; sort; blur. Persisted through
+                      `commands/library`'s UI preferences, never the database.
+                      Sort and blur join it with the features that own them
+                      (grid sorting, and M9's blur toggle)
 
 features/             one folder per surface in DESIGN.md
   grid/               PORT FROM THE M0 SPIKE — architecture already validated
@@ -181,10 +198,22 @@ features/             one folder per surface in DESIGN.md
   settings/           M1.6 — deliberately minimal, just Normalise filenames for now;
                       the real Settings screen is M9's job
   folder/             the folder band — title, status chip, fields, tags, notes
+  menus/              M2.5a — the four right-click menus (folder, item,
+                      selection, empty space), the dialogs they open, and
+                      `operations.ts`: every mutating operation in one place,
+                      each ending in a toast. Cross-feature by nature — the
+                      tree, the band and the grid all open the same menus, so
+                      it is its own surface rather than one feature reaching
+                      into another
   pane/               the right half of the split. ONE feature, three modes:
     Pane.tsx            shell, mode switch, resize, close
     PreviewMode.tsx     selected item; splits into N panes, synced pan/zoom,
                         shared timeline — M6, M7 and M10 all render into this
+    ItemView.tsx        one item filling one pane — the unit PreviewMode
+                        tiles. Two of these side by side is M6/M7; twelve is
+                        M10
+    Details.tsx         the preview's small collapsible details block, and
+                        where an item's own tags are added and removed
     GridMode.tsx        a second grid scoped anywhere; accepts drops
     FolderMode.tsx      destination tiles, breadcrumb, filter box
   search/
@@ -195,7 +224,13 @@ features/             one folder per surface in DESIGN.md
   duplicates/         M7 — grouping and resolution; comparison likewise
   storage/            M8
 
-components/           shared primitives only — button, dialog, chip, tooltip
+components/           shared primitives only — button, dialog, chip, tooltip,
+                      menu, slider, toast, resize handle. Radix underneath,
+                      styled to the design; no visual component kit
+test/                 M2.5a — vitest setup and the shared harness (fake
+                      library, fake selection, render-with-providers). Tests
+                      themselves live next to what they test, as
+                      `Thing.test.tsx`
 styles/
 ```
 
@@ -212,6 +247,11 @@ a folder is, it belongs to a feature.
 are recycled nodes because mount/unmount churn fails the fling target — see
 [ENGINEERING-NOTES.md](ENGINEERING-NOTES.md) §1. The filename is kept so the grid's
 files stay where this document says they are.
+
+**Tests sit beside the thing they test**, named `Thing.test.tsx`, and mock
+`lib/ipc` rather than Tauri. They cover interaction, not appearance: which
+command a control calls, what a menu contains, what a toast offers. Only the
+shared setup and harness live in `src/test/`.
 
 **`lib/ipc.ts` is the only file that calls `invoke()`.** Everything else calls typed
 functions, so a backend signature change breaks at compile time in one place.
@@ -230,7 +270,8 @@ functions, so a backend signature change breaks at compile time in one place.
 | M2 | `commands/folders`, `commands/tags`, `db/tags`, `features/folder`, `bin/synth_library` |
 | M1.8 | `fs/watch.rs`, transient index readout |
 | M2.1 | `fs/trash.rs` (pulled forward from M4), folder/item move and rename in `fs/`, `commands/folders` and `commands/items` extensions |
-| M2.5 | `features/pane` (all three modes), `features/nav`, folder band in `features/folder`, `components/`, accent tokens |
+| M2.5a | `features/nav`, `features/menus`, `features/pane` (Preview only), folder band in `features/folder`, `components/`, `state/toasts`, accent tokens, `fs/undo.rs`, `commands/triage::undo_batch`, `vitest` + `@testing-library/react` |
+| M2.5b | `features/pane` Grid and Folders modes, drop targets, spring-loading |
 | M3 | `query/`, `commands/search`, `features/search` |
 | M4 | `commands/triage`, `db/journal` (move/trash/tag writers, the Ctrl+Z replayer), `fs/trash`, `features/triage` |
 | M5 | `sidecar/ytdlp`, `sidecar/gallerydl`, `commands/downloads`, `features/downloads` |

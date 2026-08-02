@@ -1,52 +1,81 @@
-import { useEffect, useState } from "react";
+/**
+ * The shell: one split, grid on the left, pane on the right.
+ *
+ * The window is a header, a navigation panel that folds, the grid, and a pane
+ * that resizes and closes. There is no theatre view — full-window is the pane
+ * maximised (docs/DESIGN.md §2).
+ */
 
-import { FolderHeader } from "./features/folder/FolderHeader";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { Button, IconButton } from "./components/Button";
+import { DropdownMenu, MenuItem, MenuLabel, MenuSeparator } from "./components/Menu";
+import { Resizer } from "./components/Resizer";
+import { Slider } from "./components/Slider";
+import { Toaster, ToastProviderRoot } from "./components/Toaster";
+import { Tooltip, TooltipProvider } from "./components/Tooltip";
+import { FolderBand } from "./features/folder/FolderBand";
 import { Grid } from "./features/grid/Grid";
-import { SelectionToolbar } from "./features/grid/SelectionToolbar";
 import { FailureList } from "./features/indexing/FailureList";
 import { IndexStatus } from "./features/indexing/IndexStatus";
 import { NormaliseFilenamesModal } from "./features/import/NormaliseFilenamesModal";
 import { ProgressScreen } from "./features/import/ProgressScreen";
 import { ReviewScreen } from "./features/import/ReviewScreen";
+import { DialogsProvider, useDialogs } from "./features/menus/Dialogs";
+import { EmptyMenu, ItemMenu } from "./features/menus/ItemMenu";
+import { OperationsProvider, useOperations } from "./features/menus/operations";
+import { Nav } from "./features/nav/Nav";
+import { Pane } from "./features/pane/Pane";
+import type { PreviewSlot } from "./features/pane/PreviewMode";
 import { ArchetypesModal } from "./features/settings/ArchetypesModal";
 import { SettingsPanel } from "./features/settings/SettingsPanel";
 import { StatusesModal } from "./features/settings/StatusesModal";
 import { TagsModal } from "./features/settings/TagsModal";
-import { Sidebar } from "./features/sidebar/Sidebar";
 import { formatCount } from "./lib/format";
-import { useLibrary } from "./state/library";
-import { useSelection } from "./state/selection";
-import { TILE_SIZES, useUi } from "./state/ui";
+import * as ipc from "./lib/ipc";
+import type { ArchetypeInfo, FolderNode, FolderStatusDef } from "./lib/types";
+import { useLibrary, type LibraryController, type Scope } from "./state/library";
+import { useSelection, type SelectionController } from "./state/selection";
+import { ToastProvider, useToasts } from "./state/toasts";
+import {
+  NAV_MAX,
+  NAV_MIN,
+  PANE_MIN,
+  TILE_SIZES,
+  UiProvider,
+  useUi,
+} from "./state/ui";
 
 export default function App() {
+  return (
+    <UiProvider>
+      <ToastProvider>
+        <TooltipProvider>
+          <ToastProviderRoot>
+            <Shell />
+            <Toaster />
+          </ToastProviderRoot>
+        </TooltipProvider>
+      </ToastProvider>
+    </UiProvider>
+  );
+}
+
+function Shell() {
   const library = useLibrary();
-  const ui = useUi();
   const selection = useSelection(library.items);
-  const [showFailures, setShowFailures] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showNormalise, setShowNormalise] = useState(false);
-  const [showArchetypes, setShowArchetypes] = useState(false);
-  const [showStatuses, setShowStatuses] = useState(false);
-  const [showTags, setShowTags] = useState(false);
   const [backupConfirmed, setBackupConfirmed] = useState(false);
   const [starting, setStarting] = useState(false);
 
-  // A run that fixed everything should not leave the panel open on nothing.
-  useEffect(() => {
-    if (library.failures.length === 0) setShowFailures(false);
-  }, [library.failures.length]);
-
   // Once the rename actually starts, `flowPhase` takes over as the Progress
   // screen — reset the local "starting" flag so it's fresh if the flow is
-  // ever re-entered (a later cancel, a different folder).
+  // ever re-entered.
   useEffect(() => {
     if (library.flowPhase !== "idle") setStarting(false);
   }, [library.flowPhase]);
 
-  // Choose folder → Review → Progress → Gallery, as full-window screens in
-  // the picker's own visual language — see docs/DESIGN.md#first-import.
-  // `flowPhase` is checked first: the moment Import is confirmed it flips to
-  // "renaming" while `pendingReview` is still being cleared underneath it.
+  // Choose folder → Review → Progress → Gallery, as full-window screens —
+  // see docs/DESIGN.md#first-import.
   if (library.flowPhase !== "idle") {
     return (
       <ProgressScreen
@@ -83,62 +112,413 @@ export default function App() {
     return <Welcome library={library} />;
   }
 
-  const { info, progress, scope } = library;
-  const folder = scope.folder
-    ? library.folders.find((node) => node.relPath === scope.folder)
-    : null;
+  return (
+    <OperationsProvider library={library} selection={selection}>
+      <DialogsProvider folders={library.folders}>
+        <Gallery library={library} selection={selection} />
+      </DialogsProvider>
+    </OperationsProvider>
+  );
+}
+
+function Gallery({
+  library,
+  selection,
+}: {
+  library: LibraryController;
+  selection: SelectionController;
+}) {
+  const ui = useUi();
+  const ops = useOperations();
+  const dialogs = useDialogs();
+  const toasts = useToasts();
+
+  const [showFailures, setShowFailures] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showNormalise, setShowNormalise] = useState(false);
+  const [showArchetypes, setShowArchetypes] = useState(false);
+  const [showStatuses, setShowStatuses] = useState(false);
+  const [showTags, setShowTags] = useState(false);
+  const [maximised, setMaximised] = useState(false);
+
+  const [statuses, setStatuses] = useState<FolderStatusDef[]>([]);
+  const [archetypes, setArchetypes] = useState<ArchetypeInfo[]>([]);
+
+  const info = library.info!;
+  const { scope } = library;
+
+  // A run that fixed everything should not leave the panel open on nothing.
+  useEffect(() => {
+    if (library.failures.length === 0) setShowFailures(false);
+  }, [library.failures.length]);
+
+  const loadVocabulary = useCallback(() => {
+    void Promise.all([ipc.listFolderStatuses(), ipc.listArchetypes()])
+      .then(([nextStatuses, nextArchetypes]) => {
+        setStatuses(nextStatuses);
+        setArchetypes(nextArchetypes);
+      })
+      .catch(() => {
+        // Nothing to say: the menus that use these simply stay empty, which
+        // is also the correct state for a library with no archetypes.
+      });
+  }, []);
+
+  useEffect(loadVocabulary, [loadVocabulary]);
+
+  const folder = useMemo(
+    () =>
+      scope.kind === "folder"
+        ? (library.folders.find((node) => node.relPath === scope.folder) ?? null)
+        : null,
+    [scope, library.folders],
+  );
+
+  const favouriteCount = useMemo(
+    () => library.items.filter((item) => item.favorite).length,
+    [library.items],
+  );
+
+  const openFolder = useCallback(
+    (node: FolderNode) =>
+      library.setScope({ kind: "folder", folder: node.relPath, recursive: true }),
+    [library],
+  );
+
+  const editFolderDetails = useCallback(
+    (node: FolderNode) => {
+      openFolder(node);
+      ui.set("bandExpanded", true);
+    },
+    [openFolder, ui],
+  );
+
+  const showInPane = useCallback(
+    (itemId: number) => {
+      selection.focus(itemId);
+      ui.set("paneMode", "preview");
+      if (!ui.paneOpen) ui.set("paneOpen", true);
+    },
+    [selection, ui],
+  );
+
+  // One slot today. M6 and M7 pass two, M10 up to twelve — the pane's Preview
+  // mode already lays out any number of them.
+  const slots: PreviewSlot[] = useMemo(
+    () => [{ key: "primary", itemId: selection.current }],
+    [selection.current],
+  );
+
+  // Keys are a second path to something already on screen — never the only
+  // one (locked decision 23). Every binding here has a visible control: the
+  // right-click menus, the pane header, the navigation panel's fold button.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      const ids = [...selection.selected];
+
+      if (event.ctrlKey && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        // An accelerator over the toast's Undo button, not the journal stack
+        // replayer — that is M4's, and reaches operations from previous
+        // sessions. This reverses the most recent thing still on screen.
+        const undoable = [...toasts.toasts].reverse().find((toast) => toast.undo);
+        if (undoable) void toasts.runUndo(undoable.id);
+        return;
+      }
+      if (event.ctrlKey && event.key.toLowerCase() === "a") {
+        event.preventDefault();
+        selection.selectAll();
+        return;
+      }
+      if (event.ctrlKey && event.key.toLowerCase() === "c" && ids.length === 1) {
+        event.preventDefault();
+        void ops.copyItemFile(ids[0]);
+        return;
+      }
+      if (event.key === "Escape") {
+        if (maximised) setMaximised(false);
+        else selection.clear();
+        return;
+      }
+      if (event.key === "Delete" && ids.length > 0) {
+        event.preventDefault();
+        dialogs.deleteItems(ids);
+        return;
+      }
+      if (event.key.toLowerCase() === "f" && ids.length > 0 && !event.ctrlKey) {
+        event.preventDefault();
+        const current = library.items.find((item) => item.id === selection.current);
+        void ops.setFavorite(ids, !(current?.favorite ?? false));
+        return;
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        selection.step(1);
+        return;
+      }
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        selection.step(-1);
+      }
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selection, ops, dialogs, toasts, library.items, maximised]);
+
+  const pane = ui.paneOpen && (
+    <Pane
+      mode={ui.paneMode}
+      onModeChange={(mode) => ui.set("paneMode", mode)}
+      onClose={() => {
+        ui.set("paneOpen", false);
+        setMaximised(false);
+      }}
+      maximised={maximised}
+      onMaximisedChange={setMaximised}
+      slots={slots}
+      items={library.items}
+      thumbsDir={info.thumbsDir}
+      onStep={(delta) => selection.step(delta)}
+      onPick={(itemId) => selection.focus(itemId)}
+      detailsExpanded={ui.detailsExpanded}
+      onDetailsExpandedChange={(expanded) => ui.set("detailsExpanded", expanded)}
+      refreshToken={library.refreshToken}
+    />
+  );
 
   return (
-    <div className="grid h-full grid-rows-[38px_1fr] bg-ground text-fg">
-      <header className="flex items-center gap-3 border-b border-line bg-panel px-3">
-        <span className="font-semibold">{info.name}</span>
-        <span
-          className="truncate font-mono text-[11px] text-fg-dim"
-          title={info.root}
-        >
-          {info.root}
-        </span>
-        <button
-          type="button"
-          onClick={library.choose}
-          title="Open a different library folder"
-          className="shrink-0 rounded-[3px] border border-line px-2 py-0.5 text-fg-dim hover:bg-hover hover:text-fg"
-        >
-          Change…
-        </button>
+    <div className="grid h-full grid-rows-[36px_1fr] bg-ground text-fg">
+      <header className="flex items-center gap-2 border-b border-line bg-panel px-2">
+        <span className="truncate font-semibold">{info.name}</span>
+        <Tooltip label={info.root} side="bottom">
+          <span className="truncate font-mono text-[11px] text-fg-dim">{info.root}</span>
+        </Tooltip>
 
-        <span className="ml-auto flex items-center gap-3">
+        <span className="ml-auto flex items-center gap-2">
           <IndexStatus
-            progress={progress}
+            progress={library.progress}
             failureCount={library.failures.length}
             showingFailures={showFailures}
             onToggleFailures={() => setShowFailures((open) => !open)}
           />
 
-          <label className="flex items-center gap-1.5 text-fg-dim">
+          {library.scope.kind === "folder" && (
+            <label className="flex items-center gap-1.5 text-[12px] text-fg-mid">
+              <input
+                type="checkbox"
+                checked={!scope.recursive}
+                onChange={(event) =>
+                  library.setScope({
+                    kind: "folder",
+                    folder: scope.folder,
+                    recursive: !event.target.checked,
+                  })
+                }
+                className="accent-[var(--color-accent)]"
+              />
+              this folder only
+            </label>
+          )}
+
+          <span className="flex items-center gap-1.5 text-[12px] text-fg-dim">
             size
-            <input
-              type="range"
+            <Slider
+              label="Tile size"
+              width={72}
               min={0}
               max={TILE_SIZES.length - 1}
-              value={TILE_SIZES.indexOf(ui.tileHeight)}
-              onChange={(event) =>
-                ui.setTileHeight(TILE_SIZES[Number(event.target.value)])
-              }
-              className="w-20 accent-accent"
+              value={Math.max(TILE_SIZES.indexOf(ui.tileHeight), 0)}
+              onChange={(index) => ui.set("tileHeight", TILE_SIZES[index])}
             />
-          </label>
+          </span>
 
-          <button
-            type="button"
-            onClick={() => setShowSettings(true)}
-            title="Settings"
-            className="rounded-[3px] border border-line px-2 py-0.5 text-fg-mid hover:bg-hover hover:text-fg"
+          {!ui.paneOpen && (
+            <Button variant="outline" onClick={() => ui.set("paneOpen", true)}>
+              Open pane
+            </Button>
+          )}
+
+          <DropdownMenu
+            align="end"
+            trigger={
+              <IconButton aria-label="Application menu" variant="outline">
+                ☰
+              </IconButton>
+            }
           >
-            Settings…
-          </button>
+            <MenuLabel>Library</MenuLabel>
+            <MenuItem onSelect={library.choose}>Open a different library…</MenuItem>
+            <MenuSeparator />
+            <MenuItem onSelect={() => setShowSettings(true)}>Settings…</MenuItem>
+          </DropdownMenu>
         </span>
       </header>
+
+      <div className="flex min-h-0 min-w-0">
+        {!maximised && (
+          <>
+            {ui.navFolded ? (
+              <Nav
+                folders={library.folders}
+                scope={scope}
+                onScope={library.setScope}
+                statuses={statuses}
+                archetypes={archetypes}
+                folded
+                onFoldedChange={(folded) => ui.set("navFolded", folded)}
+                onEditDetails={editFolderDetails}
+                favouriteCount={favouriteCount}
+              />
+            ) : (
+              <>
+                <div
+                  style={{ width: ui.navWidth }}
+                  className="flex min-h-0 shrink-0 flex-col"
+                >
+                  <Nav
+                    folders={library.folders}
+                    scope={scope}
+                    onScope={library.setScope}
+                    statuses={statuses}
+                    archetypes={archetypes}
+                    folded={false}
+                    onFoldedChange={(folded) => ui.set("navFolded", folded)}
+                    onEditDetails={editFolderDetails}
+                    favouriteCount={favouriteCount}
+                  />
+                </div>
+                <Resizer
+                  label="Navigation panel width"
+                  side="left"
+                  value={ui.navWidth}
+                  min={NAV_MIN}
+                  max={NAV_MAX}
+                  onChange={(width) => ui.set("navWidth", width)}
+                  onReset={ui.resetNavWidth}
+                />
+              </>
+            )}
+
+            <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+              {folder && (
+                <FolderBand
+                  folder={folder}
+                  statuses={statuses}
+                  archetypes={archetypes}
+                  expanded={ui.bandExpanded}
+                  onExpandedChange={(expanded) => ui.set("bandExpanded", expanded)}
+                  thumbsDir={info.thumbsDir}
+                  refreshToken={library.refreshToken}
+                  onOpen={openFolder}
+                />
+              )}
+
+              <Banners
+                library={library}
+                showFailures={showFailures}
+                onCloseFailures={() => setShowFailures(false)}
+              />
+
+              <Grid
+                items={library.items}
+                thumbsDir={info.thumbsDir}
+                spritesDir={info.spritesDir}
+                tileHeight={ui.tileHeight}
+                selection={selection}
+                refreshToken={library.refreshToken}
+                onActivate={showInPane}
+                empty={emptyLabel(scope)}
+                renderMenu={(target) =>
+                  target.itemId === null ? (
+                    <EmptyMenu
+                      folder={folder}
+                      hasItems={library.items.length > 0}
+                      hasSelection={selection.count > 0}
+                      onSelectAll={selection.selectAll}
+                      onInvert={selection.invert}
+                      onClear={selection.clear}
+                      onNewFolder={() => dialogs.newFolder(folder)}
+                      bandExpanded={ui.bandExpanded}
+                      onToggleBand={() => ui.set("bandExpanded", !ui.bandExpanded)}
+                      paneOpen={ui.paneOpen}
+                      onTogglePane={() => ui.set("paneOpen", !ui.paneOpen)}
+                    />
+                  ) : (
+                    <ItemMenu
+                      itemIds={
+                        selection.count > 1 && selection.isSelected(target.itemId)
+                          ? [...selection.selected]
+                          : [target.itemId]
+                      }
+                      item={
+                        library.items.find((item) => item.id === target.itemId) ?? null
+                      }
+                      folder={folder}
+                      onPreview={showInPane}
+                    />
+                  )
+                }
+              />
+
+              {selection.count > 0 && (
+                <footer className="flex shrink-0 items-center gap-2 border-t border-line bg-panel px-3 py-1 text-[12px]">
+                  <span className="font-mono tabular-nums text-fg">
+                    {formatCount(selection.count)} selected
+                  </span>
+                  <Button onClick={selection.selectAll}>Select all</Button>
+                  <Button onClick={selection.invert}>Invert</Button>
+                  <Button onClick={selection.clear}>Clear</Button>
+                  <span className="h-3 w-px bg-line-soft" />
+                  <Button onClick={() => dialogs.moveItems([...selection.selected])}>
+                    Move to…
+                  </Button>
+                  <Button
+                    variant="danger"
+                    onClick={() => dialogs.deleteItems([...selection.selected])}
+                  >
+                    Delete
+                  </Button>
+                  <span className="ml-auto text-fg-dim">
+                    Right-click for everything else
+                  </span>
+                </footer>
+              )}
+            </main>
+          </>
+        )}
+
+        {ui.paneOpen && !maximised && (
+          <Resizer
+            label="Pane width"
+            side="right"
+            value={ui.paneWidth}
+            min={PANE_MIN}
+            max={1200}
+            onChange={(width) => ui.setPaneWidth(ui.paneMode, width)}
+            onReset={ui.resetPaneWidth}
+          />
+        )}
+
+        {ui.paneOpen && (
+          <div
+            style={maximised ? undefined : { width: ui.paneWidth }}
+            className={maximised ? "flex min-h-0 min-w-0 flex-1" : "flex min-h-0 shrink-0"}
+          >
+            {pane}
+          </div>
+        )}
+      </div>
 
       {showSettings && (
         <SettingsPanel
@@ -165,171 +545,132 @@ export default function App() {
       {showNormalise && (
         <NormaliseFilenamesModal onClose={() => setShowNormalise(false)} />
       )}
-
       {showArchetypes && (
         <ArchetypesModal
           onClose={() => setShowArchetypes(false)}
-          onChanged={library.refreshFolders}
+          onChanged={() => {
+            loadVocabulary();
+            library.refreshFolders();
+          }}
         />
       )}
-
       {showStatuses && (
         <StatusesModal
           onClose={() => setShowStatuses(false)}
-          onChanged={library.refreshFolders}
+          onChanged={() => {
+            loadVocabulary();
+            library.refreshFolders();
+          }}
         />
       )}
-
       {showTags && (
-        <TagsModal onClose={() => setShowTags(false)} onChanged={library.refreshFolders} />
+        <TagsModal onClose={() => setShowTags(false)} onChanged={library.reload} />
       )}
-
-      <div className="grid min-h-0 grid-cols-[214px_1fr]">
-        <Sidebar
-          folders={library.folders}
-          selected={scope.folder}
-          onSelect={(relPath) =>
-            library.setScope({ folder: relPath, recursive: scope.recursive })
-          }
-          onChanged={library.refreshFolders}
-        />
-
-        <main className="flex min-h-0 min-w-0 flex-col">
-          <div className="flex items-center gap-3 border-b border-line bg-panel px-3 py-2">
-            <span className="text-[14px] font-semibold">
-              {folder ? folder.title : "All media"}
-            </span>
-            <span className="font-mono text-[11px] tabular-nums text-fg-dim">
-              {formatCount(library.items.length)} items
-            </span>
-
-            {scope.folder && (
-              <label className="ml-auto flex items-center gap-1.5 text-fg-mid">
-                <input
-                  type="checkbox"
-                  checked={!scope.recursive}
-                  onChange={(event) =>
-                    library.setScope({
-                      folder: scope.folder,
-                      recursive: !event.target.checked,
-                    })
-                  }
-                  className="accent-accent"
-                />
-                this folder only
-              </label>
-            )}
-          </div>
-
-          {folder && (
-            <FolderHeader
-              folderId={folder.id}
-              collapsed={ui.folderHeaderCollapsed}
-              onToggleCollapsed={() =>
-                ui.setFolderHeaderCollapsed(!ui.folderHeaderCollapsed)
-              }
-              onChanged={library.refreshFolders}
-              folders={library.folders}
-              onDeleted={() => library.setScope({ folder: null, recursive: true })}
-            />
-          )}
-
-          {library.error && (
-            <div className="flex items-center gap-3 border-b border-line bg-raised px-3 py-1.5 text-danger">
-              {library.error}
-              <button
-                type="button"
-                onClick={library.dismissError}
-                className="ml-auto text-fg-dim hover:text-fg"
-              >
-                dismiss
-              </button>
-            </div>
-          )}
-
-          {library.verifyIssue && (
-            <div className="flex items-center gap-3 border-b border-line bg-raised px-3 py-1.5 text-danger">
-              Import verification found a problem:{" "}
-              {formatCount(library.verifyIssue.countRenamed)} of{" "}
-              {formatCount(library.verifyIssue.countTotal)} items carry a
-              UUID name
-              {library.verifyIssue.mismatches.length > 0 && (
-                <>
-                  , {formatCount(library.verifyIssue.mismatches.length)}{" "}
-                  sampled file
-                  {library.verifyIssue.mismatches.length === 1 ? "" : "s"} did
-                  not match its recorded hash
-                </>
-              )}
-              {library.verifyIssue.missing.length > 0 && (
-                <>
-                  , {formatCount(library.verifyIssue.missing.length)} sampled
-                  file{library.verifyIssue.missing.length === 1 ? "" : "s"}{" "}
-                  could not be found at its new path
-                </>
-              )}
-              .
-              <button
-                type="button"
-                onClick={library.dismissVerifyIssue}
-                className="ml-auto text-fg-dim hover:text-fg"
-              >
-                dismiss
-              </button>
-            </div>
-          )}
-
-          {showFailures && library.failures.length > 0 && (
-            <FailureList
-              failures={library.failures}
-              onRetry={library.retry}
-              onClose={() => setShowFailures(false)}
-            />
-          )}
-
-          {!info.ffmpeg && (
-            <div className="border-b border-line bg-raised px-3 py-1.5 text-[12px] text-accent">
-              No ffmpeg found in <span className="font-mono">tools/</span> or on
-              PATH — videos are indexed, but get no poster frame and no scrub
-              strip until one is available.
-            </div>
-          )}
-
-          <SelectionToolbar
-            selection={selection}
-            folders={library.folders}
-            onChanged={() => library.setScope(scope)}
-          />
-
-          <Grid
-            items={library.items}
-            thumbsDir={info.thumbsDir}
-            spritesDir={info.spritesDir}
-            tileHeight={ui.tileHeight}
-            selection={selection}
-            refreshToken={library.refreshToken}
-          />
-        </main>
-      </div>
     </div>
   );
 }
 
-function Welcome({ library }: { library: ReturnType<typeof useLibrary> }) {
+function emptyLabel(scope: Scope): string {
+  switch (scope.kind) {
+    case "favourites":
+      return "Nothing favourited yet.";
+    case "loose":
+      return "Nothing loose at the top level.";
+    default:
+      return "Nothing here yet.";
+  }
+}
+
+/** Index errors, verification problems and the missing-ffmpeg notice. */
+function Banners({
+  library,
+  showFailures,
+  onCloseFailures,
+}: {
+  library: LibraryController;
+  showFailures: boolean;
+  onCloseFailures: () => void;
+}) {
+  const info = library.info;
+  return (
+    <>
+      {library.error && (
+        <div className="flex items-center gap-3 border-b border-line bg-raised px-3 py-1.5 text-danger">
+          {library.error}
+          <button
+            type="button"
+            onClick={library.dismissError}
+            className="ml-auto text-fg-dim hover:text-fg"
+          >
+            dismiss
+          </button>
+        </div>
+      )}
+
+      {library.verifyIssue && (
+        <div className="flex items-center gap-3 border-b border-line bg-raised px-3 py-1.5 text-danger">
+          Import verification found a problem:{" "}
+          {formatCount(library.verifyIssue.countRenamed)} of{" "}
+          {formatCount(library.verifyIssue.countTotal)} items carry a UUID name
+          {library.verifyIssue.mismatches.length > 0 && (
+            <>
+              , {formatCount(library.verifyIssue.mismatches.length)} sampled file
+              {library.verifyIssue.mismatches.length === 1 ? "" : "s"} did not match
+              its recorded hash
+            </>
+          )}
+          {library.verifyIssue.missing.length > 0 && (
+            <>
+              , {formatCount(library.verifyIssue.missing.length)} sampled file
+              {library.verifyIssue.missing.length === 1 ? "" : "s"} could not be found
+              at its new path
+            </>
+          )}
+          .
+          <button
+            type="button"
+            onClick={library.dismissVerifyIssue}
+            className="ml-auto text-fg-dim hover:text-fg"
+          >
+            dismiss
+          </button>
+        </div>
+      )}
+
+      {showFailures && library.failures.length > 0 && (
+        <FailureList
+          failures={library.failures}
+          onRetry={library.retry}
+          onClose={onCloseFailures}
+        />
+      )}
+
+      {info && !info.ffmpeg && (
+        <div className="border-b border-line bg-raised px-3 py-1.5 text-[12px] text-fg-mid">
+          No ffmpeg found in <span className="font-mono">tools/</span> or on PATH —
+          videos are indexed, but get no poster frame and no scrub strip until one is
+          available.
+        </div>
+      )}
+    </>
+  );
+}
+
+function Welcome({ library }: { library: LibraryController }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 bg-ground px-8 text-center">
       <h1 className="text-[22px] font-semibold tracking-tight">GGallery</h1>
       <p className="max-w-[42ch] text-fg-mid">
-        Choose the folder that holds your media. Everything the app writes goes
-        into a <span className="font-mono text-fg">.gallery</span> folder inside
-        it; nothing else in there is touched, renamed or moved.
+        Choose the folder that holds your media. Everything the app writes goes into a{" "}
+        <span className="font-mono text-fg">.gallery</span> folder inside it; nothing
+        else in there is touched, renamed or moved.
       </p>
 
       <button
         type="button"
         onClick={library.choose}
         disabled={library.loading}
-        className="rounded-[5px] border border-accent-d bg-raised px-4 py-1.5 text-accent hover:bg-hover disabled:opacity-40"
+        className="rounded-[5px] border border-accent-d bg-accent/15 px-4 py-1.5 text-accent hover:bg-accent/25 disabled:opacity-40"
       >
         {library.loading ? "Opening…" : "Choose library folder"}
       </button>

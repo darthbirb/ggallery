@@ -21,6 +21,7 @@ import type {
   GridItem,
   ImportProgress,
   IndexFailure,
+  ItemDetail,
   LibraryInfo,
   LibraryStatus,
   MoveItemsReport,
@@ -29,6 +30,7 @@ import type {
   ScanReport,
   TagSummary,
   TrashItemsReport,
+  UndoReport,
   VerifyReport,
 } from "./types";
 
@@ -65,6 +67,34 @@ export function listItems(
   recursive: boolean,
 ): Promise<GridItem[]> {
   return invoke<GridItem[]>("list_items", { folder, recursive });
+}
+
+/** One item in full — what the pane's Preview mode renders. */
+export function getItem(itemId: number): Promise<ItemDetail> {
+  return invoke<ItemDetail>("get_item", { itemId });
+}
+
+export function setItemsFavorite(
+  itemIds: number[],
+  favorite: boolean,
+): Promise<void> {
+  return invoke<void>("set_items_favorite", { itemIds, favorite });
+}
+
+// --- M2.5a: interface preferences, stored beside window geometry ---------
+
+export function uiPrefs(): Promise<unknown> {
+  return invoke<unknown>("ui_prefs");
+}
+
+export function setUiPrefs(prefs: unknown): Promise<void> {
+  return invoke<void>("set_ui_prefs", { prefs });
+}
+
+/** Reverse one journalled batch — what a toast's Undo button calls. The
+ *  `Ctrl+Z` stack replayer is still M4's; this reverses a named batch. */
+export function undoBatch(batchId: string): Promise<UndoReport> {
+  return invoke<UndoReport>("undo_batch", { batchId });
 }
 
 export function startIndex(): Promise<void> {
@@ -151,8 +181,13 @@ export function getFolder(id: number): Promise<FolderDetail> {
 /** A folder has one name — this renames the directory to match whenever the
  *  sanitised title differs from what's on disk. There is no separate
  *  rename-directory call. */
-export function setFolderTitle(id: number, title: string): Promise<void> {
-  return invoke<void>("set_folder_title", { id, title });
+export function setFolderTitle(id: number, title: string): Promise<string> {
+  return invoke<string>("set_folder_title", { id, title });
+}
+
+/** Choose the folder's cover, or `null` to fall back to the automatic pick. */
+export function setFolderCover(id: number, itemId: number | null): Promise<void> {
+  return invoke<void>("set_folder_cover", { id, itemId });
 }
 
 export function setFolderStatus(id: number, status: string): Promise<void> {
@@ -223,12 +258,19 @@ export function createFolder(
   return invoke<number>("create_folder", { parentId, name, archetypeId });
 }
 
-export function moveFolder(id: number, newParentId: number | null): Promise<void> {
-  return invoke<void>("move_folder", { id, newParentId });
+export function moveFolder(
+  id: number,
+  newParentId: number | null,
+): Promise<string> {
+  return invoke<string>("move_folder", { id, newParentId });
 }
 
-export function deleteFolder(id: number): Promise<void> {
-  return invoke<void>("delete_folder", { id });
+export function revealFolder(id: number): Promise<void> {
+  return invoke<void>("reveal_folder", { id });
+}
+
+export function deleteFolder(id: number): Promise<string> {
+  return invoke<string>("delete_folder", { id });
 }
 
 // --- M2.1: archetype lifecycle ----------------------------------------
@@ -356,6 +398,12 @@ export function deleteTag(tagId: number): Promise<void> {
 /** Absolute cache path to something the webview can load. */
 export function assetUrl(directory: string, relative: string): string {
   return convertFileSrc(`${directory}/${relative}`);
+}
+
+/** The same, for a path the backend has already resolved in full — the
+ *  original media file the preview shows. */
+export function assetPath(absolute: string): string {
+  return convertFileSrc(absolute);
 }
 
 /** Commands reject with `{ kind, message }`; anything else is a surprise. */
