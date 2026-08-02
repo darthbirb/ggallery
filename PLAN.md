@@ -1,8 +1,18 @@
 # Gallery — Plan
 
-A local-first media library for Windows. Folders on disk are the organising truth;
-tags, labels and search live on top. One root folder holds everything, so backup is
-"copy the folder".
+A gallery viewer and collection organiser for Windows, in that order.
+
+**The main activity is looking at things.** Browsing the grid, opening an item, moving
+through a folder, comparing two shots. Everything else exists to serve that: folders and
+tags so you can find something again, search so you can find it faster, downloads so there
+is more to look at, compression and duplicate detection so the collection stays worth
+keeping, triage so filing does not become a chore that stops you adding to it.
+
+A better media viewer, built for one person, that happens to also organise. Not an
+organiser that happens to display files.
+
+Folders on disk are the organising truth; tags, labels and search live on top. One root
+folder holds everything, so backup is "copy the folder".
 
 - [docs/DESIGN.md](docs/DESIGN.md) — product and UX specification
 - [docs/DATA-MODEL.md](docs/DATA-MODEL.md) — schema, tag resolution, query language
@@ -441,6 +451,11 @@ several and may be rejected in whole or in part. Concluding that the sidebar bel
 elsewhere, that the query bar should work differently, or that the whole layout model is
 wrong are all legitimate outcomes.
 
+**This is the milestone that decides whether GGallery is a good viewer.** The grid, the
+preview, theatre view and how you move between them are the product — not chrome around an
+organiser. Design them first and let the organisational surfaces arrange themselves around
+that, rather than the reverse.
+
 #### Requirements the design must satisfy
 
 Almost everything is open. These are not:
@@ -507,7 +522,9 @@ searches, FTS index.
 Fullscreen culler with bindable destination hotkeys, grid multi-select mode, inline
 folder creation, drag-and-drop from Windows, filesystem watcher, undo journal, trash.
 
-**This is the payoff milestone.** Resist adding anything before it.
+Removes the most tedious chore the app replaces — two Explorer windows and a lot of
+dragging. One job among several, though: the viewing experience is the product, and M2.5
+is where that is decided.
 
 ### M5 — Downloads
 

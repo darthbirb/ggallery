@@ -1,11 +1,17 @@
 # GGallery
 
-A local-first media library for Windows. Folders on disk are the organising truth; tags,
-labels and search sit on top. Single user, runs locally, no network service of any kind.
+A gallery viewer and collection organiser for Windows, in that order. Single user, runs
+locally, no network service of any kind.
 
-It exists because nothing else does all of this at once: folder-based *and* tag-based
-organisation, one portable library folder, integrated downloads, a compression pipeline,
-duplicate detection, and a triage flow fast enough to actually use.
+**The main activity is looking at things** — browsing, opening, comparing. Folders and tags
+exist so you can find something again. Downloads, compression, duplicate detection and
+triage exist so the collection stays worth looking at. All of it serves the viewing, not
+the other way round.
+
+It exists because nothing else does all of that at once: a fast viewer over a large local
+library, folder-based *and* tag-based organisation, one portable folder you can copy to
+back up, integrated downloads, a compression pipeline, duplicate detection, and a triage
+flow quick enough that filing never becomes the reason you stop adding to it.
 
 > **Status: pre-alpha, but it runs.**
 > The core library layer is built through M1.8. The app opens a library folder, imports
@@ -177,8 +183,10 @@ docs/
 | M9 | Polish — command palette, settings, blur toggle | |
 | M10 | Multi-view — up to twelve items playing at once in theatre view | |
 
-M4 is the milestone that replaces the manual drag-and-drop sorting this project exists to
-kill. Everything before it is groundwork.
+**M2.5 is the milestone that decides whether this is a good viewer**, since the viewing
+experience is the product. M4 removes the two-Explorer-window sorting chore, which is the
+single most tedious thing the app replaces — but it is one job among several, not the
+reason the app exists.
 
 Full detail in [PLAN.md](PLAN.md). **PLAN.md also has a Non-goals section** — those
 features are excluded deliberately, not overlooked.

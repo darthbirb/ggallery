@@ -1,8 +1,11 @@
 # GGallery
 
-A local-first media library for Windows. Folders on disk are the organising truth; tags,
-labels and search sit on top. One library folder holds everything, so backup is "copy the
-folder".
+A gallery viewer and collection organiser for Windows, in that order. The main activity is
+looking at things — browsing, opening, comparing. Folders, tags, search, downloads,
+compression and triage all exist to serve that, not the other way round.
+
+Folders on disk are the organising truth; tags, labels and search sit on top. One library
+folder holds everything, so backup is "copy the folder".
 
 Single user, runs locally, no network service of any kind.
 

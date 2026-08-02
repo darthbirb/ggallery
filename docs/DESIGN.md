@@ -3,6 +3,17 @@
 Product and UX specification. See [DATA-MODEL.md](DATA-MODEL.md) for schema and query
 syntax.
 
+**Read this first.** GGallery is a gallery viewer and collection organiser, in that order.
+The main activity is looking at things: browsing the grid, opening an item, moving through
+a folder, comparing two shots. Folders and tags exist so you can find something again;
+search so you can find it faster; downloads so there is more to look at; compression and
+duplicate detection so the collection stays worth keeping; triage so filing never becomes
+the reason you stop adding to it.
+
+Every section below serves the viewing experience. When a decision trades off between
+making the app better to look through and making it better to administer, looking through
+wins.
+
 ---
 
 ## 1. Core concepts
