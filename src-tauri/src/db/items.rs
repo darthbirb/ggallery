@@ -70,6 +70,96 @@ pub struct GridItem {
     pub name: String,
 }
 
+/// Everything the pane's Preview mode shows for one item: the collapsed line
+/// (name, dimensions, size) and everything the expanded details add. Wider
+/// than `GridItem` on purpose — this is fetched one row at a time, not 100k.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ItemDetail {
+    pub id: i64,
+    pub kind: String,
+    /// Absolute path to the file itself, for the webview to load. Filled in by
+    /// the command from `fs::paths` — the database never stores one, and this
+    /// struct leaves it empty until then.
+    pub path: String,
+    /// Cache-relative thumbnail path, so the preview can show something
+    /// immediately while the original decodes.
+    pub thumb: String,
+    pub disk_name: String,
+    pub orig_name: Option<String>,
+    pub folder_id: i64,
+    pub folder_rel: String,
+    pub folder_title: String,
+    pub size_bytes: i64,
+    pub width: Option<i64>,
+    pub height: Option<i64>,
+    pub duration_ms: Option<i64>,
+    pub codec: Option<String>,
+    pub bitrate: Option<i64>,
+    pub captured_at: Option<i64>,
+    /// Where `captured_at` came from — EXIF, container metadata, or file
+    /// mtime. Shown so a guess is never mistaken for metadata.
+    pub captured_src: Option<String>,
+    pub added_at: i64,
+    pub favorite: bool,
+    pub notes: Option<String>,
+    pub hash: String,
+    /// M5 fills this in; always `None` until downloads exist.
+    pub source_url: Option<String>,
+}
+
+pub fn detail(conn: &Connection, id: i64) -> Result<Option<ItemDetail>> {
+    Ok(conn
+        .query_row(
+            "SELECT i.id, i.kind, i.uuid, i.disk_name, i.orig_name, i.folder_id,
+                    f.rel_path, f.title, i.size_bytes, i.width, i.height, i.duration_ms,
+                    i.codec, i.bitrate, i.captured_at, i.captured_src, i.added_at,
+                    i.favorite, i.notes, i.hash, d.url
+               FROM item i
+               JOIN folder f ON f.id = i.folder_id
+               LEFT JOIN download d ON d.id = i.download_id
+              WHERE i.id = ?1 AND i.deleted_at IS NULL",
+            params![id],
+            |r| {
+                Ok(ItemDetail {
+                    id: r.get(0)?,
+                    kind: r.get(1)?,
+                    path: String::new(),
+                    thumb: crate::fs::paths::shard(&r.get::<_, String>(2)?),
+                    disk_name: r.get(3)?,
+                    orig_name: r.get(4)?,
+                    folder_id: r.get(5)?,
+                    folder_rel: r.get(6)?,
+                    folder_title: r.get(7)?,
+                    size_bytes: r.get(8)?,
+                    width: r.get(9)?,
+                    height: r.get(10)?,
+                    duration_ms: r.get(11)?,
+                    codec: r.get(12)?,
+                    bitrate: r.get(13)?,
+                    captured_at: r.get(14)?,
+                    captured_src: r.get(15)?,
+                    added_at: r.get(16)?,
+                    favorite: r.get::<_, i64>(17)? != 0,
+                    notes: r.get(18)?,
+                    hash: r.get(19)?,
+                    source_url: r.get(20)?,
+                })
+            },
+        )
+        .optional()?)
+}
+
+/// Favourite is first-class, not a tag (PLAN.md decision 12), and binary.
+/// Takes the whole selection so one keystroke or one menu click covers it.
+pub fn set_favorite(conn: &Connection, ids: &[i64], favorite: bool) -> Result<()> {
+    let mut stmt = conn.prepare("UPDATE item SET favorite = ?1 WHERE id = ?2")?;
+    for &id in ids {
+        stmt.execute(params![i64::from(favorite), id])?;
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Scope {
     /// Normalised folder rel_path. `None` or `""` means the whole library.
@@ -361,6 +451,13 @@ pub fn trash_one(conn: &Connection, id: i64) -> Result<()> {
     Ok(())
 }
 
+/// Undo's half of `trash_one` — `fs::undo` has already moved the file back
+/// out of `.gallery/trash/` by the time this runs.
+pub fn restore_one(conn: &Connection, id: i64) -> Result<()> {
+    conn.execute("UPDATE item SET deleted_at = NULL WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
 /// What the import wizard's verify step re-hashes.
 #[derive(Debug, Clone)]
 pub struct VerifyCandidate {
@@ -396,7 +493,21 @@ pub fn random_sample_for_verify(conn: &Connection, n: i64) -> Result<Vec<VerifyC
 }
 
 pub fn list(conn: &Connection, scope: &Scope) -> Result<Vec<GridItem>> {
-    let folder = scope.folder.as_deref().unwrap_or("");
+    // `None` and `Some("")` are different questions, and both are asked:
+    // *Everything* ignores folder structure entirely, while *Loose items* is
+    // the root folder and nothing beneath it. See docs/DESIGN.md §2
+    // "Navigation roots" — the library root is not a folder in the interface,
+    // but items at the top level still have to belong somewhere.
+    let whole_library = match scope.folder.as_deref() {
+        None => true,
+        Some("") => scope.recursive,
+        Some(_) => false,
+    };
+    let folder = if whole_library {
+        ""
+    } else {
+        scope.folder.as_deref().unwrap_or("")
+    };
     let base = "SELECT id, uuid, kind, width, height, duration_ms, favorite,
                        COALESCE(captured_at, mtime) AS at, COALESCE(orig_name, disk_name)
                   FROM item
@@ -419,7 +530,7 @@ pub fn list(conn: &Connection, scope: &Scope) -> Result<Vec<GridItem>> {
 
     // The whole library, or one folder, or one folder and everything beneath
     // it. Folder views are recursive by default — see PLAN.md decision 10.
-    let rows: Vec<GridItem> = if folder.is_empty() {
+    let rows: Vec<GridItem> = if whole_library {
         let sql = format!("{base}{order}");
         let mut stmt = conn.prepare(&sql)?;
         let rows = stmt.query_map([], map)?.collect::<rusqlite::Result<_>>()?;

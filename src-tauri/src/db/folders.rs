@@ -171,6 +171,13 @@ pub struct FolderDetail {
     pub archetype_name: Option<String>,
     pub fields: Vec<ArchetypeFieldValue>,
     pub flags: Vec<FolderFlag>,
+    /// Cache-relative thumbnail path of the cover — the item chosen manually,
+    /// or the newest item beneath the folder when nothing has been chosen.
+    /// `None` for a folder with nothing in it yet.
+    pub cover_thumb: Option<String>,
+    /// Set only when the cover was chosen rather than picked automatically —
+    /// what the band's "clear cover" control is enabled by.
+    pub cover_item_id: Option<i64>,
 }
 
 /// The folder header's whole content in one call. `rel_path` empty means the
@@ -188,10 +195,11 @@ pub fn get_detail(conn: &Connection, id: i64) -> Result<Option<FolderDetail>> {
         Option<i64>,
         Option<i64>,
         Option<String>,
+        Option<i64>,
     )> = conn
         .query_row(
             "SELECT f.rel_path, f.title, f.parent_id, f.status, f.favorite, f.notes,
-                    f.last_added_at, f.archetype_id, a.name
+                    f.last_added_at, f.archetype_id, a.name, f.cover_item_id
                FROM folder f LEFT JOIN archetype a ON a.id = f.archetype_id
               WHERE f.id = ?1 AND f.deleted_at IS NULL",
             params![id],
@@ -206,6 +214,7 @@ pub fn get_detail(conn: &Connection, id: i64) -> Result<Option<FolderDetail>> {
                     r.get(6)?,
                     r.get(7)?,
                     r.get(8)?,
+                    r.get(9)?,
                 ))
             },
         )
@@ -220,6 +229,7 @@ pub fn get_detail(conn: &Connection, id: i64) -> Result<Option<FolderDetail>> {
         last_added_at,
         archetype_id,
         archetype_name,
+        cover_item_id,
     )) = base
     else {
         return Ok(None);
@@ -267,6 +277,9 @@ pub fn get_detail(conn: &Connection, id: i64) -> Result<Option<FolderDetail>> {
         })?
         .collect::<rusqlite::Result<_>>()?;
 
+    let cover_thumb = cover_uuid(conn, id, cover_item_id, &rel_path)?
+        .map(|uuid| crate::fs::paths::shard(&uuid));
+
     Ok(Some(FolderDetail {
         id,
         rel_path,
@@ -283,7 +296,69 @@ pub fn get_detail(conn: &Connection, id: i64) -> Result<Option<FolderDetail>> {
         archetype_name,
         fields,
         flags,
+        cover_thumb,
+        cover_item_id,
     }))
+}
+
+/// The uuid the cover thumbnail is cached under: the chosen item if there is
+/// one and it still exists, the newest item anywhere beneath the folder
+/// otherwise. A folder with no cover set is never coverless in the interface —
+/// "picked automatically" is one of the two options locked decision 1 names.
+fn cover_uuid(
+    conn: &Connection,
+    folder_id: i64,
+    cover_item_id: Option<i64>,
+    rel_path: &str,
+) -> Result<Option<String>> {
+    if let Some(item_id) = cover_item_id {
+        let chosen: Option<String> = conn
+            .query_row(
+                "SELECT uuid FROM item WHERE id = ?1 AND deleted_at IS NULL",
+                params![item_id],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if chosen.is_some() {
+            return Ok(chosen);
+        }
+    }
+
+    // The root's subtree is the whole library, and `'' || '/%'` matches
+    // nothing — same special case as `subtree_totals`.
+    if rel_path.is_empty() {
+        return Ok(conn
+            .query_row(
+                "SELECT uuid FROM item WHERE deleted_at IS NULL
+                  ORDER BY COALESCE(captured_at, mtime) DESC, id DESC LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
+            .optional()?);
+    }
+
+    let _ = folder_id;
+    Ok(conn
+        .query_row(
+            "SELECT i.uuid FROM item i
+              WHERE i.deleted_at IS NULL
+                AND i.folder_id IN (SELECT id FROM folder
+                                     WHERE rel_path = ?1 OR rel_path LIKE ?1 || '/%')
+              ORDER BY COALESCE(i.captured_at, i.mtime) DESC, i.id DESC LIMIT 1",
+            params![rel_path],
+            |r| r.get(0),
+        )
+        .optional()?)
+}
+
+/// Choose (or, with `None`, clear) the folder's cover. Clearing falls back to
+/// the automatic pick rather than leaving the band blank.
+pub fn set_cover(conn: &Connection, folder_id: i64, item_id: Option<i64>) -> Result<()> {
+    conn.execute(
+        "UPDATE folder SET cover_item_id = ?1 WHERE id = ?2",
+        params![item_id, folder_id],
+    )?;
+    Ok(())
 }
 
 /// `(direct items, total items, subfolders)` for a folder and its subtree.
@@ -338,20 +413,27 @@ fn subtree_totals(conn: &Connection, rel_path: &str) -> Result<(i64, i64, i64)> 
 /// retitle_folder` (the only real caller since M2.2 collapsed the title and
 /// the directory name into one thing) calls this first and only then decides
 /// whether the sanitised result means the directory needs to follow.
-pub fn set_title(conn: &Connection, id: i64, title: &str) -> Result<()> {
+pub fn set_title(conn: &Connection, id: i64, title: &str, batch_id: &str) -> Result<()> {
     let previous: String = conn.query_row(
         "SELECT title FROM folder WHERE id = ?1",
         params![id],
         |r| r.get(0),
     )?;
+    set_title_unjournalled(conn, id, title)?;
+    if previous != title {
+        crate::db::journal::record_folder_rename_title(conn, batch_id, id, &previous, title)?;
+    }
+    Ok(())
+}
+
+/// The title change alone — no journal entry. `fs::undo` uses this to put a
+/// title back; a reversal is not itself an operation to reverse.
+pub fn set_title_unjournalled(conn: &Connection, id: i64, title: &str) -> Result<()> {
     conn.execute(
         "UPDATE folder SET title = ?1 WHERE id = ?2",
         params![title, id],
     )?;
     crate::db::tags::sync_title_tag(conn, id, title)?;
-    if previous != title {
-        crate::db::journal::record_folder_rename_title(conn, id, &previous, title)?;
-    }
     enqueue_retag(conn, id)
 }
 
@@ -903,7 +985,7 @@ pub fn rewrite_subtree_paths(conn: &Connection, old_rel: &str, new_rel: &str) ->
 /// reusable. Both statements are single bulk `UPDATE`s — cheap even for a
 /// large subtree — which is why `trash` runs synchronously rather than as a
 /// job, unlike the tag-cache rebuild.
-pub fn trash_subtree_rows(conn: &Connection, rel_path: &str) -> Result<()> {
+pub fn trash_subtree_rows(conn: &Connection, rel_path: &str) -> Result<i64> {
     let ts = now();
     conn.execute(
         "UPDATE item SET deleted_at = ?1
@@ -917,6 +999,48 @@ pub fn trash_subtree_rows(conn: &Connection, rel_path: &str) -> Result<()> {
           WHERE deleted_at IS NULL AND (rel_path = ?2 OR rel_path LIKE ?2 || '/%')",
         params![ts, rel_path],
     )?;
+    Ok(ts)
+}
+
+/// Every live folder in `rel_path`'s subtree, as `(id, rel_path)`.
+///
+/// Captured *before* a trash, because `trash_subtree_rows` rewrites every
+/// `rel_path` it retires to `.trashed/<id>` to free the original string for
+/// reuse — which destroys the only record of where those rows belonged.
+/// Undo needs them verbatim, so the trash writes them into the journal.
+pub fn subtree_rows(conn: &Connection, rel_path: &str) -> Result<Vec<(i64, String)>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, rel_path FROM folder
+          WHERE deleted_at IS NULL AND (rel_path = ?1 OR rel_path LIKE ?1 || '/%')
+          ORDER BY LENGTH(rel_path)",
+    )?;
+    let rows = stmt
+        .query_map(params![rel_path], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(rows)
+}
+
+/// Put back exactly what `trash_subtree_rows` retired: each folder row to the
+/// `rel_path` it had, and every item that this trash — and only this trash,
+/// identified by its timestamp — soft-deleted.
+pub fn restore_subtree_rows(
+    conn: &Connection,
+    folders: &[(i64, String)],
+    trashed_at: i64,
+) -> Result<()> {
+    for (id, rel_path) in folders {
+        conn.execute(
+            "UPDATE folder SET deleted_at = NULL, rel_path = ?1 WHERE id = ?2",
+            params![rel_path, id],
+        )?;
+    }
+    for (id, _) in folders {
+        conn.execute(
+            "UPDATE item SET deleted_at = NULL
+              WHERE folder_id = ?1 AND deleted_at = ?2",
+            params![id, trashed_at],
+        )?;
+    }
     Ok(())
 }
 
@@ -1178,7 +1302,7 @@ mod folder_metadata_tests {
         // O(1) OS call, not measured here — same reasoning as the rename
         // and move checks above.
         let retitle_start = std::time::Instant::now();
-        set_title(&conn, cat, "Category, Retitled").unwrap();
+        set_title(&conn, cat, "Category, Retitled", &crate::db::journal::new_batch()).unwrap();
         let retitle_elapsed = retitle_start.elapsed();
         println!("set_title fan-out over {LEAVES} descendants: {retitle_elapsed:?}");
         assert!(

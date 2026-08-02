@@ -76,11 +76,16 @@ impl Library {
             Default::default()
         };
 
-        // The webview may read thumbnails and sprites, and nothing else. The
-        // library's own media is not exposed until a viewer needs it (M2).
+        // Thumbnails and sprites for the grid, and — from M2.5a, which builds
+        // the pane's Preview mode — the originals themselves, which the
+        // viewer displays at full size. Read access to a local folder the
+        // user chose, granted to a webview that loads no remote content.
         let _ = app
             .asset_protocol_scope()
             .allow_directory(paths.cache_dir(), true);
+        let _ = app
+            .asset_protocol_scope()
+            .allow_directory(paths.root(), true);
 
         let tools = Tools::discover();
         // Shared between the job queue and the filesystem watcher: the
@@ -234,7 +239,11 @@ pub fn run() {
             commands::library::current_library,
             commands::library::close_library,
             commands::library::folder_tree,
+            commands::library::ui_prefs,
+            commands::library::set_ui_prefs,
             commands::items::list_items,
+            commands::items::get_item,
+            commands::items::set_items_favorite,
             commands::jobs::start_index,
             commands::jobs::index_progress,
             commands::jobs::index_failures,
@@ -252,6 +261,8 @@ pub fn run() {
             commands::folders::set_folder_status,
             commands::folders::set_folder_favorite,
             commands::folders::set_folder_notes,
+            commands::folders::set_folder_cover,
+            commands::folders::reveal_folder,
             commands::folders::apply_folder_archetype,
             commands::folders::set_folder_label,
             commands::folders::add_folder_flag,
@@ -287,6 +298,7 @@ pub fn run() {
             commands::tags::list_tags,
             commands::tags::rename_tag,
             commands::tags::delete_tag,
+            commands::triage::undo_batch,
         ])
         .setup(|app| {
             build_window(app.handle())?;

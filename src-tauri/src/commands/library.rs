@@ -127,6 +127,23 @@ pub async fn folder_tree(state: State<'_, AppState>) -> Result<Vec<FolderNode>> 
     .await
 }
 
+// --- interface preferences (M2.5a) ---------------------------------------
+//
+// Panel widths, folded and expanded states, the accent. They live in
+// `gallery.config.json` next to the exe, alongside window geometry and for
+// the same reasons: they are about this installation, not about the library,
+// and a library copied to another machine should not drag them along.
+
+#[tauri::command]
+pub async fn ui_prefs() -> Result<Option<serde_json::Value>> {
+    blocking(move || Ok(Config::load().ui)).await
+}
+
+#[tauri::command]
+pub async fn set_ui_prefs(prefs: serde_json::Value) -> Result<()> {
+    blocking(move || Config::set_ui(prefs)).await
+}
+
 fn describe(library: &Library) -> Result<LibraryInfo> {
     let conn = library.conn()?;
     let paths = &library.paths;

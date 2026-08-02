@@ -23,13 +23,42 @@ pub async fn get_folder(state: State<'_, AppState>, id: i64) -> Result<FolderDet
 /// when the sanitised result differs from what's on disk, renames the
 /// directory to match. There is no separate rename-directory command any
 /// more.
+/// Returns the journal batch, so the toast that follows can offer Undo.
 #[tauri::command]
-pub async fn set_folder_title(state: State<'_, AppState>, id: i64, title: String) -> Result<()> {
+pub async fn set_folder_title(
+    state: State<'_, AppState>,
+    id: i64,
+    title: String,
+) -> Result<String> {
     let library = state.library()?;
     blocking(move || {
         let conn = library.conn()?;
         let suppressor = library.queue().inner().suppressor.clone();
-        crate::fs::relocate::retitle_folder(&library.paths, &conn, &suppressor, id, &title)
+        let batch = db::journal::new_batch();
+        crate::fs::relocate::retitle_folder(
+            &library.paths,
+            &conn,
+            &suppressor,
+            id,
+            &title,
+            &batch,
+        )?;
+        Ok(batch)
+    })
+    .await
+}
+
+/// Choose the folder's cover, or clear it back to the automatic pick.
+#[tauri::command]
+pub async fn set_folder_cover(
+    state: State<'_, AppState>,
+    id: i64,
+    item_id: Option<i64>,
+) -> Result<()> {
+    let library = state.library()?;
+    blocking(move || {
+        let conn = library.conn()?;
+        db::folders::set_cover(&conn, id, item_id)
     })
     .await
 }
@@ -153,7 +182,14 @@ pub async fn create_folder(
     let library = state.library()?;
     blocking(move || {
         let conn = library.conn()?;
-        crate::fs::relocate::create_folder(&library.paths, &conn, parent_id, &name, archetype_id)
+        crate::fs::relocate::create_folder(
+            &library.paths,
+            &conn,
+            parent_id,
+            &name,
+            archetype_id,
+            &db::journal::new_batch(),
+        )
     })
     .await
 }
@@ -163,21 +199,49 @@ pub async fn move_folder(
     state: State<'_, AppState>,
     id: i64,
     new_parent_id: Option<i64>,
-) -> Result<()> {
+) -> Result<String> {
     let library = state.library()?;
     blocking(move || {
         let conn = library.conn()?;
-        crate::fs::relocate::move_folder(&library.paths, &conn, id, new_parent_id)
+        let batch = db::journal::new_batch();
+        crate::fs::relocate::move_folder(&library.paths, &conn, id, new_parent_id, &batch)?;
+        Ok(batch)
     })
     .await
 }
 
 #[tauri::command]
-pub async fn delete_folder(state: State<'_, AppState>, id: i64) -> Result<()> {
+pub async fn delete_folder(state: State<'_, AppState>, id: i64) -> Result<String> {
     let library = state.library()?;
     blocking(move || {
         let conn = library.conn()?;
-        crate::fs::trash::trash_folder(&library.paths, &conn, id)
+        let batch = db::journal::new_batch();
+        crate::fs::trash::trash_folder(&library.paths, &conn, id, &batch)?;
+        Ok(batch)
+    })
+    .await
+}
+
+/// The same escape hatch items get (docs/DESIGN.md §1 "Item operations"),
+/// for a folder: open Explorer with the directory selected.
+#[tauri::command]
+pub async fn reveal_folder(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    id: i64,
+) -> Result<()> {
+    let library = state.library()?;
+    blocking(move || {
+        let rel = {
+            let conn = library.conn()?;
+            db::folders::rel_for(&conn, id)?
+                .ok_or_else(|| AppError::invalid("folder not found"))?
+        };
+        let path = library.paths.to_abs(&rel)?;
+        use tauri_plugin_opener::OpenerExt;
+        app.opener()
+            .reveal_item_in_dir(path)
+            .map_err(|err| AppError::invalid(err.to_string()))
     })
     .await
 }

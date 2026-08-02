@@ -12,6 +12,7 @@ pub mod items;
 pub mod jobs;
 pub mod library;
 pub mod tags;
+pub mod triage;
 
 use crate::error::{AppError, Result};
 
