@@ -40,6 +40,15 @@ pub fn execute(ctx: &QueueInner, conn: &mut Connection, job: &QueuedJob) -> Resu
             let payload: ItemPayload = serde_json::from_str(&job.payload)?;
             db::tags::rebuild_item(conn, payload.item_id)
         }
+        kinds::RENAME_FOLDER_SUBTREE => {
+            let payload: kinds::SubtreePathRewritePayload = serde_json::from_str(&job.payload)?;
+            db::folders::rewrite_subtree_paths(conn, &payload.old_rel, &payload.new_rel)
+        }
+        kinds::MOVE_FOLDER_SUBTREE => {
+            let payload: kinds::SubtreePathRewritePayload = serde_json::from_str(&job.payload)?;
+            db::folders::rewrite_subtree_paths(conn, &payload.old_rel, &payload.new_rel)?;
+            db::tags::rebuild_subtree(conn, &payload.new_rel)
+        }
         other => Err(AppError::invalid(format!("unknown job type {other}"))),
     }
 }

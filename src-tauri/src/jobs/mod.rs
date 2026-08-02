@@ -319,3 +319,27 @@ pub fn enqueue_retag_item(conn: &Connection, item_id: i64) -> Result<()> {
     db::jobs::enqueue(conn, kinds::RETAG_ITEM, &payload, kinds::PRIORITY_RETAG)?;
     Ok(())
 }
+
+/// Fan out a plain directory rename's descendant path rewrite. No tag
+/// rebuild — a rename never changes `parent_id`, so no item's ancestry (and
+/// therefore no item's effective tags) changed.
+pub fn enqueue_rename_folder_subtree(conn: &Connection, old_rel: &str, new_rel: &str) -> Result<()> {
+    let payload = serde_json::to_string(&kinds::SubtreePathRewritePayload {
+        old_rel: old_rel.to_string(),
+        new_rel: new_rel.to_string(),
+    })?;
+    db::jobs::enqueue(conn, kinds::RENAME_FOLDER_SUBTREE, &payload, kinds::PRIORITY_RETAG)?;
+    Ok(())
+}
+
+/// Fan out a folder move's descendant path rewrite, followed by an
+/// effective-tag rebuild for the subtree — `parent_id` changed, so ancestry
+/// (and every descendant item's inherited tags) did too.
+pub fn enqueue_move_folder_subtree(conn: &Connection, old_rel: &str, new_rel: &str) -> Result<()> {
+    let payload = serde_json::to_string(&kinds::SubtreePathRewritePayload {
+        old_rel: old_rel.to_string(),
+        new_rel: new_rel.to_string(),
+    })?;
+    db::jobs::enqueue(conn, kinds::MOVE_FOLDER_SUBTREE, &payload, kinds::PRIORITY_RETAG)?;
+    Ok(())
+}

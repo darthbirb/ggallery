@@ -13,12 +13,15 @@ pub const THUMB: &str = "thumb";
 pub const SPRITE: &str = "sprite";
 pub const RETAG_FOLDER: &str = "retag_folder";
 pub const RETAG_ITEM: &str = "retag_item";
+pub const RENAME_FOLDER_SUBTREE: &str = "rename_folder_subtree";
+pub const MOVE_FOLDER_SUBTREE: &str = "move_folder_subtree";
 
 pub const PRIORITY_INDEX: i64 = 100;
 pub const PRIORITY_THUMB: i64 = 20;
 /// Between thumb and hash: tag correctness matters for search (M3+), but
 /// shouldn't starve the grid's own thumbnails while a big folder-level edit
-/// is still fanning out.
+/// is still fanning out. Subtree path rewrites share this tier — same
+/// "structural correctness, not blocking thumbnails" reasoning.
 pub const PRIORITY_RETAG: i64 = 15;
 pub const PRIORITY_HASH: i64 = 10;
 pub const PRIORITY_SPRITE: i64 = 1;
@@ -48,4 +51,16 @@ pub struct ItemPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetagFolderPayload {
     pub folder_rel: String,
+}
+
+/// A directory rename or move's fan-out: rewriting every descendant's
+/// `rel_path` prefix. The top folder itself is already updated synchronously
+/// by the caller before this is enqueued — see `db::folders::rewrite_subtree_paths`.
+/// `MOVE_FOLDER_SUBTREE` uses the same shape and additionally rebuilds the
+/// effective-tag cache for `new_rel` after the rewrite, in the same job
+/// execution, so there is no ordering race between two separate jobs.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubtreePathRewritePayload {
+    pub old_rel: String,
+    pub new_rel: String,
 }
