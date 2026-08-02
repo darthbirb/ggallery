@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import { formatCount, formatTimeAgo } from "../../lib/format";
 import * as ipc from "../../lib/ipc";
-import type { ArchetypeInfo, FolderDetail, FolderStatusDef } from "../../lib/types";
+import type { ArchetypeInfo, FolderDetail, FolderNode, FolderStatusDef } from "../../lib/types";
+import { FolderPickerModal } from "./FolderPickerModal";
 
 interface FolderHeaderProps {
   folderId: number;
@@ -11,6 +12,12 @@ interface FolderHeaderProps {
   /** Title, status and favorite all affect the sidebar tree — this asks the
    *  parent to re-fetch it after an edit lands. */
   onChanged: () => void;
+  /** The whole tree — needed for the "move to…" picker and to compute which
+   *  folders are this one's descendants (can't move into itself). */
+  folders: FolderNode[];
+  /** Called after this folder is deleted, so the parent can navigate away
+   *  from a view that no longer exists. */
+  onDeleted: () => void;
 }
 
 /**
@@ -24,10 +31,13 @@ export function FolderHeader({
   collapsed,
   onToggleCollapsed,
   onChanged,
+  folders,
+  onDeleted,
 }: FolderHeaderProps) {
   const [detail, setDetail] = useState<FolderDetail | null>(null);
   const [archetypes, setArchetypes] = useState<ArchetypeInfo[]>([]);
   const [statuses, setStatuses] = useState<FolderStatusDef[]>([]);
+  const [showMove, setShowMove] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -176,6 +186,49 @@ export function FolderHeader({
               {detail.favorite ? "★" : "☆"}
             </button>
 
+            {detail.parentId !== null && (
+              <>
+                <button
+                  type="button"
+                  title="Rename the directory on disk"
+                  onClick={() => {
+                    const name = prompt("Rename folder on disk to:", detail.title);
+                    if (name && name.trim()) {
+                      commit(() => ipc.renameFolderDir(folderId, name.trim()));
+                    }
+                  }}
+                  className="text-fg-dim hover:text-fg"
+                >
+                  rename
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowMove(true)}
+                  className="text-fg-dim hover:text-fg"
+                >
+                  move…
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm(`Delete "${detail.title}"? It'll move to .gallery/trash.`)) {
+                      (async () => {
+                        try {
+                          await ipc.deleteFolder(folderId);
+                          onDeleted();
+                        } catch (err) {
+                          setError(ipc.errorMessage(err));
+                        }
+                      })();
+                    }
+                  }}
+                  className="text-danger hover:opacity-80"
+                >
+                  delete
+                </button>
+              </>
+            )}
+
             <button
               type="button"
               onClick={onToggleCollapsed}
@@ -247,8 +300,32 @@ export function FolderHeader({
           />
         </div>
       </div>
+
+      {showMove && (
+        <FolderPickerModal
+          folders={folders}
+          exclude={descendantIds(folders, detail.id, detail.relPath)}
+          onClose={() => setShowMove(false)}
+          onPick={(destId) => {
+            setShowMove(false);
+            commit(() => ipc.moveFolder(folderId, destId));
+          }}
+        />
+      )}
     </div>
   );
+}
+
+/** This folder and every descendant, by `relPath` prefix — what a folder
+ *  can't be moved into without moving it into itself. */
+function descendantIds(folders: FolderNode[], id: number, relPath: string): Set<number> {
+  const ids = new Set<number>([id]);
+  for (const folder of folders) {
+    if (folder.relPath === relPath || folder.relPath.startsWith(`${relPath}/`)) {
+      ids.add(folder.id);
+    }
+  }
+  return ids;
 }
 
 function EditableText({
