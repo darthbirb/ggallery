@@ -1,7 +1,9 @@
 interface SettingsPanelProps {
   onClose: () => void;
   onNormaliseFilenames: () => void;
-  onParseFolderNames: () => void;
+  onManageArchetypes: () => void;
+  onManageStatuses: () => void;
+  onManageTags: () => void;
 }
 
 /**
@@ -9,11 +11,15 @@ interface SettingsPanelProps {
  * reference, blur toggle, backup verification) is M9's job. This exists now
  * only because M1.6 needs a permanent home for the repair-case action: see
  * docs/DESIGN.md#first-import, "Settings keeps a Normalise filenames action".
+ * M2.1 adds the archetype/status/tag editors that removing the seeded
+ * vocabulary (PLAN.md decision 21) makes mandatory.
  */
 export function SettingsPanel({
   onClose,
   onNormaliseFilenames,
-  onParseFolderNames,
+  onManageArchetypes,
+  onManageStatuses,
+  onManageTags,
 }: SettingsPanelProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -45,15 +51,39 @@ export function SettingsPanel({
             </span>
           </button>
 
+          <h3 className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wide text-fg-dim">
+            Vocabulary
+          </h3>
           <button
             type="button"
-            onClick={onParseFolderNames}
+            onClick={onManageArchetypes}
+            className="w-full rounded-[3px] border border-line px-3 py-2 text-left hover:bg-hover"
+          >
+            <span className="block text-fg">Archetypes</span>
+            <span className="block text-[12px] text-fg-dim">
+              Create and edit the folder templates used across your library.
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onManageStatuses}
             className="mt-2 w-full rounded-[3px] border border-line px-3 py-2 text-left hover:bg-hover"
           >
-            <span className="block text-fg">Parse folder names</span>
+            <span className="block text-fg">Folder statuses</span>
             <span className="block text-[12px] text-fg-dim">
-              Split folders named like "Ana (@ana)" into a title and an
-              Instagram handle on the Person archetype.
+              Rename, recolour, reorder, add or remove status values.
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onManageTags}
+            className="mt-2 w-full rounded-[3px] border border-line px-3 py-2 text-left hover:bg-hover"
+          >
+            <span className="block text-fg">Tags</span>
+            <span className="block text-[12px] text-fg-dim">
+              Rename or delete a tag across the whole library.
             </span>
           </button>
         </div>
