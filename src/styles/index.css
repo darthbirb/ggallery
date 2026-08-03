@@ -442,3 +442,18 @@
 .fade-in {
   animation: fade-in 120ms ease-out;
 }
+
+/* --- kitchen sink (dev only) ----------------------------------------------
+   Forces pseudo-class-only looks (:hover, :focus-visible) into a static
+   class, so every control state is visible in one screenshot with no
+   cursor and no real keyboard focus. `force-hover:` composes with any
+   utility the same way `hover:` does — used only by `dev/KitchenSink.tsx`,
+   which is dead-code-eliminated out of release builds along with every
+   reference to it. */
+@custom-variant force-hover (&:where(.force-hover, .force-hover *));
+@custom-variant force-focus (&:where(.force-focus, .force-focus *));
+
+.force-focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}

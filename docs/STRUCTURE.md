@@ -238,6 +238,21 @@ features/             one folder per surface in DESIGN.md
   duplicates/         M7 — grouping and resolution; comparison likewise
   storage/            M8
 
+dev/                  dev-only tools, mirroring `src-tauri/src/bin/` — never
+                      imported by anything that ships. `KitchenSink.tsx`
+                      (M2.5a.3) renders every primitive in every state on one
+                      page — sizes, hover/active/disabled, selection, every
+                      accent — so a design-system pass has something to
+                      screenshot without opening a real library. Reached at
+                      `#kitchen-sink`, checked in `App.tsx` before the
+                      Welcome/library routing so it renders with no library
+                      configured. Gated on `import.meta.env.DEV`, which Vite
+                      resolves to `false` in `npm run tauri build` and dead-
+                      code-eliminates — nothing here reaches the shipped
+                      binary. It has no visible control anywhere in the app;
+                      that is the trade for staying out of the normal render
+                      path, and it means this note is the only thing that
+                      makes the route discoverable
 components/           shared primitives only — the app-level compositions:
                       Dialog (title/body/footer), Menu (one definition opened
                       as a context menu or a dropdown), Chip, Toaster, Tooltip,
@@ -293,6 +308,7 @@ functions, so a backend signature change breaks at compile time in one place.
 | M1.8 | `fs/watch.rs`, transient index readout |
 | M2.1 | `fs/trash.rs` (pulled forward from M4), folder/item move and rename in `fs/`, `commands/folders` and `commands/items` extensions |
 | M2.5a | `features/nav`, `features/menus`, `features/pane` (Preview only), folder band in `features/folder`, `components/`, `state/toasts`, accent tokens, `fs/undo.rs`, `commands/triage::undo_batch`, `vitest` + `@testing-library/react` |
+| M2.5a.3 | `dev/KitchenSink.tsx` |
 | M2.5b | `features/pane` Grid and Folders modes, drop targets, spring-loading |
 | M3 | `query/`, `commands/search`, `features/search` |
 | M4 | `commands/triage`, `db/journal` (move/trash/tag writers, the Ctrl+Z replayer), `fs/trash`, `features/triage` |

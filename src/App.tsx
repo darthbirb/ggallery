@@ -18,6 +18,7 @@ import { Checkbox } from "./components/ui/checkbox";
 import { Label } from "./components/ui/label";
 import { Separator } from "./components/ui/separator";
 import { Slider } from "./components/ui/slider";
+import { KitchenSink } from "./dev/KitchenSink";
 import { FolderBand } from "./features/folder/FolderBand";
 import { Grid } from "./features/grid/Grid";
 import { SCRUBBER_WIDTH } from "./features/grid/Scrubber";
@@ -50,7 +51,35 @@ import {
   useUi,
 } from "./state/ui";
 
+/** Tracks `location.hash`, live. Always called — never conditionally — so
+ *  the `import.meta.env.DEV` check below stays a plain literal at its call
+ *  site instead of being buried behind this hook's own return value, which
+ *  is what a bundler actually needs to fold `<KitchenSink />` away. */
+function useHash(): string {
+  const [hash, setHash] = useState(() => window.location.hash);
+
+  useEffect(() => {
+    const onHashChange = () => setHash(window.location.hash);
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+
+  return hash;
+}
+
 export default function App() {
+  const hash = useHash();
+
+  // Dev-only escape hatch to `dev/KitchenSink.tsx` — see docs/STRUCTURE.md.
+  // Checked before any of the app's own providers mount, so the route needs
+  // no library, no config file and no IPC round-trip to render. The literal
+  // `import.meta.env.DEV` has to sit directly in this expression, not behind
+  // another function's return value — Vite replaces it with a compile-time
+  // `false` in release builds, and that only lets Rollup fold the whole
+  // branch (and drop the now-unreachable `KitchenSink` import with it) when
+  // it can see the literal at the point `<KitchenSink />` is written.
+  if (import.meta.env.DEV && hash === "#kitchen-sink") return <KitchenSink />;
+
   return (
     <UiProvider>
       <ToastProvider>
