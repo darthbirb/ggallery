@@ -296,13 +296,12 @@ pub async fn add_archetype_field(
     state: State<'_, AppState>,
     archetype_id: i64,
     key: String,
-    field_type: String,
     apply_to_existing: bool,
 ) -> Result<()> {
     let library = state.library()?;
     blocking(move || {
         let conn = library.conn()?;
-        db::folders::add_archetype_field(&conn, archetype_id, &key, &field_type, apply_to_existing)
+        db::folders::add_archetype_field(&conn, archetype_id, &key, apply_to_existing)
     })
     .await
 }

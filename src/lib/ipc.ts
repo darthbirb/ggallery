@@ -294,15 +294,9 @@ export function countFoldersUsingArchetype(archetypeId: number): Promise<number>
 export function addArchetypeField(
   archetypeId: number,
   key: string,
-  fieldType: string,
   applyToExisting: boolean,
 ): Promise<void> {
-  return invoke<void>("add_archetype_field", {
-    archetypeId,
-    key,
-    fieldType,
-    applyToExisting,
-  });
+  return invoke<void>("add_archetype_field", { archetypeId, key, applyToExisting });
 }
 
 export function reorderArchetypeFields(

@@ -168,7 +168,7 @@ fn run() -> Result<()> {
 fn build_tree(conn: &rusqlite::Connection) -> Result<Vec<i64>> {
     db::folders::upsert(conn, "", "Library")?;
     let person = db::folders::create_archetype(conn, "Person")?;
-    db::folders::add_archetype_field(conn, person, "instagram", "handle", false)?;
+    db::folders::add_archetype_field(conn, person, "instagram", false)?;
 
     let mut leaves = Vec::with_capacity(CATEGORIES * LEAVES_PER_CATEGORY);
 

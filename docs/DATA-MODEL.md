@@ -166,14 +166,16 @@ CREATE TABLE archetype_field (
   id           INTEGER PRIMARY KEY,
   archetype_id INTEGER NOT NULL REFERENCES archetype(id) ON DELETE CASCADE,
   key          TEXT    NOT NULL,     -- 'instagram'
-  type         TEXT    NOT NULL,     -- text | handle | url | date | number
   ordinal      INTEGER NOT NULL,
   UNIQUE(archetype_id, key)
 );
 ```
 
-`handle` renders as a link to the platform profile and matches with or without a
-leading `@`.
+**A field is a name and a position.** It carried a `type` — text, handle, url, date,
+number — until M2.5a.1 dropped the column. The only behaviour any of them implied was
+`handle` rendering as a link to a platform profile, which locked decision 21 removed;
+after that the editor was asking a question the app ignored. Values are text, and every
+field renders the same way.
 
 ### Queues and history
 

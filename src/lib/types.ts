@@ -186,7 +186,6 @@ export interface FsExecuteReport {
 
 export interface ArchetypeFieldValue {
   key: string;
-  type: string;
   ordinal: number;
   value: string;
 }
@@ -226,9 +225,11 @@ export interface FolderStatusDef {
   ordinal: number;
 }
 
+/** A name and a position. Fields carried a type — text / handle / url / date /
+ *  number — until M2.5a.1; nothing ever read it once decision 21 removed the
+ *  platform linking it existed for. */
 export interface ArchetypeFieldDef {
   key: string;
-  type: string;
   ordinal: number;
 }
 

@@ -140,8 +140,6 @@ pub fn tree(conn: &Connection) -> Result<Vec<FolderNode>> {
 #[serde(rename_all = "camelCase")]
 pub struct ArchetypeFieldValue {
     pub key: String,
-    #[serde(rename = "type")]
-    pub field_type: String,
     pub ordinal: i64,
     pub value: String,
 }
@@ -239,7 +237,7 @@ pub fn get_detail(conn: &Connection, id: i64) -> Result<Option<FolderDetail>> {
 
     let fields = if let Some(aid) = archetype_id {
         let mut stmt = conn.prepare(
-            "SELECT af.key, af.type, af.ordinal,
+            "SELECT af.key, af.ordinal,
                     COALESCE(
                       (SELECT t.value FROM folder_tag ft JOIN tag t ON t.id = ft.tag_id
                         WHERE ft.folder_id = ?1 AND t.key = af.key LIMIT 1),
@@ -252,9 +250,8 @@ pub fn get_detail(conn: &Connection, id: i64) -> Result<Option<FolderDetail>> {
             .query_map(params![id, aid], |r| {
                 Ok(ArchetypeFieldValue {
                     key: r.get(0)?,
-                    field_type: r.get(1)?,
-                    ordinal: r.get(2)?,
-                    value: r.get(3)?,
+                    ordinal: r.get(1)?,
+                    value: r.get(2)?,
                 })
             })?
             .collect::<rusqlite::Result<_>>()?;
@@ -583,10 +580,10 @@ fn enqueue_retag(conn: &Connection, folder_id: i64) -> Result<()> {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// A field on an archetype: a name and a position, and nothing else. It
+/// carried a `type` until M2.5a.1 — see `005_drop_archetype_field_type.sql`.
 pub struct ArchetypeFieldDef {
     pub key: String,
-    #[serde(rename = "type")]
-    pub field_type: String,
     pub ordinal: i64,
 }
 
@@ -633,14 +630,13 @@ pub fn list_archetypes(conn: &Connection) -> Result<Vec<ArchetypeInfo>> {
     let mut out = Vec::with_capacity(archetypes.len());
     for (id, name) in archetypes {
         let mut fstmt = conn.prepare(
-            "SELECT key, type, ordinal FROM archetype_field WHERE archetype_id = ?1 ORDER BY ordinal",
+            "SELECT key, ordinal FROM archetype_field WHERE archetype_id = ?1 ORDER BY ordinal",
         )?;
         let fields = fstmt
             .query_map(params![id], |r| {
                 Ok(ArchetypeFieldDef {
                     key: r.get(0)?,
-                    field_type: r.get(1)?,
-                    ordinal: r.get(2)?,
+                    ordinal: r.get(1)?,
                 })
             })?
             .collect::<rusqlite::Result<_>>()?;
@@ -708,7 +704,6 @@ pub fn add_archetype_field(
     conn: &Connection,
     archetype_id: i64,
     key: &str,
-    field_type: &str,
     apply_to_existing: bool,
 ) -> Result<()> {
     let next_ordinal: i64 = conn.query_row(
@@ -717,8 +712,8 @@ pub fn add_archetype_field(
         |r| r.get(0),
     )?;
     conn.execute(
-        "INSERT INTO archetype_field (archetype_id, key, type, ordinal) VALUES (?1, ?2, ?3, ?4)",
-        params![archetype_id, key, field_type, next_ordinal],
+        "INSERT INTO archetype_field (archetype_id, key, ordinal) VALUES (?1, ?2, ?3)",
+        params![archetype_id, key, next_ordinal],
     )?;
     if apply_to_existing {
         apply_field_to_folders_using_archetype(conn, archetype_id, key)?;
@@ -1057,8 +1052,8 @@ mod folder_metadata_tests {
 
     fn person_archetype(conn: &Connection) -> i64 {
         let id = create_archetype(conn, "Person").unwrap();
-        add_archetype_field(conn, id, "instagram", "handle", false).unwrap();
-        add_archetype_field(conn, id, "tiktok", "handle", false).unwrap();
+        add_archetype_field(conn, id, "instagram", false).unwrap();
+        add_archetype_field(conn, id, "tiktok", false).unwrap();
         id
     }
 
@@ -1095,7 +1090,7 @@ mod folder_metadata_tests {
         let ana = upsert(&conn, "people/ana", "Ana").unwrap();
         apply_archetype(&conn, ana, person).unwrap();
 
-        add_archetype_field(&conn, person, "youtube", "handle", true).unwrap();
+        add_archetype_field(&conn, person, "youtube", true).unwrap();
 
         let detail = get_detail(&conn, ana).unwrap().unwrap();
         assert!(detail.fields.iter().any(|f| f.key == "youtube"));
