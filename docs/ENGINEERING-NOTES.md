@@ -111,6 +111,96 @@ is only as complete as the last person's memory of it.
 
 ---
 
+## shadcn/ui — audit vs adopt (M2.5a.3)
+
+M2.5a hand-built every surface against Radix primitives without checking what shadcn's
+registry ships composed. M2.5a.3 audited four of them — the navigation panel, the Settings
+dialog, the resizable split, and the toaster — against the actual registry, read through
+the MCP server in `.mcp.json`, not recalled. Recorded here so the next session that
+notices "this app hand-rolled a sidebar" does not re-run the same audit from scratch.
+
+**Navigation panel** (`features/nav/Nav.tsx`) — the registry has `sidebar` (the primitive)
+and `sidebar-07` (collapses to icons). Both are built for a binary expanded/icon-rail
+toggle with an off-canvas mobile variant; neither supports continuous drag-resize, the
+animated recursive tree M0/M2.5a.2 required (`grid-template-rows` reveal — see *Motion*
+above), per-row context menus, spring-loading drop targets, or decision 26's
+filled-rounded-surface selection. Adopting would delete nothing and add a rewrite of all
+of the above. **Stays hand-rolled.** Revisit only if the fold/resize/tree requirements
+themselves change, not for tidiness.
+
+**Settings dialog** (`features/settings/SettingsPanel.tsx`) — no composed "settings shell"
+block exists, but `sidebar-13` ("a sidebar in a dialog") is shadcn's own reference answer
+to this exact problem: `Dialog > Sidebar(collapsible="none") + content pane`, the same
+shape `SettingsPanel` independently converged on. Adopting the actual `Sidebar` primitive
+for a static four-row list would pull in `SidebarProvider` and its width/mobile-sheet
+machinery to replace roughly fifteen lines of plain buttons — more code, not less. **Stays
+hand-rolled**, but `sidebar-13` is now the citation DESIGN.md §2 was missing.
+
+**Resizable split** (`components/Resizer.tsx`) — the registry's `resizable` wraps
+`react-resizable-panels`: a panel-*group* that owns the whole layout and sizes panels in
+percent. GGallery persists panel widths in **pixels** in `gallery.config.json`
+(`commands/library.rs`), with a per-handle reset-to-default and a fixed arrow-key step.
+Using the library would mean converting percent↔pixel on every window resize and
+restructuring `App.tsx`'s flex layout into nested `PanelGroup`s for three independent
+handles (nav, pane, filmstrip height). **Stays hand-rolled.** Would change if the app ever
+needed a panel that resizes *proportionally* with the window rather than holding a fixed
+pixel width — nothing in the current design asks for that.
+
+**Toaster** (`components/Toaster.tsx`) — this is the closest call, not a clean keep.
+`sonner` is the current shadcn answer; the old Radix-based `toast.tsx` is deprecated out of
+the registry entirely. It genuinely targets the defect the *Motion* section above
+documents: sonner owns the toast stack's mount/unmount and animates the gap closing
+internally, which is exactly the reflow problem the abandoned View Transitions attempt
+tried and failed to solve — the app currently ships the degraded "stack jumps closed"
+behaviour as a deliberate trade-off, not a solved one. Sonner also supports
+`toast.custom()` for fully custom JSX, so the real `Button` component could render as the
+Undo action rather than sonner's own styled button, and it supports updating a toast in
+place by reusing its `id` — so the "Moved 4 items…" → "Move undone" rewrite this app needs
+is achievable on sonner, not blocked, contrary to a first pass at this audit.
+
+What it would actually cost: `state/toasts.ts` is not only a render queue —
+`App.tsx`'s global `Ctrl+Z` handler reads `toasts.toasts` directly to find the most recent
+undoable toast. Sonner's internal store is not queryable from outside its own tree, so
+adopting it would mean keeping `state/toasts.ts` as a parallel bookkeeping store anyway,
+driving `toast.custom()` calls rather than being replaced by them — two stores kept in
+sync, not one deleted. Net code change is close to a wash, weighed against a new
+non-Radix dependency and unverified restyling of sonner's stack/expand/swipe behaviour to
+the app's dense chrome. **Stays hand-rolled for now** — but this is the one surface where
+adopting is a real, defensible answer if the stack-jump-closed behaviour ever becomes a
+user-visible complaint, or if the undo accelerator's dependency on `toasts.toasts` goes
+away. Not a "no block deletes code" case like the other three.
+
+**The eleven `ui/` primitives** (button, badge, dialog, tooltip, select, checkbox, slider,
+label, separator, input, and `menu.tsx`'s shared styling for dropdown-menu/context-menu)
+were checked against current registry demo code component by component. Every divergence
+found is a deliberate, documented app rule, not decay: button's variants (`accent` /
+`danger` / `good`, no `ghost`) and sizes are decision 25 verbatim; badge's variants map to
+the app's own tokens; `select.tsx` omits `SelectGroup`/`SelectLabel` only because nothing
+in the app uses a grouped select yet; `menu.tsx` plus `components/Menu.tsx` intentionally
+fuse `dropdown-menu` and `context-menu` into one definition (decision 23 — one menu,
+complete in both places) and add `PointMenu`, which has no registry equivalent because the
+grid's tiles are a recycled DOM pool, not React components (see *Grid architecture*
+below). No `CheckboxItem`/`RadioItem` menu variants exist yet because nothing uses one.
+None of this needs revisiting until a feature actually needs the missing piece.
+
+---
+
+## Dev-only code and the release bundle
+
+**`import.meta.env.DEV` must be a literal at the call site or the code ships.** The
+kitchen-sink route was first gated behind a hook that returned the flag through `useState`.
+It typechecked, it passed every test, the page was unreachable in the built app — and the
+whole of its markup was still in the release bundle, because Rollup can only eliminate a
+branch it can constant-fold, and it cannot trace the flag through a hook's return value.
+
+Verify by grepping the built JS for text that appears only on the dev surface, not by
+checking the page is unreachable. Unreachable and absent are different things, and only one
+of them is what "dev-only" means. Removing the indirection cut 6.5KB and left zero matches.
+
+This applies to every flag of this shape, including the dev-mode grid.
+
+---
+
 ## Filesystem watching
 
 **A rename arrives as a `From`/`To` pair, and treating the halves independently destroys
