@@ -45,6 +45,7 @@ function renderNav(over: Partial<React.ComponentProps<typeof Nav>> = {}) {
       onFoldedChange={vi.fn()}
       onEditDetails={vi.fn()}
       favouriteCount={3}
+      sortingCount={7}
       {...over}
     />,
     { library: fakeLibrary({ folders }) },
@@ -53,11 +54,11 @@ function renderNav(over: Partial<React.ComponentProps<typeof Nav>> = {}) {
 }
 
 describe("navigation roots", () => {
-  it("puts Everything, Loose items and Favourites above the tree", () => {
+  it("puts Everything, the Sorting Box and Favourites above the tree", () => {
     renderNav();
     const nav = screen.getByRole("navigation");
     expect(within(nav).getByRole("button", { name: /Everything/ })).toBeInTheDocument();
-    expect(within(nav).getByRole("button", { name: /Loose items/ })).toBeInTheDocument();
+    expect(within(nav).getByRole("button", { name: /Sorting Box/ })).toBeInTheDocument();
     expect(within(nav).getByRole("button", { name: /Favourites/ })).toBeInTheDocument();
   });
 
@@ -67,12 +68,27 @@ describe("navigation roots", () => {
     expect(screen.queryByRole("button", { name: /^Library/ })).toBeNull();
   });
 
+  it("has no Sorting Box folder in the tree — the root is the Sorting Box", () => {
+    // A real directory of that name would be a second way of saying the same
+    // thing (DESIGN.md §2 and §4), so it is an ordinary folder and nothing
+    // promotes it into a queue group of its own.
+    renderNav({
+      folders: [
+        rootNode(),
+        folderNode({ id: 1, relPath: "sorting box", title: "Sorting Box" }),
+      ],
+    });
+    expect(screen.queryByText("Queues")).toBeNull();
+    // Two: the navigation root, and the ordinary folder row.
+    expect(screen.getAllByRole("button", { name: /Sorting Box/ })).toHaveLength(2);
+  });
+
   it("asks for the three roots as three different queries", async () => {
     const { onScope } = renderNav();
 
-    await userEvent.click(screen.getByRole("button", { name: /Loose items/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Sorting Box/ }));
     expect(onScope).toHaveBeenCalledWith({
-      kind: "loose",
+      kind: "sorting",
       folder: null,
       recursive: false,
     });
@@ -150,7 +166,7 @@ describe("folding", () => {
   it("keeps every root reachable from the folded strip", () => {
     renderNav({ folded: true });
     expect(screen.getByRole("button", { name: "Everything" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Loose items" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sorting Box" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Favourites" })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Show the navigation panel" }),
