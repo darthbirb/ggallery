@@ -367,6 +367,13 @@ meant closing back to Settings and the backdrop flashed between them. A section 
 the whole of Settings visible at once, which is the only way you discover the parts you
 were not already looking for. Adding a subject adds a row, never a window.
 
+*(Citation, per §Prior art: `sidebar-13` in the shadcn registry — "a sidebar in a
+dialog" — is the same shape, `Dialog > Sidebar(collapsible="none") + content pane`, and
+was checked against this section in M2.5a.3. The registry's own `Sidebar` primitive was
+not adopted for the row list itself — it would pull in `SidebarProvider` and its
+width/mobile-sheet machinery to replace a handful of plain buttons. See
+[ENGINEERING-NOTES.md](ENGINEERING-NOTES.md#shadcnui--audit-vs-adopt-m25a3).)*
+
 **Folder band** — a collapsed strip above the grid. Closed, it is one line: title, status
 chip, counts. Clicking expands it to cover, archetype fields edited in place, tags and
 notes.
