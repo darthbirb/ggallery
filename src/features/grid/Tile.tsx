@@ -7,8 +7,14 @@
  * See docs/ENGINEERING-NOTES.md §1. So: a fixed pool of nodes is created once
  * and repositioned as the visible range moves, `<img>` elements are reused by
  * setting `src`, and every piece of decoration (duration, favourite badge,
- * selection ring, scrub strip) is a permanent child toggled by class rather
+ * selection border, scrub strip) is a permanent child toggled by class rather
  * than a conditionally rendered child.
+ *
+ * **A tile has one visual state, and it is selection** — locked decision 26.
+ * The pool used to also mark the shift-click anchor, which put a second ring
+ * on a tile meaning something different from the first; inverting a selection
+ * then read as ambiguous. The anchor is invisible bookkeeping and is not
+ * drawn, so the pool no longer tracks it at all.
  *
  * The file keeps its `Tile.tsx` name from docs/STRUCTURE.md; it exports the
  * pool that owns tile DOM rather than a component.
@@ -63,9 +69,6 @@ export class TilePool {
   private thumbsDir = "";
   private spritesDir = "";
   private selected: Set<number> = new Set();
-  /** The item the pane is previewing — one, and not necessarily in the
-   *  selection. Marked differently so both can be read at once. */
-  private current: number | null = null;
   private mark = 0;
 
   constructor(options: TilePoolOptions) {
@@ -87,13 +90,6 @@ export class TilePool {
     this.selected = ids;
     for (const node of this.active.values()) {
       node.root.classList.toggle("is-selected", ids.has(node.itemId));
-    }
-  }
-
-  setCurrent(id: number | null): void {
-    this.current = id;
-    for (const node of this.active.values()) {
-      node.root.classList.toggle("is-current", node.itemId === id);
     }
   }
 
@@ -195,7 +191,6 @@ export class TilePool {
     node.root.classList.toggle("is-video", item.kind === "video");
     node.root.classList.toggle("is-favorite", item.favorite);
     node.root.classList.toggle("is-selected", this.selected.has(item.id));
-    node.root.classList.toggle("is-current", this.current === item.id);
     node.root.classList.remove("is-scrubbing");
     node.scrub.style.backgroundImage = "";
     node.duration.textContent =

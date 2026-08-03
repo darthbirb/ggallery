@@ -164,10 +164,6 @@ export function Grid({
   }, [selection.selected]);
 
   useEffect(() => {
-    poolRef.current?.setCurrent(selection.current);
-  }, [selection.current]);
-
-  useEffect(() => {
     poolRef.current?.retryMissing();
   }, [refreshToken]);
 
@@ -225,7 +221,7 @@ export function Grid({
         {menu && renderMenu(menu)}
       </PointMenu>
 
-      <Scrubber ref={scrubberRef} items={items} layout={layout} onJump={jump} />
+      <Scrubber ref={scrubberRef} onJump={jump} />
     </div>
   );
 }

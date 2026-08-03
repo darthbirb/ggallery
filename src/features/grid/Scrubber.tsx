@@ -1,15 +1,25 @@
-import {
-  forwardRef,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+/**
+ * The timeline scrubber — a thin strip down the right edge of the grid, and
+ * the grid's only scroll affordance.
+ *
+ * **No year or month column, and no date at all.** A permanent list of
+ * labels is visual noise for something you look at for one second at a time,
+ * and it forced the strip wide enough to read text down. M2.5a.1 tried a
+ * single date that followed the thumb while dragging instead; M2.5a.2 drops
+ * that too, after two passes trying to make it readable next to a thumb held
+ * for under a second landed on the same conclusion both times — the position
+ * *is* the information (docs/DESIGN.md §2).
+ *
+ * The strip is part of the grid's own width — `SCRUBBER_WIDTH` is exported so
+ * the bar beneath the grid can inset by it rather than running underneath.
+ */
 
-import { monthLabel } from "../../lib/format";
-import type { GridItem } from "../../lib/types";
-import type { LayoutResult } from "./layoutWorker";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+
+/** The same 16px a scrollbar gets — the scrubber is the grid's scroll
+ *  affordance, so it should read as one. Exported so the selection bar below
+ *  the grid reserves the same column instead of running under it. */
+export const SCRUBBER_WIDTH = 16;
 
 export interface ScrubberHandle {
   /** Called from the grid's rAF loop — never through React state. */
@@ -17,25 +27,13 @@ export interface ScrubberHandle {
 }
 
 interface ScrubberProps {
-  items: GridItem[];
-  layout: LayoutResult | null;
   onJump: (fraction: number) => void;
 }
 
-interface Tick {
-  fraction: number;
-  label: string;
-  isYear: boolean;
-}
-
-/** Minimum pixels between two labels before one is dropped. */
-const MIN_TICK_GAP = 16;
-
 export const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>(
-  function Scrubber({ items, layout, onJump }, ref) {
+  function Scrubber({ onJump }, ref) {
     const stripRef = useRef<HTMLDivElement>(null);
     const thumbRef = useRef<HTMLDivElement>(null);
-    const [height, setHeight] = useState(0);
 
     // Drag coalescing: M0 found 58% of scrubber-drag frames over 32ms, several
     // past 100ms, while the same relayout path driven by the size slider
@@ -51,27 +49,12 @@ export const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>(
         setPosition(fraction, viewportFraction) {
           const thumb = thumbRef.current;
           if (!thumb) return;
-          const size = Math.max(viewportFraction * 100, 3);
+          const size = Math.max(viewportFraction * 100, 4);
           thumb.style.height = `${size}%`;
           thumb.style.top = `${Math.min(Math.max(fraction, 0), 1) * (100 - size)}%`;
         },
       }),
       [],
-    );
-
-    useEffect(() => {
-      const strip = stripRef.current;
-      if (!strip) return;
-      const observer = new ResizeObserver(([entry]) => {
-        setHeight(entry.contentRect.height);
-      });
-      observer.observe(strip);
-      return () => observer.disconnect();
-    }, []);
-
-    const ticks = useMemo(
-      () => buildTicks(items, layout, height),
-      [items, layout, height],
     );
 
     useEffect(() => {
@@ -84,21 +67,30 @@ export const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>(
       const strip = stripRef.current;
       if (!strip) return;
       const rect = strip.getBoundingClientRect();
-      const fraction = (event.clientY - rect.top) / Math.max(rect.height, 1);
-      pending.current = Math.min(Math.max(fraction, 0), 1);
+      const raw = (event.clientY - rect.top) / Math.max(rect.height, 1);
+      const fraction = Math.min(Math.max(raw, 0), 1);
+      pending.current = fraction;
       if (frame.current) return;
       frame.current = requestAnimationFrame(() => {
         frame.current = 0;
-        if (pending.current === null) return;
-        onJump(pending.current);
+        const at = pending.current;
+        if (at === null) return;
         pending.current = null;
+        onJump(at);
       });
+    };
+
+    const endDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+      dragging.current = false;
+      event.currentTarget.releasePointerCapture(event.pointerId);
     };
 
     return (
       <div
         ref={stripRef}
-        className="relative w-[26px] shrink-0 select-none border-l border-line-soft bg-panel font-mono text-[9px] text-fg-dim"
+        aria-label="Timeline"
+        style={{ width: SCRUBBER_WIDTH }}
+        className="scrubber relative shrink-0 select-none"
         onPointerDown={(event) => {
           dragging.current = true;
           event.currentTarget.setPointerCapture(event.pointerId);
@@ -107,89 +99,11 @@ export const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>(
         onPointerMove={(event) => {
           if (dragging.current) queueJump(event);
         }}
-        onPointerUp={(event) => {
-          dragging.current = false;
-          event.currentTarget.releasePointerCapture(event.pointerId);
-        }}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
       >
-        <div
-          ref={thumbRef}
-          className="pointer-events-none absolute inset-x-[2px] top-0 h-[3%] rounded-[3px] bg-accent opacity-25"
-        />
-        {ticks.map((tick) => (
-          <div
-            key={`${tick.label}-${tick.fraction}`}
-            className={`pointer-events-none absolute w-full text-center ${
-              tick.isYear ? "text-fg-mid" : "opacity-50"
-            }`}
-            style={{ top: `${tick.fraction * 100}%` }}
-          >
-            {tick.label}
-          </div>
-        ))}
+        <div ref={thumbRef} className="scrubber-thumb top-0 h-[4%]" />
       </div>
     );
   },
 );
-
-/**
- * One tick per month boundary, positioned where that month actually starts in
- * the laid-out grid rather than by item index, then thinned until the labels
- * stop colliding.
- */
-function buildTicks(
-  items: GridItem[],
-  layout: LayoutResult | null,
-  height: number,
-): Tick[] {
-  if (!layout || layout.rows === 0 || items.length === 0 || height <= 0) {
-    return [];
-  }
-
-  const candidates: Tick[] = [];
-  let lastKey = "";
-  let lastYear = Number.NaN;
-
-  for (let index = 0; index < items.length; index += 1) {
-    const date = new Date(items[index].at * 1000);
-    const key = `${date.getFullYear()}-${date.getMonth()}`;
-    if (key === lastKey) continue;
-    lastKey = key;
-
-    const isYear = date.getFullYear() !== lastYear;
-    lastYear = date.getFullYear();
-    const row = rowForItem(layout, index);
-    candidates.push({
-      fraction: layout.rowTops[row] / Math.max(layout.totalHeight, 1),
-      label: isYear ? String(date.getFullYear()) : monthLabel(date.getMonth()),
-      isYear,
-    });
-  }
-
-  const kept: Tick[] = [];
-  let lastPixel = -Infinity;
-  for (const tick of candidates) {
-    const pixel = tick.fraction * height;
-    if (pixel - lastPixel < MIN_TICK_GAP) continue;
-    kept.push(tick);
-    lastPixel = pixel;
-  }
-  return kept;
-}
-
-/** Which row an item index landed in. */
-function rowForItem(layout: LayoutResult, index: number): number {
-  let low = 0;
-  let high = layout.rows - 1;
-  let found = 0;
-  while (low <= high) {
-    const mid = (low + high) >> 1;
-    if (layout.rowStart[mid] <= index) {
-      found = mid;
-      low = mid + 1;
-    } else {
-      high = mid - 1;
-    }
-  }
-  return found;
-}
