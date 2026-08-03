@@ -14,12 +14,15 @@ back up, integrated downloads, a compression pipeline, duplicate detection, and 
 flow quick enough that filing never becomes the reason you stop adding to it.
 
 > **Status: pre-alpha, but it runs.**
-> The core library layer is built through M1.8. The app opens a library folder, imports
-> it, indexes it, and scrolls the grid — and the library stays live: files added, changed
-> or removed on disk by any means show up without a refresh and without a re-index button.
+> Built through M2.5a. The app opens a library folder, imports it, indexes it, and scrolls
+> the grid — and the library stays live: files added, changed or removed on disk by any
+> means show up without a refresh and without a re-index button. Folders are real entities
+> with tags, labels, statuses and inheritance; they can be created, renamed, moved and
+> trashed from inside the app, and every destructive action is journalled and undoable from
+> the toast it raises.
 >
-> Nothing above the file layer exists yet. No folders-as-entities, no tags, no search, no
-> triage. That starts at M2.
+> The interface is the split layout — navigation panel, folder band, grid, and a pane in
+> Preview mode. **No search yet, no triage, no downloads.** Sorting by drag lands in M2.5b.
 >
 > **Opening a library it has never seen renames every file to a UUID first, then
 > indexes it** — a full-window Choose folder → Review → Progress flow, gated behind one
@@ -157,7 +160,7 @@ docs/
   ENGINEERING-NOTES.md     Tauri/Windows gotchas, validated grid architecture
   M0-SPIKE.md              the grid spike brief
   M0-RESULTS.md            measured results from that spike
-  mockup.html              visual reference — open it in a browser
+  mockup.html              early drawing, superseded by the built interface
 ```
 
 ---
@@ -172,14 +175,15 @@ docs/
 | M1.5 | First-import wizard — the UUID rename, with dry run and verification | Built |
 | M1.6 | Wizard placement, rename on arrival, dev-mode grid | Built |
 | M1.7 | Import as a startup flow — rename before index, two screens, no reversal tooling | Built |
-| M1.8 | The library is live — filesystem watcher, no re-index button | Next |
-| M2 | Folders as entities — archetypes, labels, tag inheritance | |
-| M2.1 | Folder and item operations — create, rename, move, delete | Next |
+| M1.8 | The library is live — filesystem watcher, no re-index button | Built |
+| M2 | Folders as entities — archetypes, labels, tag inheritance | Built |
+| M2.1 | Folder and item operations — create, rename, move, delete | Built |
+| M2.2 | One folder name — retitling renames the directory | Built |
 | M2.5a | The shell and the viewer — split layout, nav panel, pane, accent | Built |
 | M2.5a.1 | Make it look built — shadcn/ui adopted, sizing and selection decided | Built |
 | M2.5a.2 | The rest of the finish — motion, cursors, one Settings dialog | Built |
-| M2.5a.3 | Build versus adopt — audit the hand-rolled surfaces against shadcn blocks | Next |
-| M2.5b | The sorting surfaces — pane grid and folder modes, drops | |
+| M2.5a.3 | Build versus adopt — audited, nothing adopted, kitchen-sink route added | Built |
+| M2.5b | The sorting surfaces — pane grid and folder modes, drops | Next |
 | M3 | Search — query parser, sectioned results | |
 | M4 | Sorting Box and triage — hotkey culling, undo, trash | |
 | M5 | Downloads — yt-dlp and gallery-dl integration | |
@@ -225,7 +229,8 @@ still apply. It is a second net, not the only one.
 
 ## Status
 
-Pre-alpha and moving. M0 and M1 are done, the app indexes and browses a real library, and
-nothing renames or deletes anything yet. See the roadmap above for where it goes next.
+Pre-alpha and moving. The app indexes and browses a real library, organises it into
+folders with inherited tags, and looks the way it is meant to. Next is sorting by drag —
+see the roadmap above.
 
 Not accepting contributions — this is a personal tool built in the open.

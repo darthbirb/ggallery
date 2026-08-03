@@ -74,8 +74,8 @@ folder holds everything, so backup is "copy the folder".
     reviewed like any other. Import never rewrites an original.
 18. **There is no polish phase.** M2.5 designs the interface from scratch and sets the
     standard; every milestone after it ships at that standard. Deferred polish is
-    abandoned polish. [docs/mockup.html](docs/mockup.html) is an early reference drawn
-    before much of the scope existed — input to M2.5, not a specification it must follow.
+    abandoned polish. *(`docs/mockup.html` was an early drawing used as input to M2.5 and
+    is now superseded by the built interface. Do not treat it as a reference.)*
 
     **`shadcn/ui` is the component source.** Not Radix alone — Radix is headless and ships
     no visual design at all, which is how M2.5a ended up with correct behaviour and
@@ -527,163 +527,46 @@ that immediately collapse into one.
 
 ### M2.5 — The interface, designed from scratch
 
-**This is a design milestone, not a restyling job.** It does not improve the existing
-interface, extend it, or bring it up to a standard. It asks what the best end-user
-interface for an application of this scope would be, and builds that.
+**This was a design milestone, not a restyling job** — it asked what the best interface for
+an application of this scope would be and built that, rather than improving what existed.
+The grid, the preview and how you move between them are the product, not chrome around an
+organiser, so they were designed first and the organisational surfaces arranged around them.
 
-The current UI and [docs/mockup.html](docs/mockup.html) are **inputs, not constraints**.
-The mockup was drawn early, before much of the scope existed; it is one proposal among
-several and may be rejected in whole or in part. Concluding that the sidebar belongs
-elsewhere, that the query bar should work differently, or that the whole layout model is
-wrong are all legitimate outcomes.
-
-**This is the milestone that decides whether GGallery is a good viewer.** The grid, the
-preview, theatre view and how you move between them are the product — not chrome around an
-organiser. Design them first and let the organisational surfaces arrange themselves around
-that, rather than the reverse.
-
-#### Requirements the design must satisfy
-
-Almost everything is open. These are not:
-
-- **The library root is not a folder.** *Everything*, the *Sorting Box* (loose items at
-  the top level), and *the folder tree* are three distinct things, and an empty tree
-  renders as empty rather than as a lone root node.
-  [docs/DESIGN.md](docs/DESIGN.md) §2 *Navigation roots*.
-- **Moving items and folders must work by direct manipulation.** The workflow being
-  replaced is dragging between two Explorer windows; requiring a context menu for every
-  move is a regression. The gesture is open, its existence is not. §2 *Direct
-  manipulation*.
-
-#### Settled in phase 1
-
-The four forks the design hung from, answered. These are decisions, not suggestions.
-
-**The window is one split, and the second pane is polymorphic.** Direction A's continuous
-viewer/browser split, extended: the pane can hold an **item preview**, **another grid** (a
-different folder or query, side by side), or a **folder grid** — destination tiles with a
-filter box that narrows as you type. That last mode is the sort workflow, and it is how the
-two-Explorer-window habit gets beaten rather than tied.
-
-**Mouse-first.** The pane is drag-resizable and fully closable, and its size is remembered.
-Ratio shortcuts may exist as a convenience layer, but the app must not assume anyone uses
-them — no capability may be keyboard-only. *(M2.5a.1: "adjustable in settings" is dropped —
-the drag handle is the visible control, and a slider duplicating it earned nothing.)*
-
-**The folder tree is resident by default and collapsible by click.** Around 200px,
-drag-resizable, foldable away with a visible control; width and collapsed state remembered.
-Never summoned by a keypress.
-
-**Drop targets are folder-grid tiles and tree rows.** Nothing appears or rearranges
-mid-drag. Tree rows spring open on hover while dragging, so a nested folder can be reached
-without setting it up first.
-
-**Folder identity is a collapsed band above the grid** — one title line, expanding on click
-to cover, archetype fields, tags, status and counts, remembered per folder.
-
-Two consequences to carry through: Direction A's permanent destination bar along the bottom
-**is not built** — the folder-grid pane replaces it with better ergonomics and no standing
-chrome. And the split pane does not show folder information when nothing is selected; the
-band owns that.
-
-#### Phase 1 — Design. Nothing is built.
-
-1. Read the full scope in [docs/DESIGN.md](docs/DESIGN.md): what this app is for, the
-   workflows it exists to replace, everything from folders and tags through triage,
-   downloads, compression review and multi-view.
-2. Look at how comparable applications solve these problems — media libraries, DAM tools,
-   photo managers, file browsers — and what they get right and wrong.
-3. Produce **two or three genuinely different directions**, not variations on one. Show
-   them concretely enough to react to.
-4. Present, then converse.
-
-#### Interaction rules for phase 1
-
-This phase is deliberately conversational, and how much is asked matters:
-
-- **Where two options are genuinely comparable** and the choice is taste, ask. Present the
-  tradeoff honestly rather than steering.
-- **Where one option is clearly better**, say so, explain why, and confirm before adopting
-  it. Recommend — do not silently decide.
-- **Where a convention obviously applies**, decide quietly. Do not ask which side the
-  close button goes on.
-- **Never assume.** No blind choices on anything that shapes how the app is used.
+**Phase 1 is finished.** It produced three directions, four settled forks, and the layout
+now specified in [docs/DESIGN.md](docs/DESIGN.md) §2 — one split with a polymorphic pane, a
+resident navigation panel, a collapsed folder band, and drops onto tree rows and folder
+tiles. DESIGN §2 is the specification; this section is only the build order. Two outcomes
+worth keeping because their absence is deliberate: **there is no permanent destination bar**
+along the bottom, the folder pane replaced it, and **the pane never shows folder
+information** — the band owns that.
 
 #### Phase 2 — Build, in two passes
 
 Too much for one milestone, and split along the line the product cares about: **2a is "can I
 look at my library properly", 2b is "can I sort it fast".**
 
-**M2.5a — the shell and the viewer.** The split layout, the navigation panel, the folder
-band, the accent system, toast-and-undo, complete right-click menus, and the pane in
+**M2.5a — the shell and the viewer. Built.** The split layout, the navigation panel, the
+folder band, the accent system, toast-and-undo, complete right-click menus, and the pane in
 **Preview mode only** — built so splitting into N panes is an extension, not a rewrite.
-Removes the disposable scaffolding from M2, M2.1 and M2.2 rather than layering over it.
+Removed the disposable scaffolding from M2, M2.1 and M2.2 rather than layering over it.
 
-**M2.5a.1 — make it look built.** M2.5a shipped correct structure with hand-rolled
-appearance, because the brief said to take Radix and avoid a visual component kit. That was
-wrong; see decision 18. This pass corrects it:
+Three corrective passes followed, each one a class of mistake rather than a list of bugs.
+The outcomes are all in decisions 18 and 24–27 and in DESIGN §2; kept here only as history:
 
-- **Adopt `shadcn/ui`** and move every control onto it — buttons, tabs, dialogs, menus,
-  tooltips, sliders, inputs. Restyle to the dark, dense aesthetic; do not accept its light
-  defaults wholesale.
-- **Apply decisions 25 and 26** throughout: sizing scale, visible button surfaces, a step up
-  in text size, one selection state and no anchor outline.
-- **Navigation roots become Everything / Sorting Box / Favourites**, with the library root
-  itself as the Sorting Box — there is no `Sorting Box/` directory.
-- **Scrubber**: drop the year column, date follows the thumb while dragging, and the bar
-  below accounts for the scrubber's width instead of running under it. *(M2.5a.2 dropped
-  the date too — see below.)*
-- **Selection bar**: drop *revert*, rebuild on the primitives.
-- **Remove the zoom toolbar** in the pane — no fit, no 1:1.
-- **Details move into the pane header** — chevron, filename, dimensions · size — and open
-  downwards from it. *(Revised during the pass: they were first put above the filmstrip
-  expanding upward, which gave the pane two headers. The "Preview" tab went with the
-  change; M2.5b's mode switcher takes that slot.)*
-- **The filmstrip's height is dragged and remembered**, and its scrollbar runs the full
-  width of the pane along the bottom edge.
-- **Remove the disabled Grid and Folders tabs.** They arrive in M2.5b; two dead controls
-  read as unfinished, which is the whole complaint.
-
-**M2.5a.2 — the rest of the finish.** Smaller than 2a.1 and entirely about how it reads:
-
-- **Navigation selection becomes a filled rounded surface**, per the revision to decision
-  26 — accent tint for selected, neutral for hover, visibly different from each other. The
-  pane header's details control is the reference shape; it is not the reference colour.
-- **`cursor: pointer` on everything clickable**, per the addition to decision 25.
-- **Scrollbars a step thicker**, and the **scrubber's date is deleted** — not "on drag
-  only", gone. Two passes tried to make a date readable next to a thumb you hold for under
-  a second; the honest conclusion is that the position *is* the information.
-- **The filmstrip's position counter is deleted.** The strip shows where you are.
-- **Motion**, per decision 27 — the panel fold and the band and details expansions slide.
-- **More separation between the filmstrip and the scrollbar beneath it.** M2.5a.1 made
-  that scrollbar full-width and bottom-flush, which put it hard against the thumbnails.
-
-Three things arrived during the pass that were not in the brief, all of them the same
-mistake — a conventional surface left unspecified and therefore invented:
-
-- **Settings became one dialog with a section list**, replacing four dialogs that each
-  replaced the last. See [docs/DESIGN.md](docs/DESIGN.md) §2.
-- **Pane maximise animates rather than unmounting**, which also means the collapsing side
-  must go `inert` while it is still on screen.
-- **The navigation tree was rebuilt as recursive nesting.** A flat array of visible rows
-  cannot animate an expansion, and that is a rendering decision no brief mentioned.
-
-**M2.5a.3 — build versus adopt.** Everything above was hand-built against `shadcn/ui`
-primitives. Some of it should not have been: shadcn publishes composed *blocks* — sidebar
-layouts with collapse-to-icon-rail, settings shells, dialog compositions — that cover
-surfaces this app wrote by hand, and the registry MCP server in `.mcp.json` lets a session
-read them rather than recall them.
-
-This milestone is an **audit first, replacement second**. For the navigation panel, the
-settings dialog, the resizable split and the toaster, compare what exists against what the
-registry ships, and report before rewriting: what is genuinely bespoke, what duplicates a
-block badly, and what duplicates a block well enough to leave alone. Working, reviewed code
-is not replaced for tidiness — only where the block is better or removes a class of bug the
-hand-rolled version keeps hitting.
-
-The standing rule this settles is in [docs/DESIGN.md](docs/DESIGN.md) §*Prior art*:
-**anything that is not the viewer gets a citation, not a description**, and the citation has
-to be something a session can look at rather than remember.
+- **M2.5a.1 — make it look built.** M2.5a shipped correct structure with hand-rolled
+  appearance because the brief told it to take Radix and avoid a component kit. Radix is
+  headless and ships no design at all. `shadcn/ui` adopted properly, decisions 25 and 26
+  applied throughout.
+- **M2.5a.2 — the rest of the finish.** Motion, cursors, thicker scrollbars, the scrubber's
+  date and the filmstrip's counter deleted. Three things arrived that were not in the brief
+  — Settings collapsing to one dialog, maximise animating instead of unmounting, the tree
+  rebuilt as recursive nesting — all the same mistake: a conventional surface left
+  unspecified and therefore invented. That is what DESIGN §*Prior art* now prevents.
+- **M2.5a.3 — build versus adopt.** Audited the navigation panel, Settings, the resizable
+  split and the toaster against shadcn's registry. **Nothing was adopted**, and the reasons
+  are recorded in [docs/ENGINEERING-NOTES.md](docs/ENGINEERING-NOTES.md) so the question is
+  not re-asked. Also added the dev-only kitchen-sink route, which is how every later
+  milestone reviews its own appearance in one screenshot.
 
 **M2.5b — the sorting surfaces.** The pane's **Grid** and **Folders** modes, all three drop
 targets, spring-loading, and inline folder creation in the folder pane.
@@ -705,53 +588,16 @@ buttons. *(This note originally said the opposite — "do not adopt a visual com
 wholesale" — which is the brief that produced M2.5a's hand-rolled appearance and that
 M2.5a.1 reversed.)*
 
-**Set up frontend testing here**, not earlier. `vitest` plus `@testing-library/react` with
-the IPC layer mocked, covering interaction rather than appearance: does picking an
-archetype call the right command, does editing a label persist, does adding a flag update
-the tag set. That is exactly the class of bug M2 hit — an archetype dropdown that focused
-the notes field instead of registering the selection — and it is invisible to Rust tests
-and to `tsc`.
+**The frontend test harness landed here** — `vitest` plus `@testing-library/react` with the
+IPC layer mocked, covering interaction rather than appearance. It waited for M2.5 because
+this milestone replaced the interface wholesale; every later milestone inherits it.
 
-It waits for M2.5 because this milestone replaces the interface wholesale; tests written
-against M2's throwaway UI would be thrown away with it. From M2.5 onward the UI is stable
-enough to be worth testing, and every later milestone inherits the harness.
-
-Then implement the agreed design:
-
-- **The split.** Grid always on the left; a second pane on the right, drag-resizable, fully
-  closable, one remembered width across every mode. **There is no theatre view** —
-  full-window is the pane maximised.
-- **The pane is polymorphic**, switched by a labelled three-way control in its own header:
-  *Preview* (the selected item; splits into N panes, which is what M6, M7 and M10 consume),
-  *Grid* (a second grid scoped anywhere, with its own sort and tile size, accepting drops),
-  and *Folders* (the destination tiles). Preview details are small and collapsible.
-- **The navigation panel** — resident, ~200px, drag-resizable, folded by a visible control,
-  width and state remembered, folding to a 44px icon strip that keeps queue badges visible
-  and every root a drop target. Groups: Library (Everything / Sorting Box / Favourites, above
-  the tree and never nodes in it), Pinned, Folders, Saved searches, Queues.
-- **The folder pane** — one flat field per level, no sections and no reordering, so a folder
-  stays where it was and the drag becomes muscle memory. Tiles show cover, title and count,
-  the count reading `610 → 616` mid-drag. Single click drills in without moving the main
-  grid; double click navigates the main grid. Breadcrumb and Up button at the top, both drop
-  targets. Filter box pinned to the bottom searching title and path across the whole library
-  flat, with parent paths shown under titles whenever the list is flat, and clearing restores
-  position. A *＋ New folder in ‹parent›* tile always present, plus a *Create "roo" in Trips*
-  row when nothing matches — this is the inline folder creation §4 needs, as a visible
-  control. Dragging a folder onto a tile nests it; a tile that would become its own
-  descendant refuses visibly.
-- **Folder identity** — a collapsed band above the grid: one title line with status chip and
-  counts, expanding on click to cover, fields, tags and notes. Expanded state is **global and
-  remembered**, alongside panel widths — not per folder, which would reflow the grid on every
-  navigation. Must look right with no archetype, which is the default and commonest state.
-- **Right-click menus** for folder, item, selection and empty space — complete, not a subset.
-
-**Subfolders are not shown in the grid.** The grid is media; structure lives in the tree and
-the folder pane.
-
-**Drop targets** are folder tiles, tree rows, and the pane in Grid mode. Nothing appears or
-rearranges mid-drag — no dock, no mode switch. Spring-loading on hover is the single
-exception, on tree rows and folder tiles. Every drop ends in a toast naming the destination
-with an Undo button.
+**The surfaces themselves are specified in [docs/DESIGN.md](docs/DESIGN.md) §2**, not here —
+the split, the pane and its three modes, the navigation panel, the folder band, the four
+right-click menus, and §*Drops* for the three targets and spring-loading. This section is
+build order only. Two things that section states and that get lost otherwise: **subfolders
+never appear in the grid**, and **every drop ends in a toast naming the destination with an
+Undo button**.
 
 Separated from M2 deliberately. Folded together, the data work eats the schedule and the
 interface arrives as an afterthought. Given its own milestone, it also establishes the

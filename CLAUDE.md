@@ -23,7 +23,8 @@ root from config, and never commit anything that references a specific machine's
   boundaries that are not negotiable
 - [docs/ENGINEERING-NOTES.md](docs/ENGINEERING-NOTES.md) — Tauri/Windows gotchas that
   already cost time once, and the validated grid architecture
-- [docs/mockup.html](docs/mockup.html) — visual reference for layout and density
+
+`docs/mockup.html` is an early drawing, superseded by the built interface. Ignore it.
 
 **PLAN.md has a Non-goals section.** Those features are excluded deliberately, not
 overlooked. Do not build them.
@@ -111,3 +112,23 @@ against a real library.
 Build one milestone at a time, in order. Do not start the next one or add features from
 it because they seem convenient. If something in the specs looks wrong, say so before
 building around it.
+
+**How much to ask.** Where two options are genuinely comparable and the choice is taste,
+ask, and present the tradeoff rather than steering. Where one is clearly better, say so and
+confirm before adopting it — recommend, do not silently decide. Where a convention obviously
+applies, decide quietly; nobody needs to be asked which side the close button goes on. Never
+make a blind choice on anything that shapes how the app is used.
+
+**Do not invent a layout for an ordinary surface.** The viewer is designed here; everything
+else is copied from something that already works, and the citation has to be something you
+can look at rather than remember. See [docs/DESIGN.md](docs/DESIGN.md) §*Prior art*. The
+shadcn registry MCP server in `.mcp.json` is how you read a block instead of recalling one.
+
+**Commit messages are a single lowercase subject line.** No body, no trailers.
+
+## Seeing what you built
+
+`npm run dev` then `http://localhost:1420/#kitchen-sink` renders every primitive in every
+state on one page — dev-only, no library or config needed. It is the cheapest way to check
+appearance, and cheaper than launching the binary. Anything that changes a control's look
+should be checked there before it is reported done.
