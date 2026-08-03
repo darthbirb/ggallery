@@ -4,12 +4,18 @@
  * A toast names what happened and offers Undo. Pressing it rewrites the same
  * toast in place — "Moved 4 items to Trips" becomes "Move undone" — rather
  * than stacking a second message about the first.
+ *
+ * Undo is a real button on the primitives, not a link: this is the visible
+ * path to the journal that locked decision 23 requires, so it has to look
+ * like something you can press.
  */
 
 import * as RadixToast from "@radix-ui/react-toast";
+import { X } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { useToasts } from "../state/toasts";
+import { Button, IconButton } from "./ui/button";
 
 /** Long enough to read a sentence and reach the button without hurrying;
  *  toasts with nothing to undo go sooner. */
@@ -20,7 +26,7 @@ export function ToastProviderRoot({ children }: { children: ReactNode }) {
   return (
     <RadixToast.Provider swipeDirection="right">
       {children}
-      <RadixToast.Viewport className="fixed bottom-3 right-3 z-[60] flex w-[380px] max-w-[calc(100vw-24px)] flex-col gap-2 outline-none" />
+      <RadixToast.Viewport className="fixed bottom-3 right-3 z-[60] flex w-[400px] max-w-[calc(100vw-24px)] flex-col gap-2 outline-none" />
     </RadixToast.Provider>
   );
 }
@@ -37,10 +43,10 @@ export function Toaster() {
           onOpenChange={(open) => {
             if (!open) dismiss(toast.id);
           }}
-          className="surface-in flex items-center gap-3 rounded-[5px] border border-line bg-panel px-3 py-2 shadow-[0_12px_32px_rgba(0,0,0,0.5)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)]"
+          className="surface-in flex items-center gap-2.5 rounded-[6px] border border-line bg-panel px-3 py-2 shadow-[0_16px_40px_rgba(0,0,0,0.55)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)]"
         >
           <RadixToast.Title
-            className={`min-w-0 flex-1 truncate text-[13px] ${
+            className={`min-w-0 flex-1 truncate text-[14px] ${
               toast.tone === "danger" && !toast.undone ? "text-danger" : "text-fg"
             }`}
           >
@@ -53,6 +59,7 @@ export function Toaster() {
 
           {toast.undo && (
             <RadixToast.Action
+              asChild
               altText="Undo"
               onClick={(event) => {
                 // The toast stays up while the undo runs, and reports what
@@ -60,17 +67,17 @@ export function Toaster() {
                 event.preventDefault();
                 void runUndo(toast.id);
               }}
-              className="shrink-0 rounded-[4px] border border-accent-d bg-accent/15 px-2 py-0.5 text-[12px] text-accent hover:bg-accent/25"
             >
-              Undo
+              <Button variant="accent" size="sm">
+                Undo
+              </Button>
             </RadixToast.Action>
           )}
 
-          <RadixToast.Close
-            aria-label="Dismiss"
-            className="shrink-0 rounded-[3px] px-1 text-fg-dim hover:bg-hover hover:text-fg"
-          >
-            ✕
+          <RadixToast.Close asChild>
+            <IconButton aria-label="Dismiss">
+              <X />
+            </IconButton>
           </RadixToast.Close>
         </RadixToast.Root>
       ))}

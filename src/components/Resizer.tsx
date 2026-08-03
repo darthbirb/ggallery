@@ -1,23 +1,27 @@
 /**
- * A vertical drag handle between two panels.
+ * A drag handle between two panels.
  *
- * Mouse-first (PLAN.md §M2.5, "Settled in phase 1"): the panels are resized by
- * dragging their edge, double-clicking resets to the default, and the same
- * widths are editable in Settings for anyone who would rather type a number.
- * Arrow keys move it too, because a control you can focus should do something.
+ * Mouse-first (PLAN.md §M2.5, "Settled in phase 1"): panels are resized by
+ * dragging their edge and double-clicking resets to the default. Arrow keys
+ * move it too, because a control you can focus should do something.
+ *
+ * Works on either axis. `side` names where the panel being sized sits
+ * relative to the handle, which is all the caller has to think about:
+ * dragging right grows a `left` panel and shrinks a `right` one, dragging
+ * down grows a `top` panel and shrinks a `bottom` one.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface ResizerProps {
-  /** Width the drag started from, in pixels. */
+  /** Size the drag starts from, in pixels — width on the x axis, height on
+   *  the y axis. */
   value: number;
-  onChange: (width: number) => void;
+  onChange: (size: number) => void;
   min: number;
   max?: number;
-  /** Which side of the handle the panel being sized is on. Dragging right
-   *  grows a left-hand panel and shrinks a right-hand one. */
-  side: "left" | "right";
+  /** Which side of the handle the panel being sized is on. */
+  side: "left" | "right" | "top" | "bottom";
   onReset?: () => void;
   label: string;
 }
@@ -34,10 +38,14 @@ export function Resizer({
   label,
 }: ResizerProps) {
   const [dragging, setDragging] = useState(false);
-  const origin = useRef({ x: 0, width: 0 });
+  const origin = useRef({ at: 0, size: 0 });
+
+  const vertical = side === "left" || side === "right";
+  /** +1 when dragging away from the origin grows the panel. */
+  const towards = side === "left" || side === "top" ? 1 : -1;
 
   const clamp = useCallback(
-    (width: number) => Math.min(Math.max(width, min), max),
+    (size: number) => Math.min(Math.max(size, min), max),
     [min, max],
   );
 
@@ -45,9 +53,9 @@ export function Resizer({
     if (!dragging) return;
 
     const onMove = (event: MouseEvent) => {
-      const delta = event.clientX - origin.current.x;
-      const width = side === "left" ? origin.current.width + delta : origin.current.width - delta;
-      onChange(clamp(width));
+      const at = vertical ? event.clientX : event.clientY;
+      const delta = (at - origin.current.at) * towards;
+      onChange(clamp(origin.current.size + delta));
     };
     const onUp = () => setDragging(false);
 
@@ -56,37 +64,41 @@ export function Resizer({
     // A drag that wanders over the grid must not select tiles or show an
     // I-beam on the way past.
     const previousCursor = document.body.style.cursor;
-    document.body.style.cursor = "col-resize";
+    document.body.style.cursor = vertical ? "col-resize" : "row-resize";
     return () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
       document.body.style.cursor = previousCursor;
     };
-  }, [dragging, side, onChange, clamp]);
+  }, [dragging, vertical, towards, onChange, clamp]);
 
   return (
     <div
       role="separator"
       aria-label={label}
-      aria-orientation="vertical"
+      aria-orientation={vertical ? "vertical" : "horizontal"}
       aria-valuenow={Math.round(value)}
       aria-valuemin={min}
       aria-valuemax={max}
       tabIndex={0}
-      className={`resizer ${dragging ? "is-dragging" : ""}`}
+      className={`resizer ${vertical ? "is-x" : "is-y"} ${dragging ? "is-dragging" : ""}`}
       onMouseDown={(event) => {
         if (event.button !== 0) return;
         event.preventDefault();
-        origin.current = { x: event.clientX, width: value };
+        origin.current = {
+          at: vertical ? event.clientX : event.clientY,
+          size: value,
+        };
         setDragging(true);
       }}
       onDoubleClick={() => onReset?.()}
       onKeyDown={(event) => {
-        const towards = side === "left" ? 1 : -1;
-        if (event.key === "ArrowLeft") {
+        const less = vertical ? "ArrowLeft" : "ArrowUp";
+        const more = vertical ? "ArrowRight" : "ArrowDown";
+        if (event.key === less) {
           event.preventDefault();
           onChange(clamp(value - KEY_STEP * towards));
-        } else if (event.key === "ArrowRight") {
+        } else if (event.key === more) {
           event.preventDefault();
           onChange(clamp(value + KEY_STEP * towards));
         } else if (event.key === "Home" && onReset) {

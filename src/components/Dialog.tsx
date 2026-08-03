@@ -1,8 +1,26 @@
-/** Modal dialogs over Radix, styled to the app. Focus trapping, Escape and
- *  the scroll lock come from the primitive; the surface is ours. */
+/**
+ * The one dialog shape the app uses, composed from shadcn/ui's dialog parts.
+ *
+ * Title, optional description, body, footer — every modal in the app is this,
+ * so the header sits at the same height and the buttons in the same corner
+ * whatever is being asked. Focus trapping, Escape and the scroll lock come
+ * from Radix underneath.
+ */
 
-import * as RadixDialog from "@radix-ui/react-dialog";
 import type { ReactNode } from "react";
+
+import {
+  Dialog as DialogRoot,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogOverlay,
+  DialogPortal,
+  DialogTitle,
+} from "./ui/dialog";
+import { Button } from "./ui/button";
 
 export function Dialog({
   open,
@@ -11,7 +29,8 @@ export function Dialog({
   description,
   children,
   footer,
-  width = 460,
+  width = 480,
+  closable = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -20,41 +39,47 @@ export function Dialog({
   children?: ReactNode;
   footer?: ReactNode;
   width?: number;
+  /** False while an operation is mid-flight and abandoning it would leave
+   *  the library half-changed. Escape, the overlay and the close button all
+   *  stop working together, rather than two of the three. */
+  closable?: boolean;
 }) {
   return (
-    <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
-      <RadixDialog.Portal>
-        <RadixDialog.Overlay className="overlay-in fixed inset-0 z-40 bg-black/55" />
-        <RadixDialog.Content
+    <DialogRoot
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && !closable) return;
+        onOpenChange(next);
+      }}
+    >
+      <DialogPortal>
+        <DialogOverlay />
+        <DialogContent
           style={{ width }}
-          className="surface-in fixed left-1/2 top-1/2 z-50 max-h-[86vh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[6px] border border-line bg-panel shadow-[0_24px_60px_rgba(0,0,0,0.55)]"
+          onEscapeKeyDown={(event) => !closable && event.preventDefault()}
+          onPointerDownOutside={(event) => !closable && event.preventDefault()}
+          onInteractOutside={(event) => !closable && event.preventDefault()}
         >
-          <header className="flex items-start gap-3 border-b border-line px-4 py-3">
+          <DialogHeader>
             <div className="min-w-0 flex-1">
-              <RadixDialog.Title className="text-[14px] font-semibold text-fg">
+              <DialogTitle className="text-[16px] font-semibold text-fg">
                 {title}
-              </RadixDialog.Title>
+              </DialogTitle>
               {description && (
-                <RadixDialog.Description className="mt-0.5 text-[12px] text-fg-mid">
+                <DialogDescription className="mt-0.5 text-[13px] text-fg-mid">
                   {description}
-                </RadixDialog.Description>
+                </DialogDescription>
               )}
             </div>
-            <RadixDialog.Close className="rounded-[3px] px-1.5 text-fg-dim hover:bg-hover hover:text-fg">
-              ✕
-            </RadixDialog.Close>
-          </header>
+            {closable && <DialogClose />}
+          </DialogHeader>
 
-          {children && <div className="px-4 py-3">{children}</div>}
+          {children && <div className="min-h-0 overflow-y-auto px-4 py-3">{children}</div>}
 
-          {footer && (
-            <footer className="flex items-center justify-end gap-2 border-t border-line px-4 py-3">
-              {footer}
-            </footer>
-          )}
-        </RadixDialog.Content>
-      </RadixDialog.Portal>
-    </RadixDialog.Root>
+          {footer && <DialogFooter>{footer}</DialogFooter>}
+        </DialogContent>
+      </DialogPortal>
+    </DialogRoot>
   );
 }
 
@@ -84,35 +109,24 @@ export function ConfirmDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={title}
-      width={420}
+      width={440}
       footer={
         <>
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="rounded-[4px] border border-line px-3 py-1 text-fg-mid hover:bg-hover hover:text-fg"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
+          <Button onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button
             autoFocus
+            variant={danger ? "danger" : "accent"}
             onClick={() => {
               onOpenChange(false);
               onConfirm();
             }}
-            className={
-              danger
-                ? "rounded-[4px] border border-danger/60 bg-danger/15 px-3 py-1 text-danger hover:bg-danger/25"
-                : "rounded-[4px] border border-accent-d bg-accent/15 px-3 py-1 text-accent hover:bg-accent/25"
-            }
           >
             {confirmLabel}
-          </button>
+          </Button>
         </>
       }
     >
-      <p className="text-[13px] text-fg-mid">{body}</p>
+      <p className="text-[14px] leading-relaxed text-fg-mid">{body}</p>
     </Dialog>
   );
 }

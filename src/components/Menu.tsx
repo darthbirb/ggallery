@@ -1,31 +1,25 @@
 /**
- * Right-click menus and the header's dropdowns, over Radix.
+ * Right-click menus and the header's dropdowns.
  *
- * The primitives are taken for keyboard behaviour, focus trapping and
- * dismissal — tedious to get right by hand and invisible when wrong. Every
- * pixel of the look is ours; no visual component kit is adopted (PLAN.md
- * §M2.5 "Build notes").
- *
- * Radix ContextMenu and DropdownMenu have the same item API, so the item,
- * separator and label components below are shared and take which family to
- * render from context. That is what lets a menu definition be written once and
- * opened either way.
+ * shadcn/ui ships `dropdown-menu` and `context-menu` as two near-identical
+ * files over two Radix families with the same item API. GGallery opens the
+ * *same* menu definition either way — right-click a folder row, or click the
+ * header's button — so the look lives once in `ui/menu.tsx` and this file
+ * picks the family from context. That is what lets a menu be written once and
+ * still be complete in both places (locked decision 23).
  */
 
 import * as RadixContextMenu from "@radix-ui/react-context-menu";
 import * as RadixDropdownMenu from "@radix-ui/react-dropdown-menu";
+import { ChevronRight } from "lucide-react";
 import { createContext, useContext, type ReactNode } from "react";
+
+import { cn } from "../lib/utils";
+import { menuItem, menuLabel, menuSeparator, menuShortcut, menuSurface } from "./ui/menu";
 
 type Family = "context" | "dropdown";
 
 const FamilyContext = createContext<Family>("context");
-
-const SURFACE =
-  "surface-in z-50 min-w-[196px] rounded-[5px] border border-line bg-panel p-1 shadow-[0_10px_30px_rgba(0,0,0,0.45)]";
-
-const ITEM =
-  "flex cursor-default select-none items-center gap-2 rounded-[3px] px-2 py-[5px] text-[13px] outline-none " +
-  "data-[highlighted]:bg-hover data-[disabled]:pointer-events-none data-[disabled]:opacity-35";
 
 export interface MenuItemProps {
   children: ReactNode;
@@ -51,12 +45,10 @@ export function MenuItem({
     <Item
       disabled={disabled}
       onSelect={() => onSelect?.()}
-      className={`${ITEM} ${danger ? "text-danger" : "text-fg"}`}
+      className={cn(menuItem, danger ? "text-danger data-[highlighted]:text-danger" : "text-fg")}
     >
-      <span className="flex-1 truncate">{children}</span>
-      {shortcut && (
-        <span className="font-mono text-[11px] text-fg-dim">{shortcut}</span>
-      )}
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {shortcut && <span className={menuShortcut}>{shortcut}</span>}
     </Item>
   );
 }
@@ -65,17 +57,13 @@ export function MenuSeparator() {
   const family = useContext(FamilyContext);
   const Separator =
     family === "context" ? RadixContextMenu.Separator : RadixDropdownMenu.Separator;
-  return <Separator className="my-1 h-px bg-line-soft" />;
+  return <Separator className={menuSeparator} />;
 }
 
 export function MenuLabel({ children }: { children: ReactNode }) {
   const family = useContext(FamilyContext);
   const Label = family === "context" ? RadixContextMenu.Label : RadixDropdownMenu.Label;
-  return (
-    <Label className="px-2 pb-1 pt-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-fg-dim">
-      {children}
-    </Label>
-  );
+  return <Label className={menuLabel}>{children}</Label>;
 }
 
 /** A nested menu — "Move to…" opening the folder list, and so on. */
@@ -105,15 +93,18 @@ export function MenuSub({
         };
   return (
     <parts.Sub>
-      <parts.Trigger disabled={disabled} className={`${ITEM} text-fg`}>
-        <span className="flex-1 truncate">{label}</span>
-        <span className="text-[10px] text-fg-dim">▸</span>
+      <parts.Trigger
+        disabled={disabled}
+        className={cn(menuItem, "text-fg data-[state=open]:bg-hover")}
+      >
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <ChevronRight className="ml-auto size-4 shrink-0 text-fg-dim" />
       </parts.Trigger>
       <parts.Portal>
         <parts.Content
           sideOffset={2}
           alignOffset={-4}
-          className={`${SURFACE} max-h-[60vh] overflow-y-auto`}
+          className={cn(menuSurface, "max-h-[60vh] overflow-y-auto")}
         >
           {children}
         </parts.Content>
@@ -124,7 +115,7 @@ export function MenuSub({
 
 /**
  * Right-click anywhere inside `trigger` opens `menu`. The WebView's own menu
- * is suppressed globally in `App.tsx`; this is what replaces it.
+ * is suppressed globally; this is what replaces it.
  */
 export function ContextMenu({
   menu,
@@ -143,7 +134,7 @@ export function ContextMenu({
           inline and quietly wreck the layout of anything wrapped in it. */}
       <RadixContextMenu.Trigger
         disabled={disabled}
-        className={`block ${className ?? ""}`}
+        className={cn("block", className)}
         // Menus nest — a folder row sits inside the tree's background menu.
         // Without this both would open, and the outer one would win. Only
         // propagation is stopped, never the default, so Radix's own handler
@@ -153,7 +144,7 @@ export function ContextMenu({
         {children}
       </RadixContextMenu.Trigger>
       <RadixContextMenu.Portal>
-        <RadixContextMenu.Content className={SURFACE} collisionPadding={8}>
+        <RadixContextMenu.Content className={menuSurface} collisionPadding={8}>
           <FamilyContext.Provider value="context">{menu}</FamilyContext.Provider>
         </RadixContextMenu.Content>
       </RadixContextMenu.Portal>
@@ -205,7 +196,7 @@ export function PointMenu({
           side="bottom"
           sideOffset={0}
           collisionPadding={8}
-          className={`${SURFACE} max-h-[70vh] overflow-y-auto`}
+          className={cn(menuSurface, "max-h-[70vh] overflow-y-auto")}
         >
           <FamilyContext.Provider value="dropdown">{children}</FamilyContext.Provider>
         </RadixDropdownMenu.Content>
@@ -232,7 +223,7 @@ export function DropdownMenu({
           align={align}
           sideOffset={4}
           collisionPadding={8}
-          className={`${SURFACE} max-h-[70vh] overflow-y-auto`}
+          className={cn(menuSurface, "max-h-[70vh] overflow-y-auto")}
         >
           <FamilyContext.Provider value="dropdown">{children}</FamilyContext.Provider>
         </RadixDropdownMenu.Content>
