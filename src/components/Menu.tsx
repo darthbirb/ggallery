@@ -25,8 +25,11 @@ export interface MenuItemProps {
   children: ReactNode;
   onSelect?: () => void;
   disabled?: boolean;
-  /** Destructive items are red, and always sit last in their group. */
-  danger?: boolean;
+  /** Named to match `@shadcn/dropdown-menu` and `@shadcn/context-menu`'s own
+   *  `DropdownMenuItem`/`ContextMenuItem` `variant` prop (M2.5a.3 audit) — one
+   *  fewer name to translate when reading either against the registry.
+   *  Destructive items are red, and always sit last in their group. */
+  variant?: "destructive";
   /** The keyboard equivalent, shown right-aligned. Never the only path to
    *  the action — locked decision 23. */
   shortcut?: string;
@@ -36,7 +39,7 @@ export function MenuItem({
   children,
   onSelect,
   disabled,
-  danger,
+  variant,
   shortcut,
 }: MenuItemProps) {
   const family = useContext(FamilyContext);
@@ -45,7 +48,10 @@ export function MenuItem({
     <Item
       disabled={disabled}
       onSelect={() => onSelect?.()}
-      className={cn(menuItem, danger ? "text-danger data-[highlighted]:text-danger" : "text-fg")}
+      className={cn(
+        menuItem,
+        variant === "destructive" ? "text-danger data-[highlighted]:text-danger" : "text-fg",
+      )}
     >
       <span className="min-w-0 flex-1 truncate">{children}</span>
       {shortcut && <span className={menuShortcut}>{shortcut}</span>}

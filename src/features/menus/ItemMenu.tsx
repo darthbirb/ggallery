@@ -86,7 +86,7 @@ export function ItemMenu({ itemIds, item, folder, onPreview }: ItemMenuProps) {
         </>
       )}
 
-      <MenuItem danger onSelect={() => dialogs.deleteItems(itemIds)} shortcut="Del">
+      <MenuItem variant="destructive" onSelect={() => dialogs.deleteItems(itemIds)} shortcut="Del">
         Delete…
       </MenuItem>
     </>

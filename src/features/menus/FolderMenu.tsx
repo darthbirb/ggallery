@@ -91,7 +91,7 @@ export function FolderMenu({
 
       <MenuSeparator />
 
-      <MenuItem danger onSelect={() => dialogs.deleteFolder(folder)}>
+      <MenuItem variant="destructive" onSelect={() => dialogs.deleteFolder(folder)}>
         Delete…
       </MenuItem>
     </>
