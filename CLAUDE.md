@@ -30,8 +30,9 @@ overlooked. Do not build them.
 
 ## Stack
 
-Tauri v2 · Rust · React + TypeScript + Vite · Tailwind + Radix · SQLite (`rusqlite`) ·
-ffmpeg, HandBrakeCLI, yt-dlp and gallery-dl as sidecar binaries.
+Tauri v2 · Rust · React + TypeScript + Vite · Tailwind + `shadcn/ui` (Radix underneath,
+copied into `src/components/ui/` and restyled) · SQLite (`rusqlite`) · ffmpeg,
+HandBrakeCLI, yt-dlp and gallery-dl as sidecar binaries.
 
 ## Rules that are easy to break silently
 

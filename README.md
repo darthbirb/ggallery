@@ -54,7 +54,7 @@ GGallery/                     ← this repo, anywhere
 
 D:\MyMedia\                   ← your library, anywhere else, chosen on first run
   .gallery/                   ← database, cache, trash — all app state lives here
-  Sorting Box/
+  loose-file.jpg              ← anything at this level is the Sorting Box
   People/
   Places/
 ```
@@ -135,7 +135,9 @@ PLAN.md                    stack, locked decisions, non-goals, roadmap
 README.md                  this file
 src/                       frontend — React + TypeScript
   features/grid/           the justified virtualized grid and its layout worker
-  features/sidebar/        folder tree
+  features/nav/            the navigation panel — roots, pinned, folder tree
+  features/pane/           the right half of the split — preview, and later grid and folders
+  components/ui/           shadcn/ui primitives, restyled against the app's own tokens
   lib/                     ipc wrappers, shared types, formatting
   state/                   library and UI state
 src-tauri/                 backend — Rust
@@ -173,7 +175,10 @@ docs/
 | M1.8 | The library is live — filesystem watcher, no re-index button | Next |
 | M2 | Folders as entities — archetypes, labels, tag inheritance | |
 | M2.1 | Folder and item operations — create, rename, move, delete | Next |
-| M2.5a | The shell and the viewer — split layout, nav panel, pane, accent | Next |
+| M2.5a | The shell and the viewer — split layout, nav panel, pane, accent | Built |
+| M2.5a.1 | Make it look built — shadcn/ui adopted, sizing and selection decided | Built |
+| M2.5a.2 | The rest of the finish — motion, cursors, one Settings dialog | Built |
+| M2.5a.3 | Build versus adopt — audit the hand-rolled surfaces against shadcn blocks | Next |
 | M2.5b | The sorting surfaces — pane grid and folder modes, drops | |
 | M3 | Search — query parser, sectioned results | |
 | M4 | Sorting Box and triage — hotkey culling, undo, trash | |

@@ -14,11 +14,16 @@ propose an addition here before writing it.** Do not invent a parallel conventio
 ```
 GGallery/
   .claude/          permission rules and the git guard hook
+  .mcp.json         MCP servers for this repo — the shadcn registry, so blocks and
+                    component source are read rather than recalled
   docs/             specifications — this file, DESIGN, DATA-MODEL, ENGINEERING-NOTES
+    reference/      screenshots of prior art, named `<app>-<surface>.png`. Inputs to
+                    a spec, never a spec themselves; see DESIGN §Prior art
   src/              frontend — React + TypeScript
   src-tauri/        backend — Rust
   tools/            sidecar binaries, fetched on first run, gitignored
   index.html        Vite entry point
+  components.json   shadcn/ui config — style, aliases, icon library
   package.json      frontend dependencies and scripts
   tsconfig.json     TypeScript configuration
   vite.config.ts    dev server, Tailwind plugin, worker format
@@ -195,8 +200,13 @@ features/             one folder per surface in DESIGN.md
                       plus the Settings → Normalise filenames repair modal that
                       reuses the same one-screen-review shape against an
                       already-open library
-  settings/           M1.6 — deliberately minimal, just Normalise filenames for now;
-                      the real Settings screen is M9's job
+  settings/           ONE dialog with a left-hand section list — never one dialog
+                      per subject. `SettingsPanel.tsx` owns the frame and the
+                      switcher; `ArchetypesSection`, `StatusesSection` and
+                      `TagsSection` are plain content with no dialog of their own,
+                      which is what the `*Modal` files they replaced each had.
+                      A new subject adds a Section file and a row in the list.
+                      M9 fills it out; the shape is settled
   folder/             the folder band — title, status chip, fields, tags, notes
   menus/              M2.5a — the four right-click menus (folder, item,
                       selection, empty space), the dialogs they open, and
@@ -212,8 +222,12 @@ features/             one folder per surface in DESIGN.md
     ItemView.tsx        one item filling one pane — the unit PreviewMode
                         tiles. Two of these side by side is M6/M7; twelve is
                         M10
-    Details.tsx         the preview's small collapsible details block, and
-                        where an item's own tags are added and removed
+    PaneFrame.tsx       the header row and body shell every pane mode renders
+                        for itself — the mode fills the header, the frame owns
+                        maximise and close
+    Details.tsx         `DetailsHeader` (what Preview puts in that header) and
+                        `DetailsBody` (what it opens downwards), and where an
+                        item's own tags are added and removed
     GridMode.tsx        a second grid scoped anywhere; accepts drops
     FolderMode.tsx      destination tiles, breadcrumb, filter box
   search/
@@ -224,9 +238,17 @@ features/             one folder per surface in DESIGN.md
   duplicates/         M7 — grouping and resolution; comparison likewise
   storage/            M8
 
-components/           shared primitives only — button, dialog, chip, tooltip,
-                      menu, slider, toast, resize handle. Radix underneath,
-                      styled to the design; no visual component kit
+components/           shared primitives only — the app-level compositions:
+                      Dialog (title/body/footer), Menu (one definition opened
+                      as a context menu or a dropdown), Chip, Toaster, Tooltip,
+                      Resizer
+  ui/                 shadcn/ui, copied in and restyled — button, tabs, dialog
+                      parts, menu classes, tooltip, slider, input, checkbox,
+                      select, label, separator, badge. Radix underneath,
+                      shadcn's structure (cva variants, `cn`, `data-slot`),
+                      the app's own tokens rather than shadcn's light
+                      defaults. Locked decision 25's sizing scale lives in
+                      `ui/button.tsx` so no call site has to remember it
 test/                 M2.5a — vitest setup and the shared harness (fake
                       library, fake selection, render-with-providers). Tests
                       themselves live next to what they test, as

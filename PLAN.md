@@ -26,7 +26,7 @@ folder holds everything, so backup is "copy the folder".
 | Shell | Tauri v2 | WebView2 ships with Win11 → standalone ~10MB exe, no runtime install |
 | Backend | Rust | Parallel hashing, thumbnailing, ffmpeg orchestration |
 | Frontend | React + TypeScript + Vite | Best virtualization ecosystem, largest answer pool |
-| Styling | Tailwind + Radix primitives | Professional look without fighting a component library |
+| Styling | Tailwind + `shadcn/ui` | Radix behaviour plus designed defaults, copied into the repo and restyled — see decision 18 |
 | Database | SQLite (`rusqlite`, WAL) | Single file, lives in the root folder |
 | Media | ffmpeg, HandBrakeCLI, yt-dlp, gallery-dl | Sidecar binaries in `tools/` |
 
@@ -41,8 +41,13 @@ folder holds everything, so backup is "copy the folder".
    `tiktok`, `youtube` fields that stay visible while unfilled.
 5. **Filenames are UUIDv4** plus the real extension. Original filename is kept in
    the database as searchable metadata.
-6. **Sorting Box** is a watched folder at `<root>/Sorting Box/`. Files arrive via the
-   app, Windows drag-and-drop, downloads, or being pasted in from Explorer.
+6. **The library root *is* the Sorting Box.** There is no `Sorting Box/` directory —
+   anything sitting loose at the top level is unfiled by definition, which is the same
+   statement, and dropping files into the library root is the obvious gesture anyway.
+   Files arrive via the app, Windows drag-and-drop, downloads, or being pasted in from
+   Explorer, and the root is watched live. *(Revised in M2.5a.1; this decision
+   previously named a watched `<root>/Sorting Box/` subfolder, which
+   [docs/DESIGN.md](docs/DESIGN.md) §2 and §4 had already superseded.)*
 7. **Triage is fullscreen-first**, one item at a time with destination hotkeys. Grid
    multi-select mode is one keystroke away.
 8. **Every compression is reviewed manually** before replacing anything.
@@ -128,9 +133,15 @@ folder holds everything, so backup is "copy the folder".
     Right-click menus must be complete, not a subset.
 
 24. **One accent, chosen from a fixed set.** Exactly one hue carries selection, focus,
-    active tab, drop acceptance and scrubber position. The user picks it from a short list —
-    Slate (default), Teal, Violet, Rose, Moss, Amber — so every value can be contrast-checked
-    against the same greys rather than trusting a free colour picker.
+    the active tab, drop acceptance and the panel drag handles. The user picks it from a
+    short list — Slate (default), Teal, Violet, Rose, Moss, Amber — so every value can be
+    contrast-checked against the same greys rather than trusting a free colour picker.
+
+    *(M2.5a.1: **scrubber position** left this list and the drag handles joined it.* The
+    scrubber sits directly against the pane's handle, and two accent bars a pixel apart
+    read as one. Of the two, the handle is what you reach for and the scrubber thumb is
+    what you glance at — and every other scrollbar in the app already says position in
+    plain grey, so the scrubber saying it the same way costs nothing.)
 
     Green and red stay reserved for meaning — kept, saved, deleted, failed — and are never
     the accent. Swap `--color-accent` / `--color-accent-d` via a `data-accent` attribute on
@@ -146,6 +157,14 @@ folder holds everything, so backup is "copy the folder".
       that only materialise on hover are how a control becomes invisible until you already
       know it is there.
     - Base UI text `14px`, mono `12px`. Both a step up from where M2.5a landed.
+    - **Anything clickable shows `cursor: pointer`.** *(Added in M2.5a.2 — nothing in the
+      app did.* A control that keeps the arrow cursor reads as decoration, and the browser
+      default for a `<div>` or a `<button>` is not a pointer. This includes rows, tiles,
+      tabs, chips, swatches and drag handles — handles get the resize cursor for their
+      axis, which is the same rule. **Scrollbars and the scrubber are the exception**: they
+      are dragged, not clicked, and no scrollbar anywhere shows a pointer. Implement it as
+      one global rule on `<button>` rather than a class per call site, or it will be as
+      complete as the last person's memory of it.)
 
 26. **One visual state for selection; focus rings are for keyboards.** Selection is a filled
     accent border. The shift-click anchor is **not rendered** — it is invisible bookkeeping,
@@ -153,6 +172,26 @@ folder holds everything, so backup is "copy the folder".
     selection currently looks ambiguous. Keyboard focus uses `:focus-visible` only, so it
     never appears after a mouse click. Two outlines fighting over one tile is a design bug,
     not a styling one.
+
+    *(M2.5a.2 splits this by shape.* A border is right on a **tile**, where the media fills
+    the frame and there is no background to tint. It is wrong on a **row** — a list has no
+    frame, so the same treatment draws a box around text. Rows and other list-like controls
+    are selected by a **filled rounded surface**: accent-tinted background, accent text, the
+    same rounded rectangle the pane header's details control uses. Hover is the same shape
+    in neutral, one step lighter than the rest, so hovering a selected row is visibly not
+    the same as selecting it. One shape, two intensities, and the accent only on the real
+    state.)
+
+27. **Motion is short, functional and interruptible.** Anything that changes size or
+    position animates — panel folds, band expansion, details opening, filmstrip resize —
+    because a panel that teleports makes you re-find your place. Nothing decorative
+    animates: no entrance effects, no staggered lists, no spring overshoot.
+
+    One scale: `120ms` for hover and colour, `180ms` for layout, `ease-out` for both.
+    Anything longer is felt as lag on a control you use hundreds of times an hour. Animate
+    `transform` and `opacity`; animating `height` or `width` on a surface containing the
+    grid is a per-frame relayout and will cost more than the animation is worth. Honour
+    `prefers-reduced-motion`.
 
 ## Non-goals
 
@@ -206,7 +245,7 @@ forward slashes, normalised case. This is the single rule that keeps portability
     trash/                ← soft-deleted files, rel_path preserved
     pending/              ← compressed candidates awaiting review
     lock                  ← single-instance guard
-  Sorting Box/
+  loose-file.jpg          ← anything at this level is the Sorting Box
   People/
     ana/
   Places/
@@ -507,9 +546,10 @@ that, rather than the reverse.
 
 Almost everything is open. These are not:
 
-- **The library root is not a folder.** *Everything*, *loose items at the top level*, and
-  *the folder tree* are three distinct things, and an empty tree renders as empty rather
-  than as a lone root node. [docs/DESIGN.md](docs/DESIGN.md) §2 *Navigation roots*.
+- **The library root is not a folder.** *Everything*, the *Sorting Box* (loose items at
+  the top level), and *the folder tree* are three distinct things, and an empty tree
+  renders as empty rather than as a lone root node.
+  [docs/DESIGN.md](docs/DESIGN.md) §2 *Navigation roots*.
 - **Moving items and folders must work by direct manipulation.** The workflow being
   replaced is dragging between two Explorer windows; requiring a context menu for every
   move is a regression. The gesture is open, its existence is not. §2 *Direct
@@ -525,9 +565,10 @@ different folder or query, side by side), or a **folder grid** — destination t
 filter box that narrows as you type. That last mode is the sort workflow, and it is how the
 two-Explorer-window habit gets beaten rather than tied.
 
-**Mouse-first.** The pane is drag-resizable and fully closable, and sizes are remembered
-and adjustable in settings. Ratio shortcuts may exist as a convenience layer, but the app
-must not assume anyone uses them — no capability may be keyboard-only.
+**Mouse-first.** The pane is drag-resizable and fully closable, and its size is remembered.
+Ratio shortcuts may exist as a convenience layer, but the app must not assume anyone uses
+them — no capability may be keyboard-only. *(M2.5a.1: "adjustable in settings" is dropped —
+the drag handle is the visible control, and a slider duplicating it earned nothing.)*
 
 **The folder tree is resident by default and collapsible by click.** Around 200px,
 drag-resizable, foldable away with a visible control; width and collapsed state remembered.
@@ -590,24 +631,79 @@ wrong; see decision 18. This pass corrects it:
 - **Navigation roots become Everything / Sorting Box / Favourites**, with the library root
   itself as the Sorting Box — there is no `Sorting Box/` directory.
 - **Scrubber**: drop the year column, date follows the thumb while dragging, and the bar
-  below accounts for the scrubber's width instead of running under it.
+  below accounts for the scrubber's width instead of running under it. *(M2.5a.2 dropped
+  the date too — see below.)*
 - **Selection bar**: drop *revert*, rebuild on the primitives.
 - **Remove the zoom toolbar** in the pane — no fit, no 1:1.
-- **Details move above the filmstrip** and expand upward.
+- **Details move into the pane header** — chevron, filename, dimensions · size — and open
+  downwards from it. *(Revised during the pass: they were first put above the filmstrip
+  expanding upward, which gave the pane two headers. The "Preview" tab went with the
+  change; M2.5b's mode switcher takes that slot.)*
+- **The filmstrip's height is dragged and remembered**, and its scrollbar runs the full
+  width of the pane along the bottom edge.
 - **Remove the disabled Grid and Folders tabs.** They arrive in M2.5b; two dead controls
   read as unfinished, which is the whole complaint.
 
+**M2.5a.2 — the rest of the finish.** Smaller than 2a.1 and entirely about how it reads:
+
+- **Navigation selection becomes a filled rounded surface**, per the revision to decision
+  26 — accent tint for selected, neutral for hover, visibly different from each other. The
+  pane header's details control is the reference shape; it is not the reference colour.
+- **`cursor: pointer` on everything clickable**, per the addition to decision 25.
+- **Scrollbars a step thicker**, and the **scrubber's date is deleted** — not "on drag
+  only", gone. Two passes tried to make a date readable next to a thumb you hold for under
+  a second; the honest conclusion is that the position *is* the information.
+- **The filmstrip's position counter is deleted.** The strip shows where you are.
+- **Motion**, per decision 27 — the panel fold and the band and details expansions slide.
+- **More separation between the filmstrip and the scrollbar beneath it.** M2.5a.1 made
+  that scrollbar full-width and bottom-flush, which put it hard against the thumbnails.
+
+Three things arrived during the pass that were not in the brief, all of them the same
+mistake — a conventional surface left unspecified and therefore invented:
+
+- **Settings became one dialog with a section list**, replacing four dialogs that each
+  replaced the last. See [docs/DESIGN.md](docs/DESIGN.md) §2.
+- **Pane maximise animates rather than unmounting**, which also means the collapsing side
+  must go `inert` while it is still on screen.
+- **The navigation tree was rebuilt as recursive nesting.** A flat array of visible rows
+  cannot animate an expansion, and that is a rendering decision no brief mentioned.
+
+**M2.5a.3 — build versus adopt.** Everything above was hand-built against `shadcn/ui`
+primitives. Some of it should not have been: shadcn publishes composed *blocks* — sidebar
+layouts with collapse-to-icon-rail, settings shells, dialog compositions — that cover
+surfaces this app wrote by hand, and the registry MCP server in `.mcp.json` lets a session
+read them rather than recall them.
+
+This milestone is an **audit first, replacement second**. For the navigation panel, the
+settings dialog, the resizable split and the toaster, compare what exists against what the
+registry ships, and report before rewriting: what is genuinely bespoke, what duplicates a
+block badly, and what duplicates a block well enough to leave alone. Working, reviewed code
+is not replaced for tidiness — only where the block is better or removes a class of bug the
+hand-rolled version keeps hitting.
+
+The standing rule this settles is in [docs/DESIGN.md](docs/DESIGN.md) §*Prior art*:
+**anything that is not the viewer gets a citation, not a description**, and the citation has
+to be something a session can look at rather than remember.
+
 **M2.5b — the sorting surfaces.** The pane's **Grid** and **Folders** modes, all three drop
 targets, spring-loading, and inline folder creation in the folder pane.
+
+**The mode switcher is icon buttons in the pane header**, in the same group as maximise and
+close — not a labelled tab row. *(Decided in M2.5a.2, before the modes exist.* Three text
+tabs are the widest thing in a header whose whole job is naming the item, and the header
+already holds icon buttons that read correctly at that size.)
 
 Neither ships until it looks finished. There is no polish phase.
 
 #### Build notes
 
-**Radix primitives are worth taking** for context menus, dialogs, dropdowns, tooltips and
-sliders — keyboard behaviour, focus trapping and dismissal are solved there and are tedious
-to get right by hand. Style them to the agreed design; do not adopt a visual component kit
-wholesale, since the design is bespoke.
+**`shadcn/ui` is the component source**, per decision 18 — Radix for the behaviour that is
+tedious to get right by hand (context menus, dialogs, dropdowns, tooltips, sliders,
+tabs, selects), plus designed Tailwind defaults copied into `src/components/ui/` and
+restyled there against the app's own tokens. A bespoke layout does not require bespoke
+buttons. *(This note originally said the opposite — "do not adopt a visual component kit
+wholesale" — which is the brief that produced M2.5a's hand-rolled appearance and that
+M2.5a.1 reversed.)*
 
 **Set up frontend testing here**, not earlier. `vitest` plus `@testing-library/react` with
 the IPC layer mocked, covering interaction rather than appearance: does picking an
@@ -623,15 +719,15 @@ enough to be worth testing, and every later milestone inherits the harness.
 Then implement the agreed design:
 
 - **The split.** Grid always on the left; a second pane on the right, drag-resizable, fully
-  closable, widths remembered per mode and editable in Settings. **There is no theatre
-  view** — full-window is the pane maximised.
+  closable, one remembered width across every mode. **There is no theatre view** —
+  full-window is the pane maximised.
 - **The pane is polymorphic**, switched by a labelled three-way control in its own header:
   *Preview* (the selected item; splits into N panes, which is what M6, M7 and M10 consume),
   *Grid* (a second grid scoped anywhere, with its own sort and tile size, accepting drops),
   and *Folders* (the destination tiles). Preview details are small and collapsible.
 - **The navigation panel** — resident, ~200px, drag-resizable, folded by a visible control,
   width and state remembered, folding to a 44px icon strip that keeps queue badges visible
-  and every root a drop target. Groups: Library (Everything / Loose items / Favourites, above
+  and every root a drop target. Groups: Library (Everything / Sorting Box / Favourites, above
   the tree and never nodes in it), Pinned, Folders, Saved searches, Queues.
 - **The folder pane** — one flat field per level, no sections and no reordering, so a folder
   stays where it was and the drag becomes muscle memory. Tiles show cover, title and count,

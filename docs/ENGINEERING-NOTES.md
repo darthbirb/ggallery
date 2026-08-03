@@ -38,6 +38,79 @@ are meaningless.
 
 ---
 
+## Tailwind v4
+
+**`outline-none` plus `focus-visible:outline-*` on the same element cancels both.** Not a
+subtle interaction — the control ends up with no focus ring at all, and because
+`:focus-visible` is the only thing that ever draws one, the whole application looks like
+Tab does nothing. Shipped that way in M2.5a; found in M2.5a.1.
+
+Tailwind v4 compiles them to:
+
+```css
+.outline-none            { --tw-outline-style: none; outline-style: none }
+.outline-2:focus-visible { outline-style: var(--tw-outline-style); outline-width: 2px }
+```
+
+`outline-none` sets the variable **unconditionally**, so the focus-visible rule resolves
+its own style to `none`. Two further traps in the same area:
+
+- A global `:focus-visible` rule in `@layer base` cannot rescue it. `.outline-none` is a
+  utility, and the utilities layer wins.
+- `outline-hidden` — the v4 rename people reach for instead — sets the same variable, so
+  it fails the same way. shadcn's own components avoid this by using `ring-*` rather than
+  `outline-*` for focus.
+
+**What GGallery does instead:** one `:focus-visible` rule in `src/styles/index.css` and no
+focus classes on controls at all. `outline-none` appears only on containers that take
+programmatic focus and must never ring — a Radix menu surface, a dialog panel. Anything
+needing an inset ring uses `focus-visible:-outline-offset-2` alone, which sets only the
+offset and composes with the base rule.
+
+`@property --tw-outline-style` is declared `inherits: false`, so this never leaks from a
+parent to its children — it is strictly per-element, which is what makes the container
+exception safe.
+
+---
+
+## Motion
+
+All of this is from M2.5a.2, the pass that added animation. Decision 27 in
+[PLAN.md](../PLAN.md) sets the policy; these are the mechanics that cost time.
+
+**Do not use View Transitions to reflow a toast stack.** Tried it for the gap that closes
+when one toast dismisses. It required delaying the actual dismiss until the transition had
+captured, which put the state update behind an async boundary the auto-dismiss timer was
+also racing — toasts stopped disappearing on their own, and the animation itself only played
+sometimes. Reverted to plain immediate state updates. A stack that jumps closed is a far
+smaller problem than a toast that never leaves, and toasts are the app's only visible undo
+path, so they fail dangerous rather than ugly.
+
+**Animate a panel closing by tweening its size, not by unmounting it.** Maximising the pane
+originally unmounted the nav-and-grid side, which cannot animate — there is nothing left to
+animate. The working shape is `flex-grow`/`flex-basis` tweened over 180ms with the
+collapsing side fading and going `inert`, so it is untabbable and unclickable while it is
+still on screen.
+
+**A collapsible tree has to be nested in the DOM to animate.** The nav tree was built by
+pushing every visible row into one flat array, which is the cheapest way to render a tree
+and makes an expand animation impossible — a folder's children are siblings of the folder,
+not children of anything that can be given a height. Rebuilt as recursive nesting so each
+folder's children share one wrapper, which then reveals with `grid-template-rows: 0fr → 1fr`.
+That transition is the one reliable way to animate to content height without measuring.
+
+**A dialog backdrop that fades in flashes when one dialog replaces another.** The old
+Settings opened a second dialog over itself; the backdrop unmounted and remounted, so it
+undimmed and redimmed between them. Removing the backdrop's own entrance animation fixed the
+flash. M2.5a.2 then removed the nested dialogs entirely, but the rule survives them: the
+backdrop is a persistent surface, and animating it makes dialog *changes* visible as flicker.
+
+**`prefers-reduced-motion` belongs in one global rule**, next to the single `:focus-visible`
+rule, not as a `motion-reduce:` variant repeated on every animated class. The variant form
+is only as complete as the last person's memory of it.
+
+---
+
 ## Filesystem watching
 
 **A rename arrives as a `From`/`To` pair, and treating the halves independently destroys

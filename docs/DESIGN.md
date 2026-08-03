@@ -14,6 +14,29 @@ Every section below serves the viewing experience. When a decision trades off be
 making the app better to look through and making it better to administer, looking through
 wins.
 
+## Prior art
+
+**The viewer is designed here. Everything else is copied from something that already
+works.** The grid, the pane, the folder band and triage have no adequate prior art, so they
+get specified in detail. Settings, the command palette, the tag manager and every other
+ordinary surface do have prior art, and inventing a shape for them is how Settings ended up
+as four dialogs that each replaced the last.
+
+**A citation has to be lookable, not recallable.** Naming an application is not a
+specification: model recall of a specific interface is unversioned, unverifiable, and fails
+by confabulating a plausible layout rather than by admitting the gap. So, in order:
+
+1. **A screenshot in `docs/reference/`.** Unambiguous, dated, and readable by whoever
+   builds it. This is what makes citing prior art stronger than describing it.
+2. **A `shadcn/ui` block.** Real code, fetched through the registry MCP server configured
+   in `.mcp.json` and read before use — not remembered.
+3. **An application name plus one sentence describing the layout.** The name cross-checks
+   the sentence; it never replaces it. If the sentence alone would not be enough, the name
+   does not rescue it.
+
+Capturing the screenshot is the user's job and belongs in the prompt that precedes the
+milestone, not in the milestone itself.
+
 ---
 
 ## 1. Core concepts
@@ -261,10 +284,10 @@ separate, harder problem — clipboard copy (§1) covers that need for now.
 ┌────────────────────────────────────────────────────────────────────────┐
 │  ‹ People / Ana      ⌕ query                       [size] [sort] [⌘K]  │
 ├──────────┬──────────────────────────────────┬──────────────────────────┤
-│   NAV    │ ▸ Ana  ●WIP  2,481 items         │  Preview │ Grid │ Folders│
+│   NAV    │ ▸ Ana  ●WIP  2,481 items         │ ▸ file.jpg      ⊡ ⊞ ▤ ⤢ ×│
 │          ├──────────────────────────────────┤──────────────────────────┤
 │Everything│                                  │                          │
-│Loose     │                                  │                          │
+│SortingBox│                                  │                          │
 │Favourites│                                  │                          │
 │          │           MEDIA GRID           │s│        THE PANE          │
 │Pinned    │      (justified, virtualized)  │c│                          │
@@ -276,7 +299,7 @@ separate, harder problem — clipboard copy (§1) covers that need for now.
 │ Places   │                                  │                          │
 │Searches  │                                  │                          │
 │Queues    │                                  │                          │
-│ Sorting¹⁴²│                                 │                          │
+│ Pending⁷ │                                  │                          │
 └──────────┴──────────────────────────────────┴──────────────────────────┘
       ↑                    ↑                              ↑
  folds to 44px    folder band, collapsed     drag-resizable, fully closable
@@ -286,9 +309,13 @@ separate, harder problem — clipboard copy (§1) covers that need for now.
 Width and folded state remembered; **never summoned by a keypress**. Folded, it becomes a
 44px icon strip that keeps queue badges on screen and every root a drop target.
 
-Groups, in order: **Library** (Everything, Loose items, Favourites — above the tree, never
-nodes in it), **Pinned**, **Folders**, **Saved searches**, **Queues** (Sorting Box, Pending
-Review, Trash, each with a count badge).
+Groups, in order: **Library** (Everything, Sorting Box, Favourites — above the tree, never
+nodes in it), **Pinned**, **Folders**, **Saved searches**, **Queues** (Pending Review,
+Trash, each with a count badge).
+
+The Sorting Box is a *library root*, not a queue: it is the library root itself, so it
+belongs with Everything and Favourites rather than in a group of folders. The count badge
+it would have had in Queues sits on the root row instead.
 
 Pinned folders live in their own group above the tree rather than floating within it — so
 favouriting something never reorders the tree, and the row you reach for stays where it was.
@@ -296,14 +323,23 @@ favouriting something never reorders the tree, and the row you reach for stays w
 Folders accept drops. Right-click for new folder, rename, edit tags, set cover, set status.
 A single dot marks `WIP` and nothing else; see §1 *Folders*.
 
+**A row is selected by a filled rounded surface, not a border** — accent-tinted background
+with accent text. Hover is the same rounded rectangle in neutral, one step lighter than the
+panel, so the two are never confused and hovering the selected row still reads as selected.
+See decision 26: a border suits a tile, where media fills the frame; a row has no frame and
+a border round text is a box, not a state.
+
 **Timeline scrubber** — a thin strip down the right edge of the grid. Dragging it jumps to
 that point in the sort order. At 40k+ items this is the difference between a browsable
 library and an endless scroll.
 
-**No year or month labels down the strip.** A date follows the thumb while you drag it and
-is absent otherwise; a permanent column of years is visual noise for something you look at
-for one second at a time. The scrubber is part of the grid's own width — the bar beneath it
-must account for it rather than running underneath.
+**No labels and no date.** Not a column of years down the strip, and not a date that
+follows the thumb either — where the thumb sits *is* the information, and everything read
+in under a second competes with the thing you are actually looking at. The scrubber is part
+of the grid's own width — the bar beneath it must account for it rather than running
+underneath.
+
+*(M2.5a.1 removed the year column and kept a date on the thumb; M2.5a.2 removed that too.)*
 
 **There is exactly one scrollbar.** The scrubber *is* the scroll affordance — the native
 scrollbar is hidden with `scrollbar-width: none` while the scroll container stays fully
@@ -311,13 +347,25 @@ functional (wheel, keyboard, and programmatic scrolling all work unchanged). Sho
 is redundant and looks unfinished.
 
 **Panels are resizable.** The navigation panel and the pane both have drag handles, with a
-sensible minimum width. Widths persist between sessions alongside window geometry, are
-remembered *per pane mode*, and are editable in Settings. Double-clicking a handle resets
-that panel to its default width.
+sensible minimum width. Widths persist between sessions alongside window geometry.
+Double-clicking a handle resets that panel to its default width.
+
+**One width for the pane, and it is not in Settings.** Both were tried in M2.5a and both
+were wrong. A width per pane mode meant switching mode moved the split under you, which
+reads as the window losing its place rather than as the app being helpful. And a slider in
+Settings is a number to type at something you have already got right with the mouse —
+dragging the edge *is* the control, and it is visible, which is all decision 23 asks.
 
 **The native context menu is suppressed everywhere.** Right-click opens the app's own menu
 appropriate to what was clicked — a folder, an item, a selection, or empty space. A
 WebView's default menu appearing in a desktop app is a bug, not a placeholder.
+
+**Settings is one dialog with a section list down the left**, the convention every desktop
+app of this shape uses. Not one dialog per subject: M2.5a.2 found archetypes, statuses and
+tags each opening their own dialog that replaced the last, so going from one to another
+meant closing back to Settings and the backdrop flashed between them. A section list makes
+the whole of Settings visible at once, which is the only way you discover the parts you
+were not already looking for. Adding a subject adds a row, never a window.
 
 **Folder band** — a collapsed strip above the grid. Closed, it is one line: title, status
 chip, counts. Clicking expands it to cover, archetype fields edited in place, tags and
@@ -343,8 +391,15 @@ worse — you cannot scan pictures past interruptions, and folders are easier to
 ### The pane
 
 The right half of the split, and the single most reused surface in the app. Drag-resizable,
-**fully closable**, widths remembered per mode and editable in Settings. A labelled
-three-way control in its own header switches what it holds.
+**fully closable**, one remembered width across every mode.
+
+**One header, ending in maximise and close.** Each mode fills the rest of it with whatever
+names what it is showing — for Preview that is the item's filename and size. Once there is
+more than one mode to choose between, the switcher joins maximise and close as **three icon
+buttons in that same group**, not a labelled tab row: the header's job is naming the item,
+and three words of chrome is the widest thing that could take the space away from it. While
+Preview was the only mode, a tab saying "Preview" was a label pretending to be a control, so
+there is none.
 
 **There is no theatre view.** Full-window is the pane maximised — one control, one state,
 no transition to design and no scroll position to restore.
@@ -359,11 +414,20 @@ only comparison surface the app needs:
 - *Video* — play/pause, scrub, frame-step, speed, **loop on by default**, and volume that
   persists between items.
 - Chevrons and arrows move through the current filter, in the grid's order. A filmstrip
-  shows position and allows jumping.
-- **Details sit above the filmstrip and expand upward**, so the strip stays pinned to the
-  bottom edge and does not move when details open. Small and collapsible: collapsed shows
-  filename, dimensions and size; expanded adds duration, codec, dates, source URL and tags —
-  inherited greyed, manual solid.
+  shows position and allows jumping. Its height is dragged from its top edge and
+  remembered; its scrollbar runs the full width of the pane along the very bottom, clear of
+  the thumbnails rather than hard against them, with the chevrons overlaid at either end.
+  **No position counter** — the strip already shows where you are, and `6 / 15` is a number
+  nobody acts on.
+- **The pane header is the details header.** A chevron, the filename, and dimensions ·
+  size, opening **downwards** into duration, codec, dates, source URL and tags — inherited
+  greyed, manual solid. The media gives way; the filmstrip does not move.
+
+  *(M2.5a.1 reversed this. Details first had a strip of their own above the filmstrip that
+  grew upward, which left the pane with two headers and a band of chrome between the media
+  and the strip. A pane has one header, and naming what you are looking at is what a header
+  is for — which also retired the "Preview" tab, a label wearing a control's clothes while
+  it was the only mode. M2.5b's switcher returns to that slot.)*
 - With nothing selected the pane shows an empty state. Folder identity belongs to the band.
 
 Multi-pane preview is one mechanism with three uses: **compression review** (M6) and
@@ -641,8 +705,8 @@ navigation panel; negate a query term. Right-click menus are complete, not a sub
 Keys remain for everything, destination hotkeys are user-assigned, and a `?` overlay lists
 them — as an accelerator layer over a fully usable mouse interface.
 
-**Colour** — exactly one accent hue carries selection, focus, active tab, drop acceptance
-and scrubber position, chosen by the user from a fixed set: Slate (default), Teal, Violet,
+**Colour** — exactly one accent hue carries selection, focus, the active tab, drop
+acceptance and the panel drag handles, chosen by the user from a fixed set: Slate (default), Teal, Violet,
 Rose, Moss, Amber. Fixed rather than free so every value is contrast-checked against the
 same greys. Green and red are reserved for meaning — kept, saved, deleted, failed — and are
 never the accent. Locked decision 24.
