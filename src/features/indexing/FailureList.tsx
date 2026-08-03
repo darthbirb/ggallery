@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 
+import { Button } from "../../components/ui/button";
 import { formatBytes, formatCount } from "../../lib/format";
 import type { IndexFailure } from "../../lib/types";
 
@@ -37,28 +38,16 @@ export function FailureList({ failures, onRetry, onClose }: FailureListProps) {
           {formatCount(failures.length)}{" "}
           {failures.length === 1 ? "file" : "files"} failed to index
         </span>
-        <span className="font-mono text-[11px] text-fg-dim">
-          everything else indexed normally
-        </span>
-
-        <button
-          type="button"
-          onClick={onRetry}
-          className="ml-auto rounded-[3px] border border-line px-2 py-0.5 text-fg-mid hover:bg-hover hover:text-fg"
-        >
+        <Button size="sm" className="ml-auto" onClick={onRetry}>
           Retry these
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-[3px] border border-transparent px-2 py-0.5 text-fg-dim hover:bg-hover hover:text-fg"
-        >
+        </Button>
+        <Button size="sm" onClick={onClose}>
           Close
-        </button>
+        </Button>
       </header>
 
       {byError.length > 1 && (
-        <ul className="flex flex-wrap gap-x-4 gap-y-1 px-3 pb-2 font-mono text-[11px] text-fg-dim">
+        <ul className="flex flex-wrap gap-x-4 gap-y-1 px-3 pb-2 font-mono text-fg-dim">
           {byError.map(([error, count]) => (
             <li key={error}>
               <span className="text-fg-mid">{count}×</span> {error}
@@ -72,26 +61,26 @@ export function FailureList({ failures, onRetry, onClose }: FailureListProps) {
           <tbody>
             {failures.slice(0, MAX_ROWS).map((failure) => (
               <tr key={failure.jobId} className="border-b border-line-soft/60">
-                <td className="max-w-0 truncate px-3 py-1 font-mono text-[11px] text-fg">
+                <td className="max-w-0 truncate px-3 py-1 font-mono text-fg">
                   <span className="text-fg-dim">
                     {failure.folder ? `${failure.folder}/` : ""}
                   </span>
                   {failure.name}
                 </td>
-                <td className="whitespace-nowrap px-2 py-1 font-mono text-[10px] text-fg-dim">
+                <td className="whitespace-nowrap px-2 py-1 font-mono text-fg-dim">
                   {failure.stage}
                 </td>
-                <td className="whitespace-nowrap px-2 py-1 text-right font-mono text-[10px] tabular-nums text-fg-dim">
+                <td className="whitespace-nowrap px-2 py-1 text-right font-mono tabular-nums text-fg-dim">
                   {failure.sizeBytes === null ? "" : formatBytes(failure.sizeBytes)}
                 </td>
-                <td className="px-3 py-1 text-[12px] text-danger">{failure.error}</td>
+                <td className="px-3 py-1 text-[13px] text-danger">{failure.error}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
         {failures.length > MAX_ROWS && (
-          <p className="px-3 py-2 font-mono text-[11px] text-fg-dim">
+          <p className="px-3 py-2 font-mono text-fg-dim">
             …and {formatCount(failures.length - MAX_ROWS)} more.
           </p>
         )}

@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
 
+import { Dialog } from "../../components/Dialog";
+import { Button } from "../../components/ui/button";
+import { Checkbox } from "../../components/ui/checkbox";
+import { Label } from "../../components/ui/label";
 import { formatBytes, formatCount } from "../../lib/format";
 import * as ipc from "../../lib/ipc";
 import type {
@@ -9,6 +13,7 @@ import type {
   ScanReport,
   VerifyReport,
 } from "../../lib/types";
+import { useToasts } from "../../state/toasts";
 
 type Step = "loading" | "review" | "progress" | "done";
 
@@ -30,6 +35,7 @@ interface NormaliseFilenamesModalProps {
 export function NormaliseFilenamesModal({
   onClose,
 }: NormaliseFilenamesModalProps) {
+  const toasts = useToasts();
   const [step, setStep] = useState<Step>("loading");
   const [scan, setScan] = useState<ScanReport | null>(null);
   const [dryRun, setDryRun] = useState<DryRunReport | null>(null);
@@ -48,7 +54,12 @@ export function NormaliseFilenamesModal({
         if (cancelled) return;
         if (scanned.toRename === 0) {
           await ipc.markImported();
-          if (!cancelled) onClose();
+          if (cancelled) return;
+          // Otherwise this closes silently and reads as the button having
+          // done nothing at all — there is no review screen to say so when
+          // there is nothing to review.
+          toasts.push({ message: "Everything already has a UUID name." });
+          onClose();
           return;
         }
         const preview = await ipc.dryRunImport(SAMPLE);
@@ -91,71 +102,54 @@ export function NormaliseFilenamesModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="flex max-h-[82vh] w-[560px] flex-col overflow-hidden rounded-[6px] border border-line bg-panel shadow-xl">
-        <header className="flex items-center gap-2 border-b border-line px-4 py-3">
-          <span className="text-[14px] font-semibold">
-            Normalise filenames
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={!closable}
-            title={closable ? "Close" : "Renaming is in progress"}
-            className="ml-auto rounded-[3px] px-1.5 text-fg-dim hover:bg-hover hover:text-fg disabled:opacity-30"
+    <Dialog
+      open
+      onOpenChange={(open) => !open && onClose()}
+      closable={closable}
+      title="Normalise filenames"
+      description="For when something outside the app has renamed a file back."
+      width={580}
+      footer={
+        step === "review" ? (
+          <Button
+            variant="danger"
+            disabled={!confirmed || busy}
+            onClick={() => void run()}
           >
-            ✕
-          </button>
-        </header>
+            Rename now
+          </Button>
+        ) : step === "done" ? (
+          <Button variant="accent" onClick={onClose}>
+            Close
+          </Button>
+        ) : undefined
+      }
+    >
+      <div className="text-fg-mid">
+        {error && (
+          <p className="mb-3 rounded-[5px] border border-danger/40 bg-raised px-3 py-2 text-danger">
+            {error}
+          </p>
+        )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 text-[13px] text-fg-mid">
-          {error && (
-            <p className="mb-3 rounded-[3px] border border-danger/40 bg-raised px-3 py-2 text-danger">
-              {error}
-            </p>
-          )}
+        {step === "loading" && <p>Scanning the library…</p>}
 
-          {step === "loading" && <p>Scanning the library…</p>}
+        {step === "review" && scan && dryRun && (
+          <ReviewBody
+            scan={scan}
+            dryRun={dryRun}
+            confirmed={confirmed}
+            onConfirmedChange={setConfirmed}
+          />
+        )}
 
-          {step === "review" && scan && dryRun && (
-            <ReviewBody
-              scan={scan}
-              dryRun={dryRun}
-              confirmed={confirmed}
-              onConfirmedChange={setConfirmed}
-            />
-          )}
+        {step === "progress" && <ProgressBody progress={progress} />}
 
-          {step === "progress" && <ProgressBody progress={progress} />}
-
-          {step === "done" && executed && (
-            <DoneBody executed={executed} verifyIssue={verifyIssue} />
-          )}
-        </div>
-
-        <footer className="flex items-center gap-2 border-t border-line px-4 py-3">
-          {step === "review" && (
-            <button
-              type="button"
-              onClick={run}
-              disabled={!confirmed || busy}
-              className="ml-auto rounded-[3px] border border-danger bg-raised px-3 py-1.5 text-danger hover:bg-hover disabled:opacity-40"
-            >
-              Rename now
-            </button>
-          )}
-          {step === "done" && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="ml-auto rounded-[3px] border border-accent-d bg-raised px-3 py-1.5 text-accent hover:bg-hover"
-            >
-              Close
-            </button>
-          )}
-        </footer>
+        {step === "done" && executed && (
+          <DoneBody executed={executed} verifyIssue={verifyIssue} />
+        )}
       </div>
-    </div>
+    </Dialog>
   );
 }
 
@@ -183,7 +177,7 @@ function ReviewBody({
         )}
       </p>
 
-      <table className="w-full border-collapse text-left font-mono text-[12px]">
+      <table className="w-full border-collapse text-left font-mono">
         <tbody>
           {scan.byKind.map((kind) => (
             <tr key={kind.kind} className="border-b border-line-soft/60">
@@ -207,8 +201,8 @@ function ReviewBody({
         </p>
       )}
 
-      <div className="max-h-[200px] overflow-y-auto rounded-[3px] border border-line-soft">
-        <table className="w-full border-collapse text-left font-mono text-[11px]">
+      <div className="max-h-[200px] overflow-y-auto rounded-[5px] border border-line-soft">
+        <table className="w-full border-collapse text-left font-mono">
           <tbody>
             {dryRun.sample.map((row, i) => (
               <tr key={i} className="border-b border-line-soft/60">
@@ -232,15 +226,18 @@ function ReviewBody({
         </p>
       )}
 
-      <label className="flex items-start gap-2 rounded-[3px] border border-line-soft bg-raised px-3 py-2">
-        <input
-          type="checkbox"
+      <Label
+        htmlFor="normalise-backup-confirmed"
+        className="items-start gap-2.5 rounded-[5px] border border-line bg-raised px-3 py-2.5 text-[14px] text-fg"
+      >
+        <Checkbox
+          id="normalise-backup-confirmed"
           checked={confirmed}
-          onChange={(event) => onConfirmedChange(event.target.checked)}
-          className="mt-0.5 accent-accent"
+          onCheckedChange={(checked) => onConfirmedChange(checked === true)}
+          className="mt-0.5"
         />
         <span>I have a backup of this library somewhere else.</span>
-      </label>
+      </Label>
     </div>
   );
 }
@@ -261,7 +258,7 @@ function ProgressBody({ progress }: { progress: ImportProgress | null }) {
         />
       </div>
 
-      <p className="font-mono text-[12px] tabular-nums text-fg-dim">
+      <p className="font-mono tabular-nums text-fg-dim">
         {formatCount(done)} / {formatCount(total)}
         {progress && progress.errors > 0 && (
           <span className="text-danger"> · {formatCount(progress.errors)} errors</span>
@@ -288,12 +285,12 @@ function DoneBody({
       </p>
 
       {executed.errors.length > 0 && (
-        <div className="rounded-[3px] border border-danger/40 bg-raised px-3 py-2">
+        <div className="rounded-[5px] border border-danger/40 bg-raised px-3 py-2">
           <p className="text-danger">
             {formatCount(executed.errors.length)} file
             {executed.errors.length === 1 ? "" : "s"} could not be renamed:
           </p>
-          <ul className="mt-1 max-h-[120px] overflow-y-auto font-mono text-[11px] text-fg-dim">
+          <ul className="mt-1 max-h-[120px] overflow-y-auto font-mono text-fg-dim">
             {executed.errors.map((err) => (
               <li key={err.itemId}>
                 {err.folder ? `${err.folder}/` : ""}
@@ -307,9 +304,9 @@ function DoneBody({
       {/* Verification runs silently and only appears here on failure — per
           docs/DESIGN.md#first-import. */}
       {verifyIssue && (
-        <div className="rounded-[3px] border border-danger/40 bg-raised px-3 py-2 text-danger">
+        <div className="rounded-[5px] border border-danger/40 bg-raised px-3 py-2 text-danger">
           <p className="font-semibold">Verification found a problem.</p>
-          <p className="text-[12px]">
+          <p className="text-[13px]">
             {formatCount(verifyIssue.countRenamed)} of{" "}
             {formatCount(verifyIssue.countTotal)} items carry a UUID name.
             {verifyIssue.mismatches.length > 0 && (

@@ -23,8 +23,16 @@ import {
 
 export interface Toast {
   id: number;
-  /** What happened, in the past tense, naming the thing and the destination:
-   *  "Moved 4 items to Trips", not "Move complete". */
+  /**
+   * What happened, in the past tense, in as few words as carry it: "Deleted 4
+   * items", "Moved 4 items to Trips".
+   *
+   * **State the outcome; never explain the mechanism.** "Deleted 1 item to
+   * trash" spent a third of its width on an implementation detail the user
+   * did not ask about and cannot act on — the Undo button beside it is what
+   * "it is recoverable" means. Name a destination only when the destination
+   * *is* the outcome, as it is for a move.
+   */
   message: string;
   tone: "neutral" | "danger";
   /** Absent for a toast with nothing to reverse — a failure, say. */

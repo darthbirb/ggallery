@@ -1,7 +1,12 @@
 @import "tailwindcss";
 
 /* The app chrome is always dark by design — media must be the brightest
-   thing on screen — with cool-biased neutrals so photo colour reads true. */
+   thing on screen — with cool-biased neutrals so photo colour reads true.
+
+   shadcn/ui is the component source (locked decision 18), copied into
+   `components/ui/` and restyled against these tokens rather than against
+   shadcn's light defaults. There is one colour vocabulary, this one; the
+   vendored components speak it. */
 @theme {
   --color-ground: #15171b;
   --color-panel: #1b1e23;
@@ -30,33 +35,54 @@
     sans-serif;
   --font-mono: "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace,
     monospace;
+
+  /* Locked decision 25's sizing scale, written down where the palette is so
+     it is not three numbers living only in one component's head. The `cva`
+     variants in `components/ui/button.tsx` are the enforcement; nothing in
+     the app is allowed a fourth height. */
+  --height-control-sm: 28px;
+  --height-control: 32px;
+  --height-control-lg: 38px;
 }
 
 /* The fixed set, contrast-checked against the greys above rather than trusted
    to a free colour picker. `-d` is the deep variant borders and rests use;
    the bright one carries selection, focus, active tab, drop acceptance and
-   scrubber position. Moss is a yellow-green, kept clear of `--color-good`. */
-:root[data-accent="slate"] {
+   scrubber position. Moss is a yellow-green, kept clear of `--color-good`.
+
+   Each accent is scoped to **any** element carrying the attribute, not only
+   `:root`. The root is where `state/ui.ts` sets it, and that is the whole
+   theme; but Settings draws a swatch per accent, and a swatch has to be able
+   to paint itself in a hue that is not the one currently chosen. Scoped to
+   `:root` alone, every swatch inherited the active accent and the picker
+   showed six identical dots. */
+:root[data-accent="slate"],
+[data-accent="slate"] {
   --color-accent: #8ba6cc;
   --color-accent-d: #47597a;
 }
-:root[data-accent="teal"] {
+:root[data-accent="teal"],
+[data-accent="teal"] {
   --color-accent: #58b3a7;
   --color-accent-d: #2c6660;
 }
-:root[data-accent="violet"] {
+:root[data-accent="violet"],
+[data-accent="violet"] {
   --color-accent: #a68ce2;
   --color-accent-d: #574a8c;
 }
-:root[data-accent="rose"] {
+:root[data-accent="rose"],
+[data-accent="rose"] {
   --color-accent: #dc8199;
   --color-accent-d: #7d4353;
 }
-:root[data-accent="moss"] {
+:root[data-accent="moss"],
+[data-accent="moss"] {
   --color-accent: #9bb268;
   --color-accent-d: #56663a;
 }
-:root[data-accent="amber"] {
+:root[data-accent="amber"],
+[data-accent="amber"] {
   --color-accent: #d9954b;
   --color-accent-d: #8a5c26;
 }
@@ -68,24 +94,53 @@
     height: 100%;
   }
 
+  /* Base UI text is 14px — locked decision 25, a step up from the 13px
+     M2.5a shipped. Anything smaller than 13px is a mistake, and mono never
+     goes below 12px. */
   body {
     margin: 0;
     background: var(--color-ground);
     color: var(--color-fg);
     font-family: var(--font-ui);
-    font-size: 13px;
-    line-height: 1.55;
+    font-size: 14px;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     overflow: hidden;
     user-select: none;
     cursor: default;
   }
 
-  /* Mouse-first, but focus must never be invisible — the accent carries it,
-     the same hue as selection, so "where am I" reads the same either way. */
+  /* Mouse-first, and focus rings are for keyboards — locked decision 26. The
+     accent carries it, the same hue as selection, so "where am I" reads the
+     same either way; `:focus-visible` means it never appears after a click.
+
+     **This rule is the only focus ring in the application.** Do not add
+     `outline-none` plus `focus-visible:outline-2` to a control: in Tailwind v4
+     `outline-none` compiles to `--tw-outline-style: none`, which is set
+     unconditionally, and `outline-2` resolves its style from that same
+     variable — so the pair cancels out and the control has no ring at all,
+     including on focus. It also sits in the utilities layer, which beats this
+     rule. Controls need no focus classes; this covers them. `outline-none`
+     belongs only on containers that take *programmatic* focus and should
+     never ring — a menu surface, a dialog panel. See ENGINEERING-NOTES.md. */
   :focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 1px;
+  }
+
+  /* Decision 27's other half: honour `prefers-reduced-motion`. One rule
+     here rather than a `motion-reduce:` variant on every `transition-*` and
+     `animation` utility in the app — the same reasoning as the single
+     `:focus-visible` rule above. Custom transitions and animations collapse
+     to effectively instant; layout still changes, nothing tweens through it. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 
   input,
@@ -93,16 +148,43 @@
     user-select: text;
   }
 
-  ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+  /* Mono is 12px wherever it appears, so a filename, a count and a duration
+     all sit on the same baseline grid. */
+  .font-mono {
+    font-size: 12px;
   }
-  ::-webkit-scrollbar-track {
+
+  /* Anything clickable shows a pointer — locked decision 25's addition.
+     Every interactive control in the app is a real `<button>` (native, or
+     one of the Radix primitives that render one — Select's trigger,
+     Checkbox's root), so one rule covers rows, tiles' surrounding chrome,
+     chips' remove buttons, swatches and every dialog and menu action at
+     once. Disabled buttons keep the browser default rather than reading as
+     pressable. The grid's tiles are recycled DOM nodes, not buttons, so
+     `.tile` carries its own `cursor: pointer` below; drag handles carry
+     their own resize cursor for the same reason — a handle is not a click. */
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+
+  /* A reserved channel, not a bar floating over the content.
+     `--color-ground` is darker than every panel surface, so the track reads
+     as a groove cut into the chrome and the space above and below the thumb
+     is visibly the scrollbar's own. The thumb fills the channel's whole
+     width — square, no inset — so there is one shape, not a pill inside a
+     box. Same treatment on the grid's scrubber, in `.scrubber` below.
+
+     16px — a step up from M2.5a.1's 12px, per decision 25. */
+  ::-webkit-scrollbar {
+    width: 16px;
+    height: 16px;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
     background: var(--color-ground);
   }
   ::-webkit-scrollbar-thumb {
     background: var(--color-line);
-    border-radius: 5px;
   }
   ::-webkit-scrollbar-thumb:hover {
     background: var(--color-fg-dim);
@@ -124,24 +206,57 @@
   display: none;
 }
 
+/* --- the grid's scrubber -------------------------------------------------
+   A scrollbar, styled as one: the same 16px channel in `--color-ground`, the
+   same full-width square thumb, the same colours.
+
+   **The thumb is not the accent.** It sits directly against the pane's drag
+   handle, and two coloured bars a pixel apart merged into one. The handle
+   keeps the accent — a drag target you are reaching for is worth an accent;
+   a position readout you glance at is not, and every other scrollbar in the
+   app says position in plain grey already. Locked decision 24's list is
+   amended accordingly.
+
+   **No date.** M2.5a.1 kept a date that followed the thumb while dragging;
+   two passes trying to make it readable next to a thumb held for under a
+   second landed on the same conclusion — the position *is* the information.
+   M2.5a.2 removes it rather than qualifying it further. */
+
+.scrubber {
+  background: var(--color-ground);
+  border-left: 1px solid var(--color-line-soft);
+}
+
+.scrubber-thumb {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: var(--color-line);
+  pointer-events: none;
+  transition: background 90ms linear;
+}
+
+.scrubber:hover .scrubber-thumb {
+  background: var(--color-fg-dim);
+}
+
 /* --- drag handles --------------------------------------------------------
-   The panel edges. A 5px hit area over a 1px line: wide enough to grab
-   without aiming, narrow enough that the layout does not shift. */
+   The panel edges: a 7px hit area over a 3px line. Wide enough to grab
+   without aiming, and thick enough to see — at 1px it read as a hairline
+   between panels rather than as something you could take hold of. The line
+   carries the accent, which is now the only thing at these boundaries that
+   does. */
 
 .resizer {
   position: relative;
   flex: none;
-  width: 5px;
-  margin: 0 -2px;
   z-index: 20;
-  cursor: col-resize;
   background: transparent;
 }
 
 .resizer::after {
   content: "";
   position: absolute;
-  inset: 0 2px;
   background: transparent;
   transition: background 90ms linear;
 }
@@ -149,6 +264,26 @@
 .resizer:hover::after,
 .resizer.is-dragging::after {
   background: var(--color-accent);
+}
+
+.resizer.is-x {
+  width: 7px;
+  margin: 0 -3px;
+  cursor: col-resize;
+}
+
+.resizer.is-x::after {
+  inset: 0 2px;
+}
+
+.resizer.is-y {
+  height: 7px;
+  margin: -3px 0;
+  cursor: row-resize;
+}
+
+.resizer.is-y::after {
+  inset: 2px 0;
 }
 
 /* --- recycled grid tiles -------------------------------------------------
@@ -161,7 +296,7 @@
   top: 0;
   left: 0;
   overflow: hidden;
-  border-radius: 3px;
+  border-radius: 4px;
   border: 2px solid transparent;
   background: var(--color-raised);
   cursor: pointer;
@@ -172,19 +307,16 @@
   border-color: var(--color-fg-dim);
 }
 
+/* **One visual state for selection** — locked decision 26. A filled accent
+   border, and nothing else on the tile competing with it.
+
+   There is deliberately no rule for the shift-click anchor. It is invisible
+   bookkeeping: drawing it put a second ring on a tile that meant something
+   different from the first, which is what made an inverted selection
+   unreadable. `TilePool` no longer tracks it either. */
 .tile.is-selected {
   border-color: var(--color-accent);
-}
-
-/* The item the pane is previewing, which is not always the whole selection —
-   a filled corner rather than a second ring, so it reads alongside one. */
-.tile.is-current::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  box-shadow: inset 0 0 0 2px var(--color-accent);
-  pointer-events: none;
-  z-index: 1;
+  background: color-mix(in srgb, var(--color-accent) 18%, var(--color-raised));
 }
 
 .tile-img {
@@ -218,19 +350,19 @@
 .tile-badge {
   position: absolute;
   font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 15px;
-  background: rgba(8, 9, 11, 0.78);
-  border-radius: 3px;
-  padding: 0 4px;
+  font-size: 12px;
+  line-height: 18px;
+  background: rgba(8, 9, 11, 0.8);
+  border-radius: 4px;
+  padding: 0 5px;
   color: #fff;
   font-variant-numeric: tabular-nums;
   pointer-events: none;
 }
 
 .tile-dur {
-  bottom: 4px;
-  right: 4px;
+  bottom: 5px;
+  right: 5px;
   display: none;
 }
 
@@ -239,10 +371,10 @@
 }
 
 .tile-fav {
-  top: 4px;
-  right: 4px;
+  top: 5px;
+  right: 5px;
   color: var(--color-accent);
-  padding: 0 3px;
+  padding: 0 4px;
   display: none;
 }
 
@@ -250,19 +382,11 @@
   display: block;
 }
 
-/* --- Radix overlays ------------------------------------------------------
-   Primitives are taken for their keyboard behaviour, focus trapping and
-   dismissal; every pixel of the look is ours. These are the two animations
-   shared across menus, dialogs and toasts. */
-
-@keyframes overlay-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
+/* --- overlays ------------------------------------------------------------
+   shadcn/ui's surfaces sit on Radix. The dialog backdrop has no entrance
+   animation of its own — see the comment in `components/ui/dialog.tsx` —
+   so `surface-in` is the one animation shared across menus, dialogs,
+   popovers and toasts, for the panel itself. */
 
 @keyframes surface-in {
   from {
@@ -275,10 +399,46 @@
   }
 }
 
-.overlay-in {
-  animation: overlay-in 110ms ease-out;
-}
-
 .surface-in {
   animation: surface-in 110ms ease-out;
+}
+
+/* --- disclosure motion ----------------------------------------------------
+   Decision 27: anything that changes size or position animates. Two shapes
+   cover every disclosure in the app so far — content that opens downward
+   (the folder band, the pane's details) fades and settles in; a panel that
+   swaps its whole content on a fold (the navigation panel) just fades the
+   incoming content in while its own width tweens via `transition` on the
+   element itself, which is cheaper to reason about than keeping two variants
+   mounted to cross-fade between.
+
+   `prefers-reduced-motion` is handled once, globally, at the bottom of this
+   file — not repeated here or at each call site. */
+
+@keyframes reveal-down {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.reveal-down {
+  animation: reveal-down 180ms ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fade-in {
+  animation: fade-in 120ms ease-out;
 }

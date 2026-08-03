@@ -17,6 +17,16 @@ import {
 } from "react";
 
 import { ConfirmDialog, Dialog } from "../../components/Dialog";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../components/ui/select";
 import * as ipc from "../../lib/ipc";
 import type { ArchetypeInfo, FolderNode } from "../../lib/types";
 import { useOperations } from "./operations";
@@ -128,7 +138,7 @@ export function DialogsProvider({
           open
           onOpenChange={(open) => !open && close()}
           title={`Delete ${request.folder.title}?`}
-          body={`${request.folder.title} and everything in it moves to .gallery/trash, keeping its paths. Nothing is erased, and the toast that follows can put it back.`}
+          body={`${request.folder.title} and everything in it goes to the trash. Nothing is erased, and Undo puts it back.`}
           confirmLabel="Delete"
           danger
           onConfirm={() => ops.deleteFolder(request.folder)}
@@ -144,7 +154,7 @@ export function DialogsProvider({
               ? "Delete this item?"
               : `Delete ${request.itemIds.length} items?`
           }
-          body="They move to .gallery/trash with their paths preserved. Nothing is erased, and the toast that follows can put them back."
+          body="They go to the trash. Nothing is erased, and Undo puts them back."
           confirmLabel="Delete"
           danger
           onConfirm={() => ops.deleteItems(request.itemIds)}
@@ -184,6 +194,10 @@ function descendants(folders: FolderNode[], folder: FolderNode): Set<number> {
 
 // --- the dialogs themselves ------------------------------------------------
 
+/** Radix's Select has no concept of an empty value, so "no archetype" needs a
+ *  sentinel of its own rather than `""`. */
+const NO_ARCHETYPE = "none";
+
 function TextDialog({
   title,
   description,
@@ -219,36 +233,25 @@ function TextDialog({
       width={430}
       footer={
         <>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-[4px] border border-line px-3 py-1 text-fg-mid hover:bg-hover hover:text-fg"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={!trimmed}
-            onClick={submit}
-            className="rounded-[4px] border border-accent-d bg-accent/15 px-3 py-1 text-accent hover:bg-accent/25 disabled:opacity-40"
-          >
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="accent" disabled={!trimmed} onClick={submit}>
             {confirmLabel}
-          </button>
+          </Button>
         </>
       }
     >
-      <label className="block text-[12px] text-fg-dim">
+      <Label htmlFor="text-dialog-field" className="mb-1 text-fg-dim">
         {label}
-        <input
-          autoFocus
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") submit();
-          }}
-          className="mt-1 w-full rounded-[4px] border border-line bg-ground px-2 py-1 text-[13px] text-fg focus:border-accent-d"
-        />
-      </label>
+      </Label>
+      <Input
+        id="text-dialog-field"
+        autoFocus
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") submit();
+        }}
+      />
     </Dialog>
   );
 }
@@ -294,55 +297,48 @@ function NewFolderDialog({
       width={430}
       footer={
         <>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-[4px] border border-line px-3 py-1 text-fg-mid hover:bg-hover hover:text-fg"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={!trimmed}
-            onClick={submit}
-            className="rounded-[4px] border border-accent-d bg-accent/15 px-3 py-1 text-accent hover:bg-accent/25 disabled:opacity-40"
-          >
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="accent" disabled={!trimmed} onClick={submit}>
             Create
-          </button>
+          </Button>
         </>
       }
     >
-      <label className="block text-[12px] text-fg-dim">
+      <Label htmlFor="new-folder-title" className="mb-1 text-fg-dim">
         Title
-        <input
-          autoFocus
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") submit();
-          }}
-          className="mt-1 w-full rounded-[4px] border border-line bg-ground px-2 py-1 text-[13px] text-fg focus:border-accent-d"
-        />
-      </label>
+      </Label>
+      <Input
+        id="new-folder-title"
+        autoFocus
+        value={name}
+        onChange={(event) => setName(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") submit();
+        }}
+      />
 
       {archetypes.length > 0 && (
-        <label className="mt-3 block text-[12px] text-fg-dim">
-          Archetype
-          <select
-            value={archetypeId ?? ""}
-            onChange={(event) =>
-              setArchetypeId(event.target.value ? Number(event.target.value) : null)
+        <>
+          <Label className="mb-1 mt-3 text-fg-dim">Archetype</Label>
+          <Select
+            value={archetypeId === null ? NO_ARCHETYPE : String(archetypeId)}
+            onValueChange={(next) =>
+              setArchetypeId(next === NO_ARCHETYPE ? null : Number(next))
             }
-            className="mt-1 w-full rounded-[4px] border border-line bg-ground px-2 py-1 text-[13px] text-fg"
           >
-            <option value="">None</option>
-            {archetypes.map((archetype) => (
-              <option key={archetype.id} value={archetype.id}>
-                {archetype.name}
-              </option>
-            ))}
-          </select>
-        </label>
+            <SelectTrigger aria-label="Archetype">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_ARCHETYPE}>None</SelectItem>
+              {archetypes.map((archetype) => (
+                <SelectItem key={archetype.id} value={String(archetype.id)}>
+                  {archetype.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </>
       )}
     </Dialog>
   );
@@ -380,12 +376,12 @@ function FolderPickerDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()} title={title} width={470}>
-      <input
+      <Input
         autoFocus
         value={filter}
         placeholder="Filter by title or path…"
         onChange={(event) => setFilter(event.target.value)}
-        className="mb-2 w-full rounded-[4px] border border-line bg-ground px-2 py-1 text-[13px] text-fg focus:border-accent-d"
+        className="mb-2"
       />
 
       <div className="max-h-[46vh] overflow-y-auto rounded-[4px] border border-line-soft">
@@ -396,7 +392,7 @@ function FolderPickerDialog({
               onClose();
               onPick(null);
             }}
-            className="flex w-full items-center gap-2 border-b border-line-soft px-2 py-1.5 text-left text-fg-mid hover:bg-hover hover:text-fg"
+            className="flex h-9 w-full items-center gap-2 border-b border-line-soft px-2.5 text-left text-fg-mid hover:bg-hover hover:text-fg focus-visible:-outline-offset-2"
           >
             The top level
           </button>
@@ -410,11 +406,11 @@ function FolderPickerDialog({
               onClose();
               onPick(folder);
             }}
-            className="flex w-full items-center gap-2 px-2 py-1.5 text-left hover:bg-hover"
-            style={{ paddingLeft: 8 + Math.max(folder.depth - 1, 0) * 12 }}
+            className="flex h-9 w-full items-center gap-2 px-2.5 text-left hover:bg-hover focus-visible:-outline-offset-2"
+            style={{ paddingLeft: 10 + Math.max(folder.depth - 1, 0) * 14 }}
           >
             <span className="truncate text-fg">{folder.title}</span>
-            <span className="ml-auto shrink-0 truncate font-mono text-[11px] text-fg-dim">
+            <span className="ml-auto shrink-0 truncate font-mono text-fg-dim">
               {folder.relPath}
             </span>
           </button>
@@ -466,35 +462,24 @@ function TagDialog({
       width={430}
       footer={
         <>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-[4px] border border-line px-3 py-1 text-fg-mid hover:bg-hover hover:text-fg"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={!value}
-            onClick={submit}
-            className="rounded-[4px] border border-accent-d bg-accent/15 px-3 py-1 text-accent hover:bg-accent/25 disabled:opacity-40"
-          >
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="accent" disabled={!value} onClick={submit}>
             Add tag
-          </button>
+          </Button>
         </>
       }
     >
-      <input
+      <Input
         autoFocus
+        aria-label="Tag"
         value={text}
         onChange={(event) => setText(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Enter") submit();
         }}
-        className="w-full rounded-[4px] border border-line bg-ground px-2 py-1 text-[13px] text-fg focus:border-accent-d"
       />
       {key && (
-        <p className="mt-1.5 text-[12px] text-fg-dim">
+        <p className="mt-1.5 text-[13px] text-fg-dim">
           Label <span className="text-fg-mid">{key}</span> ={" "}
           <span className="text-fg-mid">{value || "—"}</span>
         </p>

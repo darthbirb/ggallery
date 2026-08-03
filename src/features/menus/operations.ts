@@ -100,9 +100,10 @@ export function buildOperations(deps: Deps): Operations {
             ? ` (${plural(report.errors.length, "item")} could not be moved)`
             : "";
         toasts.push({
+          // The destination *is* the outcome here, so it stays.
           message: `Moved ${plural(report.moved, "item")} to ${dest.title}${failed}`,
           undo: undoFor(deps, report.batchId),
-          undoneMessage: `Move undone — back where they were`,
+          undoneMessage: `Moved ${plural(report.moved, "item")} back`,
         });
       } catch (err) {
         fail(toasts, "Could not move", err);
@@ -122,9 +123,9 @@ export function buildOperations(deps: Deps): Operations {
           return;
         }
         toasts.push({
-          message: `Deleted ${plural(report.trashed, "item")} to trash`,
+          message: `Deleted ${plural(report.trashed, "item")}`,
           undo: undoFor(deps, report.batchId),
-          undoneMessage: "Delete undone — restored from trash",
+          undoneMessage: `Restored ${plural(report.trashed, "item")}`,
         });
       } catch (err) {
         fail(toasts, "Could not delete", err);
@@ -161,7 +162,7 @@ export function buildOperations(deps: Deps): Operations {
     async copyItemFile(itemId) {
       try {
         await ipc.copyItemFile(itemId);
-        toasts.push({ message: "File copied to the clipboard" });
+        toasts.push({ message: "File copied" });
       } catch (err) {
         fail(toasts, "Could not copy the file", err);
       }
@@ -170,7 +171,7 @@ export function buildOperations(deps: Deps): Operations {
     async copyItemPath(itemId) {
       try {
         await ipc.copyItemPath(itemId);
-        toasts.push({ message: "Path copied to the clipboard" });
+        toasts.push({ message: "Path copied" });
       } catch (err) {
         fail(toasts, "Could not copy the path", err);
       }
@@ -230,7 +231,7 @@ export function buildOperations(deps: Deps): Operations {
           // A folder has one name: the directory on disk follows the title.
           message: `Renamed ${folder.title} to ${title}`,
           undo: undoFor(deps, batchId),
-          undoneMessage: `Rename undone — back to ${folder.title}`,
+          undoneMessage: `Renamed back to ${folder.title}`,
         });
       } catch (err) {
         fail(toasts, "Could not rename the folder", err);
@@ -242,9 +243,9 @@ export function buildOperations(deps: Deps): Operations {
         const batchId = await ipc.moveFolder(folder.id, dest?.id ?? null);
         library.reload();
         toasts.push({
-          message: `Moved ${folder.title} into ${dest ? dest.title : "the top level"}`,
+          message: `Moved ${folder.title} to ${dest ? dest.title : "the top level"}`,
           undo: undoFor(deps, batchId),
-          undoneMessage: "Move undone — back where it was",
+          undoneMessage: `Moved ${folder.title} back`,
         });
       } catch (err) {
         fail(toasts, "Could not move the folder", err);
@@ -256,9 +257,9 @@ export function buildOperations(deps: Deps): Operations {
         const batchId = await ipc.deleteFolder(folder.id);
         library.reload();
         toasts.push({
-          message: `Deleted ${folder.title} and its contents to trash`,
+          message: `Deleted ${folder.title}`,
           undo: undoFor(deps, batchId),
-          undoneMessage: `Delete undone — ${folder.title} restored`,
+          undoneMessage: `Restored ${folder.title}`,
         });
       } catch (err) {
         fail(toasts, "Could not delete the folder", err);
@@ -326,7 +327,7 @@ export function buildOperations(deps: Deps): Operations {
       try {
         await ipc.applyFolderArchetype(folderId, archetypeId);
         library.refreshFolders();
-        toasts.push({ message: `Applied the ${name} archetype` });
+        toasts.push({ message: `Applied ${name}` });
       } catch (err) {
         fail(toasts, "Could not apply the archetype", err);
       }

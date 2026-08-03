@@ -1,3 +1,6 @@
+import { Button } from "../../components/ui/button";
+import { Checkbox } from "../../components/ui/checkbox";
+import { Label } from "../../components/ui/label";
 import { formatBytes, formatCount } from "../../lib/format";
 import type { ReviewReport } from "../../lib/types";
 
@@ -32,16 +35,13 @@ export function ReviewScreen({
     <div className="flex h-full flex-col items-center justify-center gap-6 bg-ground px-8 py-10 text-fg">
       <div className="flex w-full max-w-[560px] flex-col gap-5">
         <div className="flex flex-col gap-1">
-          <h1 className="text-[20px] font-semibold tracking-tight">Review</h1>
-          <p
-            className="truncate font-mono text-[11px] text-fg-dim"
-            title={path}
-          >
+          <h1 className="text-[22px] font-semibold tracking-tight">Review</h1>
+          <p className="truncate font-mono text-fg-dim" title={path}>
             {path}
           </p>
         </div>
 
-        <p className="text-[13px] text-fg-mid">
+        <p className="leading-relaxed text-fg-mid">
           <span className="font-semibold text-fg">
             {formatCount(report.toRename)}
           </span>{" "}
@@ -52,7 +52,7 @@ export function ReviewScreen({
           )}
         </p>
 
-        <table className="w-full border-collapse text-left font-mono text-[12px]">
+        <table className="w-full border-collapse text-left font-mono">
           <tbody>
             {report.byKind.map((kind) => (
               <tr key={kind.kind} className="border-b border-line-soft/60">
@@ -75,15 +75,15 @@ export function ReviewScreen({
         </table>
 
         {report.unreadable > 0 && (
-          <p className="text-[12px] text-danger">
+          <p className="text-danger">
             {formatCount(report.unreadable)} entr
             {report.unreadable === 1 ? "y" : "ies"} could not be read and
             will be left as they are.
           </p>
         )}
 
-        <div className="overflow-hidden rounded-[3px] border border-line-soft">
-          <table className="w-full border-collapse text-left font-mono text-[11px]">
+        <div className="overflow-hidden rounded-[5px] border border-line-soft">
+          <table className="w-full border-collapse text-left font-mono">
             <tbody>
               {report.sample.map((row, i) => (
                 <tr
@@ -104,41 +104,40 @@ export function ReviewScreen({
           </table>
         </div>
         {report.toRename > report.sample.length && (
-          <p className="-mt-3 text-[11px] text-fg-dim">
+          <p className="-mt-3 text-[13px] text-fg-dim">
             …and {formatCount(report.toRename - report.sample.length)} more,
             shown the same way.
           </p>
         )}
 
-        <label className="flex items-start gap-2 rounded-[3px] border border-line-soft bg-raised px-3 py-2 text-[13px]">
-          <input
-            type="checkbox"
+        <Label
+          htmlFor="backup-confirmed"
+          className="items-start gap-2.5 rounded-[5px] border border-line bg-raised px-3 py-2.5 text-[14px] text-fg"
+        >
+          <Checkbox
+            id="backup-confirmed"
             checked={confirmed}
-            onChange={(event) => onConfirmedChange(event.target.checked)}
-            className="mt-0.5 accent-accent"
+            onCheckedChange={(checked) => onConfirmedChange(checked === true)}
+            className="mt-0.5"
           />
           <span>I have a backup of this folder somewhere else.</span>
-        </label>
+        </Label>
 
-        {error && <p className="text-[13px] text-danger">{error}</p>}
+        {error && <p className="text-danger">{error}</p>}
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={busy}
-            className="rounded-[3px] border border-line px-3 py-1.5 text-fg-mid hover:bg-hover hover:text-fg disabled:opacity-40"
-          >
+          <Button size="lg" onClick={onCancel} disabled={busy}>
             Cancel
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            size="lg"
+            variant="accent"
+            className="ml-auto"
             onClick={onImport}
             disabled={!confirmed || busy}
-            className="ml-auto rounded-[5px] border border-accent-d bg-raised px-4 py-1.5 text-accent hover:bg-hover disabled:opacity-40"
           >
             {busy ? "Importing…" : "Import"}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

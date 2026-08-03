@@ -123,7 +123,7 @@ describe("expanded, with no archetype", () => {
       detail({
         archetypeId: 3,
         archetypeName: "Trip",
-        fields: [{ key: "city", type: "text", ordinal: 0, value: "" }],
+        fields: [{ key: "city", ordinal: 0, value: "" }],
       }),
     );
     renderBand({ expanded: true });

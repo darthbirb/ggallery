@@ -11,12 +11,14 @@
  * cover, the counts and an *＋ add field* control — not a row of blank labels.
  */
 
+import { ChevronRight, Image as ImageIcon, Plus, Star } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
-import { Button, IconButton } from "../../components/Button";
 import { Chip } from "../../components/Chip";
 import { ContextMenu, DropdownMenu, MenuItem, MenuLabel } from "../../components/Menu";
 import { Tooltip } from "../../components/Tooltip";
+import { Button, IconButton } from "../../components/ui/button";
+import { Input, PillInput, Textarea } from "../../components/ui/input";
 import { formatCount, formatTimeAgo } from "../../lib/format";
 import * as ipc from "../../lib/ipc";
 import type {
@@ -25,6 +27,7 @@ import type {
   FolderNode,
   FolderStatusDef,
 } from "../../lib/types";
+import { cn } from "../../lib/utils";
 import { useOperations } from "../menus/operations";
 import { FolderMenu } from "../menus/FolderMenu";
 
@@ -73,18 +76,24 @@ export function FolderBand({
   };
 
   const header = (
-    <div className="flex items-center gap-2 px-3 py-1.5">
+    <div className="flex h-11 items-center gap-2.5 px-2.5">
       <button
         type="button"
         aria-label={expanded ? "Collapse folder details" : "Expand folder details"}
         aria-expanded={expanded}
         onClick={() => onExpandedChange(!expanded)}
-        className="flex min-w-0 items-center gap-2 text-left"
+        className="flex h-8 min-w-0 items-center gap-2 rounded-[4px] px-1.5 text-left hover:bg-hover"
       >
-        <span className="w-3 shrink-0 text-center text-[9px] text-fg-dim">
-          {expanded ? "▾" : "▸"}
-        </span>
-        <span className="truncate text-[14px] font-semibold text-fg">
+        {/* A single icon that rotates rather than swapping — decision 27:
+            transform, not a conditional pair, and it costs nothing to
+            animate. */}
+        <ChevronRight
+          className={cn(
+            "size-[18px] shrink-0 text-fg-dim transition-transform duration-[120ms] ease-out",
+            expanded && "rotate-90",
+          )}
+        />
+        <span className="truncate text-[16px] font-semibold text-fg">
           {folder.title}
         </span>
       </button>
@@ -95,7 +104,7 @@ export function FolderBand({
         onPick={(picked) => ops.setFolderStatus(folder.id, picked.key, picked.label)}
       />
 
-      <span className="truncate font-mono text-[11px] tabular-nums text-fg-dim">
+      <span className="truncate font-mono tabular-nums text-fg-dim">
         {formatCount(counts.directCount)} here
         {counts.totalCount !== counts.directCount && (
           <> · {formatCount(counts.totalCount)} below</>
@@ -103,7 +112,10 @@ export function FolderBand({
       </span>
 
       <span className="ml-auto flex shrink-0 items-center gap-1">
-        <Tooltip label={folder.favorite ? "Unpin from the top" : "Pin to the top"} side="bottom">
+        <Tooltip
+          label={folder.favorite ? "Unpin from the top" : "Pin to the top"}
+          side="bottom"
+        >
           <IconButton
             aria-label={folder.favorite ? "Unpin from the top" : "Pin to the top"}
             active={folder.favorite}
@@ -111,7 +123,7 @@ export function FolderBand({
               ops.setFolderFavorite(folder.id, folder.title, !folder.favorite)
             }
           >
-            {folder.favorite ? "★" : "☆"}
+            <Star className={folder.favorite ? "fill-current" : undefined} />
           </IconButton>
         </Tooltip>
       </span>
@@ -134,7 +146,13 @@ export function FolderBand({
         {header}
 
         {expanded && (
-          <div className="flex gap-3 px-3 pb-3 pt-0.5">
+          // `reveal-down` per decision 27, "band expansion": the band opens
+          // downward, so the reveal fades and settles in the same direction
+          // rather than teleporting into place. Collapsing stays instant —
+          // this is a mount-in animation, not a two-way transition, since
+          // the content unmounts (rather than just hiding) to keep it out of
+          // tab order while collapsed.
+          <div className="reveal-down flex gap-3 px-3 pb-3 pt-1">
             <Cover
               thumbsDir={thumbsDir}
               thumb={detail?.coverThumb ?? null}
@@ -174,7 +192,7 @@ export function FolderBand({
                 onCommit={(notes) => ops.setFolderNotes(folder.id, notes || null)}
               />
 
-              <p className="mt-2 flex flex-wrap items-center gap-x-3 font-mono text-[11px] tabular-nums text-fg-dim">
+              <p className="mt-2.5 flex flex-wrap items-center gap-x-3 font-mono tabular-nums text-fg-dim">
                 <span>{formatCount(counts.directCount)} items here</span>
                 <span>{formatCount(counts.totalCount)} in total</span>
                 {"subfolderCount" in counts && (
@@ -208,7 +226,7 @@ function StatusControl({
         <button
           type="button"
           aria-label="Folder status"
-          className="shrink-0 rounded-full border px-2 py-[1px] text-[11px] hover:bg-hover"
+          className="h-7 shrink-0 rounded-full border bg-raised px-2.5 text-[13px] hover:bg-hover"
           style={{
             borderColor: status?.colour ?? "var(--color-line)",
             color: status?.colour ?? "var(--color-fg-dim)",
@@ -240,8 +258,8 @@ function Cover({
   onClear: () => void;
 }) {
   return (
-    <div className="shrink-0">
-      <div className="h-[76px] w-[76px] overflow-hidden rounded-[4px] border border-line-soft bg-raised">
+    <div className="flex w-20 shrink-0 flex-col items-center gap-1">
+      <div className="size-20 overflow-hidden rounded-[5px] border border-line bg-raised">
         {thumb ? (
           <img
             src={ipc.assetUrl(thumbsDir, thumb)}
@@ -250,19 +268,17 @@ function Cover({
             className="h-full w-full object-cover"
           />
         ) : (
-          <div className="grid h-full w-full place-items-center text-fg-dim">▣</div>
+          <div className="grid h-full w-full place-items-center text-fg-dim">
+            <ImageIcon className="size-6" />
+          </div>
         )}
       </div>
       {chosen ? (
-        <button
-          type="button"
-          onClick={onClear}
-          className="mt-1 w-[76px] text-center text-[11px] text-fg-dim hover:text-fg"
-        >
-          clear cover
-        </button>
+        <Button size="sm" className="w-full" onClick={onClear}>
+          Clear cover
+        </Button>
       ) : (
-        <p className="mt-1 w-[76px] text-center text-[11px] text-fg-dim">automatic</p>
+        <p className="text-[13px] text-fg-dim">automatic</p>
       )}
     </div>
   );
@@ -285,7 +301,7 @@ function Fields({
   return (
     <div>
       {fields.length > 0 && (
-        <dl className="mb-1.5 grid grid-cols-[minmax(64px,auto)_1fr] items-baseline gap-x-3 gap-y-0.5">
+        <dl className="mb-2 grid grid-cols-[minmax(72px,auto)_1fr] items-center gap-x-3 gap-y-1">
           {fields.map((field) => (
             <div key={field.key} className="contents">
               <dt className="truncate text-fg-dim">{field.key}</dt>
@@ -304,17 +320,13 @@ function Fields({
 
       <div className="flex flex-wrap items-center gap-2">
         {detail?.archetypeName ? (
-          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-fg-dim">
+          <span className="font-mono uppercase tracking-[0.1em] text-fg-dim">
             {detail.archetypeName}
           </span>
         ) : (
           archetypes.length > 0 && (
             <DropdownMenu
-              trigger={
-                <Button variant="outline">
-                  Apply an archetype…
-                </Button>
-              }
+              trigger={<Button size="sm">Apply an archetype…</Button>}
             >
               <MenuLabel>Archetypes</MenuLabel>
               {archetypes.map((archetype) => (
@@ -337,8 +349,9 @@ function Fields({
             }}
           />
         ) : (
-          <Button variant="outline" onClick={() => setAdding(true)}>
-            ＋ add field
+          <Button size="sm" onClick={() => setAdding(true)}>
+            <Plus />
+            add field
           </Button>
         )}
       </div>
@@ -355,7 +368,7 @@ function NewFieldInput({
 }) {
   const [key, setKey] = useState("");
   return (
-    <input
+    <Input
       autoFocus
       value={key}
       placeholder="field name"
@@ -369,7 +382,7 @@ function NewFieldInput({
           onCancel();
         }
       }}
-      className="w-28 rounded-[4px] border border-accent-d bg-ground px-1.5 py-[2px] text-[12px] text-fg"
+      className="w-36 border-accent-d"
     />
   );
 }
@@ -395,7 +408,7 @@ function Tags({
           {flag.value}
         </Chip>
       ))}
-      <input
+      <PillInput
         value={value}
         placeholder="＋ tag"
         aria-label="Add a tag to this folder"
@@ -406,7 +419,6 @@ function Tags({
             setValue("");
           }
         }}
-        className="w-20 rounded-full border border-dashed border-line bg-transparent px-2 py-[1px] text-[12px] text-fg-mid placeholder:text-fg-dim focus:w-32 focus:border-accent-d"
       />
     </div>
   );
@@ -420,7 +432,7 @@ function Notes({
   onCommit: (notes: string) => void;
 }) {
   return (
-    <textarea
+    <Textarea
       defaultValue={initial}
       placeholder="Notes…"
       aria-label="Folder notes"
@@ -428,7 +440,7 @@ function Notes({
       onBlur={(event) => {
         if (event.target.value !== initial) onCommit(event.target.value);
       }}
-      className="mt-2 w-full resize-none rounded-[4px] border border-line-soft bg-ground px-2 py-1 text-[13px] text-fg-mid placeholder:text-fg-dim focus:border-accent-d"
+      className="mt-2.5 text-fg-mid"
     />
   );
 }
@@ -455,7 +467,7 @@ function EditableText({
           setDraft(value);
           setEditing(true);
         }}
-        className="w-full truncate text-left text-fg-mid hover:text-fg"
+        className="h-8 w-full truncate rounded-[4px] border border-transparent px-2 text-left text-fg-mid hover:border-line hover:bg-raised hover:text-fg"
       >
         {value || <span className="text-fg-dim">{placeholder ?? "click to edit"}</span>}
       </button>
@@ -463,7 +475,7 @@ function EditableText({
   }
 
   return (
-    <input
+    <Input
       autoFocus
       aria-label={label}
       value={draft}
@@ -479,7 +491,7 @@ function EditableText({
           setEditing(false);
         }
       }}
-      className="w-full rounded-[3px] border border-accent-d bg-ground px-1 text-fg"
+      className="border-accent-d"
     />
   );
 }

@@ -32,9 +32,9 @@ export const ACCENTS = [
 export type Accent = (typeof ACCENTS)[number]["key"];
 
 /**
- * What the pane holds. Only `preview` is built in M2.5a; the other two are
- * M2.5b's, and the control that switches between them says so rather than
- * pretending they are not coming.
+ * What the pane holds. All three modes keep a remembered width — DESIGN.md §2
+ * says widths are per mode, and Settings lists all three so the numbers are
+ * already there when the modes arrive.
  */
 export type PaneMode = "preview" | "grid" | "folders";
 
@@ -44,6 +44,18 @@ export const PANE_MODES: { key: PaneMode; label: string }[] = [
   { key: "folders", label: "Folders" },
 ];
 
+/**
+ * What the pane's mode control actually offers today.
+ *
+ * Only Preview is built; Grid and Folders are M2.5b's. They are **not** shown
+ * as disabled tabs — two dead controls read as unfinished, which is exactly
+ * the complaint M2.5a.1 exists to answer. Adding them back is adding their
+ * keys to this list.
+ */
+export const AVAILABLE_PANE_MODES = PANE_MODES.filter(
+  (mode) => mode.key === "preview",
+);
+
 /** Below this a panel is not usable; the drag stops rather than collapsing. */
 export const NAV_MIN = 150;
 export const NAV_MAX = 420;
@@ -51,19 +63,25 @@ export const NAV_DEFAULT = 200;
 /** Folded: an icon strip that keeps queue badges on screen. */
 export const NAV_FOLDED = 44;
 export const PANE_MIN = 260;
-export const PANE_DEFAULT: Record<PaneMode, number> = {
-  preview: 460,
-  grid: 520,
-  folders: 380,
-};
+
+/** The filmstrip's height, dragged by the handle on its top edge. The floor
+ *  is a usable thumbnail plus its scrollbar channel; the ceiling stops it
+ *  eating the media it exists to navigate. */
+export const FILMSTRIP_MIN = 52;
+export const FILMSTRIP_MAX = 240;
+export const FILMSTRIP_DEFAULT = 64;
+/** **One** width, shared by every pane mode. It was per mode until M2.5a.1:
+ *  in use, switching modes moving the split under you reads as the window
+ *  losing its place, not as the app being helpful. */
+export const PANE_DEFAULT = 460;
 
 export interface UiPrefs {
   navWidth: number;
   navFolded: boolean;
   paneOpen: boolean;
   paneMode: PaneMode;
-  /** Remembered per mode — DESIGN.md §2 "Panels are resizable". */
-  paneWidths: Record<PaneMode, number>;
+  paneWidth: number;
+  filmstripHeight: number;
   /** Global, not per folder: per-folder state would reflow the grid on every
    *  navigation, and nobody would curate it. DESIGN.md §2 "Folder band". */
   bandExpanded: boolean;
@@ -78,7 +96,8 @@ const DEFAULTS: UiPrefs = {
   navFolded: false,
   paneOpen: true,
   paneMode: "preview",
-  paneWidths: { ...PANE_DEFAULT },
+  paneWidth: PANE_DEFAULT,
+  filmstripHeight: FILMSTRIP_DEFAULT,
   bandExpanded: false,
   detailsExpanded: false,
   accent: "slate",
@@ -90,11 +109,12 @@ export interface UiState extends UiPrefs {
    *  before they have, so a slow first read can never overwrite them. */
   loaded: boolean;
   set: <K extends keyof UiPrefs>(key: K, value: UiPrefs[K]) => void;
-  setPaneWidth: (mode: PaneMode, width: number) => void;
-  /** Current mode's remembered width, clamped to what fits. */
-  paneWidth: number;
+  /** Clamped to `PANE_MIN` on the way in, so a drag cannot store a width the
+   *  pane could never render at. */
+  setPaneWidth: (width: number) => void;
   resetNavWidth: () => void;
   resetPaneWidth: () => void;
+  resetFilmstripHeight: () => void;
 }
 
 /** Merge what was stored over the defaults, field by field, so a preferences
@@ -109,11 +129,22 @@ function reconcile(stored: unknown): UiPrefs {
   const boolean = (value: unknown, fallback: boolean) =>
     typeof value === "boolean" ? value : fallback;
 
-  const widths = (raw.paneWidths ?? {}) as Record<string, unknown>;
+  // M2.5a.1 collapsed three per-mode widths into one. A preferences file from
+  // before that carries `paneWidths`; take Preview's, since it is the only
+  // mode that was ever built, so nobody's split jumps on upgrade.
+  const legacyWidths = (raw.paneWidths ?? {}) as Record<string, unknown>;
+  const paneWidth = number(
+    raw.paneWidth,
+    number(legacyWidths.preview, DEFAULTS.paneWidth),
+  );
+
   const accent = ACCENTS.some((option) => option.key === raw.accent)
     ? (raw.accent as Accent)
     : DEFAULTS.accent;
-  const paneMode = PANE_MODES.some((option) => option.key === raw.paneMode)
+  // Only a mode that is actually built: a preferences file written by a later
+  // build (or by M2.5b, then rolled back) must not leave the pane rendering
+  // nothing at all.
+  const paneMode = AVAILABLE_PANE_MODES.some((option) => option.key === raw.paneMode)
     ? (raw.paneMode as PaneMode)
     : DEFAULTS.paneMode;
 
@@ -122,11 +153,12 @@ function reconcile(stored: unknown): UiPrefs {
     navFolded: boolean(raw.navFolded, DEFAULTS.navFolded),
     paneOpen: boolean(raw.paneOpen, DEFAULTS.paneOpen),
     paneMode,
-    paneWidths: {
-      preview: number(widths.preview, PANE_DEFAULT.preview),
-      grid: number(widths.grid, PANE_DEFAULT.grid),
-      folders: number(widths.folders, PANE_DEFAULT.folders),
-    },
+    paneWidth: Math.max(paneWidth, PANE_MIN),
+    filmstripHeight: clamp(
+      number(raw.filmstripHeight, DEFAULTS.filmstripHeight),
+      FILMSTRIP_MIN,
+      FILMSTRIP_MAX,
+    ),
     bandExpanded: boolean(raw.bandExpanded, DEFAULTS.bandExpanded),
     detailsExpanded: boolean(raw.detailsExpanded, DEFAULTS.detailsExpanded),
     accent,
@@ -195,11 +227,8 @@ function useUiState(): UiState {
     [],
   );
 
-  const setPaneWidth = useCallback((mode: PaneMode, width: number) => {
-    setPrefs((current) => ({
-      ...current,
-      paneWidths: { ...current.paneWidths, [mode]: Math.max(width, PANE_MIN) },
-    }));
+  const setPaneWidth = useCallback((width: number) => {
+    setPrefs((current) => ({ ...current, paneWidth: Math.max(width, PANE_MIN) }));
   }, []);
 
   const resetNavWidth = useCallback(() => {
@@ -207,13 +236,11 @@ function useUiState(): UiState {
   }, []);
 
   const resetPaneWidth = useCallback(() => {
-    setPrefs((current) => ({
-      ...current,
-      paneWidths: {
-        ...current.paneWidths,
-        [current.paneMode]: PANE_DEFAULT[current.paneMode],
-      },
-    }));
+    setPrefs((current) => ({ ...current, paneWidth: PANE_DEFAULT }));
+  }, []);
+
+  const resetFilmstripHeight = useCallback(() => {
+    setPrefs((current) => ({ ...current, filmstripHeight: FILMSTRIP_DEFAULT }));
   }, []);
 
   return useMemo(
@@ -222,11 +249,19 @@ function useUiState(): UiState {
       loaded,
       set,
       setPaneWidth,
-      paneWidth: prefs.paneWidths[prefs.paneMode],
       resetNavWidth,
       resetPaneWidth,
+      resetFilmstripHeight,
     }),
-    [prefs, loaded, set, setPaneWidth, resetNavWidth, resetPaneWidth],
+    [
+      prefs,
+      loaded,
+      set,
+      setPaneWidth,
+      resetNavWidth,
+      resetPaneWidth,
+      resetFilmstripHeight,
+    ],
   );
 }
 

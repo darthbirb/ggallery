@@ -43,16 +43,9 @@ export function formatBytes(bytes: number): string {
   return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
 }
 
-/** Unix seconds to `Jun 2024`. */
-export function formatMonth(seconds: number): string {
-  const date = new Date(seconds * 1000);
-  return `${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
-}
-
-export function monthLabel(month: number): string {
-  return MONTHS[month] ?? "";
-}
-
+/** Unix seconds to `12 Jun 2024` — what the scrubber shows while dragging.
+ *  The month-name and `Jun 2024` helpers went with the scrubber's year
+ *  column; nothing labels a timeline by month any more. */
 export function formatDate(seconds: number): string {
   const date = new Date(seconds * 1000);
   return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;

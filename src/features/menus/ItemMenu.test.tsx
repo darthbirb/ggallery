@@ -127,9 +127,10 @@ describe("the item menu", () => {
     openItemMenu({ itemIds: [7, 8] });
 
     await userEvent.click(await screen.findByRole("menuitem", { name: /Delete…/ }));
-    // Named, not "Are you sure?" — and it says where things go.
+    // Named, not "Are you sure?" — and it says where things go and how to
+    // get them back, in one sentence.
     expect(await screen.findByText(/Delete 2 items\?/)).toBeInTheDocument();
-    expect(screen.getByText(/\.gallery\/trash/)).toBeInTheDocument();
+    expect(screen.getByText(/go to the trash/)).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(mocked.deleteItems).toHaveBeenCalledWith([7, 8]));
@@ -160,6 +161,36 @@ describe("the empty-space menu", () => {
 
     await userEvent.click(await screen.findByRole("menuitem", { name: /Select all/ }));
     expect(selection.selectAll).toHaveBeenCalled();
+  });
+
+  it("keeps invert reachable, since the selection bar no longer carries it", async () => {
+    // M2.5a.1 dropped *revert* from the selection bar. Decision 23 says no
+    // capability may become keyboard-only, so this menu is now the visible
+    // path to it and must not lose the entry.
+    const selection = fakeSelection({ count: 2 });
+    renderWithProviders(
+      <PointMenu at={{ x: 1, y: 1 }} onClose={() => {}}>
+        <EmptyMenu
+          folder={{ id: 1, title: "Trips" }}
+          hasItems
+          hasSelection
+          onSelectAll={selection.selectAll}
+          onInvert={selection.invert}
+          onClear={selection.clear}
+          onNewFolder={() => {}}
+          bandExpanded={false}
+          onToggleBand={() => {}}
+          paneOpen
+          onTogglePane={() => {}}
+        />
+      </PointMenu>,
+      { selection },
+    );
+
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: /Invert selection/ }),
+    );
+    expect(selection.invert).toHaveBeenCalled();
   });
 
   it("creates a folder in the folder currently in view", async () => {

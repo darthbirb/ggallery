@@ -1,3 +1,4 @@
+import { Button } from "../../components/ui/button";
 import { formatCount } from "../../lib/format";
 import type { Progress } from "../../lib/types";
 
@@ -19,7 +20,7 @@ export function IndexStatus({
   if (!progress) return null;
 
   return (
-    <span className="flex items-center gap-2 font-mono text-[11px] tabular-nums text-fg-dim">
+    <span className="flex items-center gap-2 font-mono tabular-nums text-fg-dim">
       {progress.phase === "walking" && (
         <span className="text-fg-mid">
           {progress.rescanning
@@ -40,18 +41,15 @@ export function IndexStatus({
       {progress.phase === "idle" && <span>{formatCount(progress.items)} items</span>}
 
       {failureCount > 0 && (
-        <button
-          type="button"
+        <Button
+          size="sm"
+          variant="danger"
           onClick={onToggleFailures}
           aria-expanded={showingFailures}
-          className={`rounded-[3px] border px-2 py-0.5 ${
-            showingFailures
-              ? "border-danger bg-raised text-danger"
-              : "border-transparent text-danger hover:bg-raised"
-          }`}
+          className="font-mono"
         >
           {formatCount(failureCount)} failed
-        </button>
+        </Button>
       )}
     </span>
   );

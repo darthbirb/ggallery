@@ -8,7 +8,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { NAV_DEFAULT, PANE_DEFAULT, UiProvider, useUi } from "./ui";
+import { NAV_DEFAULT, PANE_DEFAULT, PANE_MIN, UiProvider, useUi } from "./ui";
 
 vi.mock("../lib/ipc");
 
@@ -34,6 +34,7 @@ function Probe() {
       <button onClick={() => ui.set("accent", "teal")}>teal</button>
       <button onClick={() => ui.set("navWidth", 260)}>widen</button>
       <button onClick={() => ui.set("paneMode", "grid")}>grid mode</button>
+      <button onClick={() => ui.setPaneWidth(40)}>crush pane</button>
     </>
   );
 }
@@ -80,23 +81,39 @@ describe("panel state", () => {
     await waitFor(() =>
       expect(screen.getByTestId("nav-width")).toHaveTextContent(String(NAV_DEFAULT)),
     );
-    expect(screen.getByTestId("pane-width")).toHaveTextContent(
-      String(PANE_DEFAULT.preview),
-    );
+    expect(screen.getByTestId("pane-width")).toHaveTextContent(String(PANE_DEFAULT));
   });
 
-  it("remembers the pane width per mode", async () => {
-    mocked.uiPrefs.mockResolvedValue({
-      paneMode: "preview",
-      paneWidths: { preview: 400, grid: 700, folders: 300 },
-    });
+  it("keeps one pane width, whatever mode the pane is in", async () => {
+    // It was remembered per mode until M2.5a.1. Switching modes moving the
+    // split under you reads as the window losing its place.
+    mocked.uiPrefs.mockResolvedValue({ paneMode: "preview", paneWidth: 400 });
     renderUi();
 
     await waitFor(() =>
       expect(screen.getByTestId("pane-width")).toHaveTextContent("400"),
     );
     await userEvent.click(screen.getByText("grid mode"));
-    expect(screen.getByTestId("pane-width")).toHaveTextContent("700");
+    expect(screen.getByTestId("pane-width")).toHaveTextContent("400");
+  });
+
+  it("carries a pre-M2.5a.1 file's Preview width over to the single width", async () => {
+    // The only mode ever built, so it is the one that was actually dragged —
+    // taking it is what stops the split jumping on upgrade.
+    mocked.uiPrefs.mockResolvedValue({
+      paneWidths: { preview: 512, grid: 700, folders: 300 },
+    });
+    renderUi();
+    await waitFor(() =>
+      expect(screen.getByTestId("pane-width")).toHaveTextContent("512"),
+    );
+  });
+
+  it("refuses a width the pane could not render at", async () => {
+    renderUi();
+    await waitFor(() => expect(mocked.uiPrefs).toHaveBeenCalled());
+    await userEvent.click(screen.getByText("crush pane"));
+    expect(screen.getByTestId("pane-width")).toHaveTextContent(String(PANE_MIN));
   });
 
   it("persists a change, debounced, next to the exe", async () => {

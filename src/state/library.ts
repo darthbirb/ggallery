@@ -14,14 +14,17 @@ import type {
 } from "../lib/types";
 
 /**
- * The three navigation roots docs/DESIGN.md §2 requires are distinct things,
- * not three shapes of one folder query: *Everything* ignores folder structure,
- * *Loose items* is the top level and nothing beneath it, and a folder is a
- * folder. Favourites is a fourth root, filtered from Everything.
+ * The navigation roots docs/DESIGN.md §2 requires are distinct things, not
+ * three shapes of one folder query: *Everything* ignores folder structure,
+ * the *Sorting Box* is the top level and nothing beneath it, and a folder is
+ * a folder. Favourites is a fourth root, filtered from Everything.
  *
- * The library root is never presented as a folder — see `features/nav`.
+ * **The library root is the Sorting Box.** There is no `Sorting Box/`
+ * directory — anything sitting loose at the top level is unfiled by
+ * definition, which is the same statement (DESIGN.md §2 and §4). The root is
+ * never presented as a folder either; see `features/nav`.
  */
-export type ViewKind = "everything" | "loose" | "favourites" | "folder";
+export type ViewKind = "everything" | "sorting" | "favourites" | "folder";
 
 export interface Scope {
   kind: ViewKind;
@@ -43,9 +46,9 @@ function query(scope: Scope): { folder: string | null; recursive: boolean } {
     case "everything":
     case "favourites":
       return { folder: null, recursive: true };
-    case "loose":
-      // `Some("")` and non-recursive: the root folder's own items. Distinct
-      // from `None`, which is the whole library.
+    case "sorting":
+      // `Some("")` and non-recursive: the root folder's own items — the
+      // Sorting Box. Distinct from `None`, which is the whole library.
       return { folder: "", recursive: false };
     case "folder":
       return { folder: scope.folder, recursive: scope.recursive };
