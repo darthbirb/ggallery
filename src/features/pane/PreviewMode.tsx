@@ -9,20 +9,25 @@
  * you end up with a single-pane viewer plus three bespoke comparison screens,
  * exactly what the design collapsed.
  *
- * What M2.5a builds: the slot list, the adaptive layout, per-slot item
- * rendering, navigation through the current filter, the filmstrip, and the
- * collapsible details. What later milestones add: more than one slot, synced
+ * Vertically it is: the pane header (which this mode fills with the item's
+ * name), the details body when open, the media, and the filmstrip pinned to
+ * the bottom edge. What later milestones add: more than one slot, synced
  * pan/zoom and a shared timeline across slots, and audio soloing.
  */
 
+import { ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { IconButton } from "../../components/Button";
+import { Resizer } from "../../components/Resizer";
 import { Tooltip } from "../../components/Tooltip";
+import { IconButton } from "../../components/ui/button";
 import * as ipc from "../../lib/ipc";
 import type { GridItem, ItemDetail } from "../../lib/types";
-import { Details } from "./Details";
+import { cn } from "../../lib/utils";
+import { FILMSTRIP_MAX, FILMSTRIP_MIN } from "../../state/ui";
+import { DetailsBody, DetailsHeader } from "./Details";
 import { ItemView } from "./ItemView";
+import { PaneFrame } from "./PaneFrame";
 
 /** One pane's worth of preview. `itemId` null renders the empty state. */
 export interface PreviewSlot {
@@ -55,6 +60,12 @@ export interface PreviewModeProps {
   onPick: (itemId: number) => void;
   detailsExpanded: boolean;
   onDetailsExpandedChange: (expanded: boolean) => void;
+  filmstripHeight: number;
+  onFilmstripHeightChange: (height: number) => void;
+  onResetFilmstripHeight: () => void;
+  maximised: boolean;
+  onMaximisedChange: (maximised: boolean) => void;
+  onClose: () => void;
   /** Bumped when something that could change an item lands. */
   refreshToken: number;
 }
@@ -67,6 +78,12 @@ export function PreviewMode({
   onPick,
   detailsExpanded,
   onDetailsExpandedChange,
+  filmstripHeight,
+  onFilmstripHeightChange,
+  onResetFilmstripHeight,
+  maximised,
+  onMaximisedChange,
+  onClose,
   refreshToken,
 }: PreviewModeProps) {
   const { columns, rows } = paneGrid(slots.length);
@@ -74,49 +91,69 @@ export function PreviewMode({
   // first, which is the one M6 and M7 treat as the subject.
   const leadId = slots[0]?.itemId ?? null;
   const lead = useItemDetail(leadId, refreshToken);
-
-  if (slots.length === 0 || slots.every((slot) => slot.itemId === null)) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-1 px-6 text-center text-fg-dim">
-        <span className="text-[20px]">◻</span>
-        <p className="max-w-[30ch] text-[12px]">
-          Nothing selected. Click something in the grid and it appears here.
-        </p>
-      </div>
-    );
-  }
+  const empty = slots.length === 0 || slots.every((slot) => slot.itemId === null);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div
-        className="grid min-h-0 flex-1 gap-1 p-1"
-        style={{
-          gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-          gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
-        }}
-      >
-        {slots.map((slot) => (
-          <Slot key={slot.key} itemId={slot.itemId} refreshToken={refreshToken} />
-        ))}
-      </div>
+    <PaneFrame
+      header={
+        lead && !empty ? (
+          <DetailsHeader
+            item={lead}
+            expanded={detailsExpanded}
+            onExpandedChange={onDetailsExpandedChange}
+          />
+        ) : undefined
+      }
+      maximised={maximised}
+      onMaximisedChange={onMaximisedChange}
+      onClose={onClose}
+    >
+      {empty ? (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center text-fg-dim">
+          <ImageOff className="size-7" />
+          <p>Nothing selected.</p>
+        </div>
+      ) : (
+        <>
+          {/* Opened from the header, and growing **downwards** from it — the
+              media gives way, and the filmstrip never moves. */}
+          {lead && detailsExpanded && (
+            <DetailsBody item={lead} refreshToken={refreshToken} />
+          )}
 
-      <Filmstrip
-        items={items}
-        thumbsDir={thumbsDir}
-        currentId={leadId}
-        onStep={onStep}
-        onPick={onPick}
-      />
+          <div
+            className="grid min-h-0 flex-1 gap-1 p-1"
+            style={{
+              gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+              gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+            }}
+          >
+            {slots.map((slot) => (
+              <Slot key={slot.key} itemId={slot.itemId} refreshToken={refreshToken} />
+            ))}
+          </div>
 
-      {lead && (
-        <Details
-          item={lead}
-          expanded={detailsExpanded}
-          onExpandedChange={onDetailsExpandedChange}
-          refreshToken={refreshToken}
-        />
+          <Resizer
+            label="Filmstrip height"
+            side="bottom"
+            value={filmstripHeight}
+            min={FILMSTRIP_MIN}
+            max={FILMSTRIP_MAX}
+            onChange={onFilmstripHeightChange}
+            onReset={onResetFilmstripHeight}
+          />
+
+          <Filmstrip
+            items={items}
+            thumbsDir={thumbsDir}
+            currentId={leadId}
+            height={filmstripHeight}
+            onStep={onStep}
+            onPick={onPick}
+          />
+        </>
       )}
-    </div>
+    </PaneFrame>
   );
 }
 
@@ -153,31 +190,50 @@ function useItemDetail(itemId: number | null, refreshToken: number): ItemDetail 
   return detail;
 }
 
-/** Position in the current filter, and a way to jump. */
+/** Room for an overlaid chevron at each end, so a thumbnail scrolling past
+ *  is never hidden underneath one at rest. */
+const STRIP_INSET = 44;
+
+/**
+ * Position in the current filter, and a way to jump.
+ *
+ * The scroll container **is** the strip: full width, flush to the pane's
+ * bottom edge, so its scrollbar runs the whole way across at the very bottom
+ * rather than floating in a padded box. That means the chevrons cannot be
+ * siblings competing for the same row — they are overlaid at either end over
+ * a fade to the panel colour, with matching padding inside the scroller so
+ * nothing ever sits under them at rest.
+ *
+ * **No position counter.** The strip already shows where you are; `6 / 15` is
+ * a number nobody acts on. Only the chevrons remain.
+ */
 function Filmstrip({
   items,
   thumbsDir,
   currentId,
+  height,
   onStep,
   onPick,
 }: {
   items: GridItem[];
   thumbsDir: string;
   currentId: number | null;
+  height: number;
   onStep: (delta: number) => void;
   onPick: (itemId: number) => void;
 }) {
   const at = currentId === null ? -1 : items.findIndex((item) => item.id === currentId);
 
   return (
-    <div className="flex shrink-0 items-center gap-1 border-t border-line-soft px-1 py-1">
-      <Tooltip label="Previous" side="top">
-        <IconButton aria-label="Previous" disabled={at <= 0} onClick={() => onStep(-1)}>
-          ‹
-        </IconButton>
-      </Tooltip>
-
-      <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
+    <div className="relative shrink-0 bg-panel" style={{ height }}>
+      <div
+        // `pb-3` clears the scrollbar's own 16px channel, so the thumbnails'
+        // bottom edge does not sit hard against it — M2.5a.1 made that
+        // scrollbar full-width and flush to the bottom, which put the two
+        // directly against each other.
+        className="flex h-full items-stretch gap-1 overflow-x-auto pb-3 pt-1.5"
+        style={{ paddingLeft: STRIP_INSET, paddingRight: STRIP_INSET }}
+      >
         {items.map((item) => (
           <button
             key={item.id}
@@ -190,9 +246,14 @@ function Filmstrip({
                 node?.scrollIntoView({ block: "nearest", inline: "center" });
               }
             }}
-            className={`h-9 w-12 shrink-0 overflow-hidden rounded-[3px] border ${
-              item.id === currentId ? "border-accent" : "border-transparent opacity-60"
-            }`}
+            className={cn(
+              "aspect-[7/5] h-full shrink-0 overflow-hidden rounded-[4px] border-2",
+              // One state, the accent — the same statement selection makes in
+              // the grid (decision 26).
+              item.id === currentId
+                ? "border-accent"
+                : "border-transparent opacity-55 hover:opacity-100",
+            )}
           >
             <img
               src={ipc.assetUrl(thumbsDir, item.thumb)}
@@ -204,19 +265,33 @@ function Filmstrip({
         ))}
       </div>
 
-      <span className="shrink-0 px-1 font-mono text-[11px] tabular-nums text-fg-dim">
-        {at >= 0 ? `${at + 1}/${items.length}` : `–/${items.length}`}
-      </span>
+      {/* The scrollbar owns the bottom of the strip, so the overlays stop
+          short of it — `bottom-4` is its 16px channel. */}
+      <div className="pointer-events-none absolute bottom-4 left-0 top-0 flex items-center bg-gradient-to-r from-panel via-panel to-transparent pl-1.5 pr-4">
+        <Tooltip label="Previous" side="top">
+          <IconButton
+            aria-label="Previous"
+            className="pointer-events-auto"
+            disabled={at <= 0}
+            onClick={() => onStep(-1)}
+          >
+            <ChevronLeft />
+          </IconButton>
+        </Tooltip>
+      </div>
 
-      <Tooltip label="Next" side="top">
-        <IconButton
-          aria-label="Next"
-          disabled={at === -1 || at >= items.length - 1}
-          onClick={() => onStep(1)}
-        >
-          ›
-        </IconButton>
-      </Tooltip>
+      <div className="pointer-events-none absolute bottom-4 right-0 top-0 flex items-center gap-1.5 bg-gradient-to-l from-panel via-panel to-transparent pl-4 pr-1.5">
+        <Tooltip label="Next" side="top">
+          <IconButton
+            aria-label="Next"
+            className="pointer-events-auto"
+            disabled={at === -1 || at >= items.length - 1}
+            onClick={() => onStep(1)}
+          >
+            <ChevronRight />
+          </IconButton>
+        </Tooltip>
+      </div>
     </div>
   );
 }

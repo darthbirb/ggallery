@@ -6,15 +6,30 @@
  * twelve is multi-view (M10). It therefore takes everything it needs as props
  * and owns no knowledge of how many of it exist.
  *
+ * **Images have no zoom toolbar** — no fit button, no 1:1 button, no
+ * percentage readout (docs/DESIGN.md §2). Scroll and drag are the whole
+ * interaction, and a strip of chrome under every photograph was three
+ * controls competing with the thing you opened the app to look at.
+ *
  * Volume is deliberately module-level: docs/DESIGN.md §2 asks for volume that
  * persists between items, and an item change unmounts the `<video>`.
  */
 
+import {
+  ChevronFirst,
+  ChevronLast,
+  FileQuestion,
+  Pause,
+  Play,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Button, IconButton } from "../../components/Button";
 import { DropdownMenu, MenuItem, MenuLabel } from "../../components/Menu";
 import { Tooltip } from "../../components/Tooltip";
+import { Button, IconButton } from "../../components/ui/button";
+import { Slider } from "../../components/ui/slider";
 import { formatDuration } from "../../lib/format";
 import * as ipc from "../../lib/ipc";
 import type { ItemDetail } from "../../lib/types";
@@ -36,9 +51,9 @@ export function ItemView({ item }: { item: ItemDetail }) {
     return <ImageView key={item.id} item={item} source={source} />;
   }
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 text-fg-dim">
-      <span className="text-[22px]">◫</span>
-      <p className="max-w-[34ch] text-center text-[12px]">
+    <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-fg-dim">
+      <FileQuestion className="size-7" />
+      <p className="max-w-[34ch] text-center">
         {item.origName ?? item.diskName} is not something this app displays.
         Open it with the default application instead.
       </p>
@@ -53,81 +68,65 @@ function ImageView({ item, source }: { item: ItemDetail; source: string }) {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const dragging = useRef<{ x: number; y: number } | null>(null);
 
+  // Double-click returns to fit. Not a control — a gesture, alongside the
+  // other two — so it adds nothing to the surface.
   const reset = useCallback(() => {
     setZoom(null);
     setPan({ x: 0, y: 0 });
   }, []);
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col">
-      <div
-        className="relative min-h-0 flex-1 overflow-hidden"
-        onWheel={(event) => {
-          // Scroll to zoom, drag to pan — DESIGN.md §2 "Preview mode".
-          const current = zoom ?? 1;
-          const next = Math.min(Math.max(current * (event.deltaY < 0 ? 1.12 : 0.89), 0.1), 12);
-          setZoom(next);
-        }}
-        onMouseDown={(event) => {
-          if (event.button !== 0) return;
-          dragging.current = { x: event.clientX - pan.x, y: event.clientY - pan.y };
-        }}
-        onMouseMove={(event) => {
-          if (!dragging.current) return;
-          setPan({
-            x: event.clientX - dragging.current.x,
-            y: event.clientY - dragging.current.y,
-          });
-        }}
-        onMouseUp={() => {
-          dragging.current = null;
-        }}
-        onMouseLeave={() => {
-          dragging.current = null;
-        }}
-        onDoubleClick={reset}
-      >
-        <img
-          src={source}
-          alt={item.origName ?? item.diskName}
-          draggable={false}
-          style={
-            zoom === null
-              ? undefined
-              : {
-                  transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-                  maxWidth: "none",
-                  maxHeight: "none",
-                  width: item.width ?? undefined,
-                  height: item.height ?? undefined,
-                }
-          }
-          className={
-            zoom === null
-              ? "absolute inset-0 m-auto max-h-full max-w-full object-contain"
-              : "absolute left-1/2 top-1/2 origin-center -translate-x-1/2 -translate-y-1/2"
-          }
-        />
-      </div>
-
-      <div className="flex shrink-0 items-center gap-1 border-t border-line-soft px-2 py-1">
-        <Button variant="quiet" active={zoom === null} onClick={reset}>
-          Fit
-        </Button>
-        <Button
-          variant="quiet"
-          active={zoom === 1}
-          onClick={() => {
-            setZoom(1);
-            setPan({ x: 0, y: 0 });
-          }}
-        >
-          1:1
-        </Button>
-        <span className="ml-auto font-mono text-[11px] tabular-nums text-fg-dim">
-          {zoom === null ? "fit" : `${Math.round(zoom * 100)}%`}
-        </span>
-      </div>
+    <div
+      className="relative h-full min-h-0 overflow-hidden"
+      onWheel={(event) => {
+        // Scroll to zoom, drag to pan — DESIGN.md §2 "Preview mode".
+        const current = zoom ?? 1;
+        const next = Math.min(
+          Math.max(current * (event.deltaY < 0 ? 1.12 : 0.89), 0.1),
+          12,
+        );
+        setZoom(next);
+      }}
+      onMouseDown={(event) => {
+        if (event.button !== 0) return;
+        dragging.current = { x: event.clientX - pan.x, y: event.clientY - pan.y };
+      }}
+      onMouseMove={(event) => {
+        if (!dragging.current) return;
+        setPan({
+          x: event.clientX - dragging.current.x,
+          y: event.clientY - dragging.current.y,
+        });
+      }}
+      onMouseUp={() => {
+        dragging.current = null;
+      }}
+      onMouseLeave={() => {
+        dragging.current = null;
+      }}
+      onDoubleClick={reset}
+    >
+      <img
+        src={source}
+        alt={item.origName ?? item.diskName}
+        draggable={false}
+        style={
+          zoom === null
+            ? undefined
+            : {
+                transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                maxWidth: "none",
+                maxHeight: "none",
+                width: item.width ?? undefined,
+                height: item.height ?? undefined,
+              }
+        }
+        className={
+          zoom === null
+            ? "absolute inset-0 m-auto max-h-full max-w-full object-contain"
+            : "absolute left-1/2 top-1/2 origin-center -translate-x-1/2 -translate-y-1/2"
+        }
+      />
     </div>
   );
 }
@@ -152,7 +151,10 @@ function VideoView({ item, source }: { item: ItemDetail; source: string }) {
   const seek = (seconds: number) => {
     const element = video.current;
     if (!element) return;
-    element.currentTime = Math.min(Math.max(seconds, 0), duration || element.duration || 0);
+    element.currentTime = Math.min(
+      Math.max(seconds, 0),
+      duration || element.duration || 0,
+    );
   };
 
   return (
@@ -178,9 +180,12 @@ function VideoView({ item, source }: { item: ItemDetail; source: string }) {
         />
       </div>
 
-      <div className="flex shrink-0 items-center gap-1 border-t border-line-soft px-2 py-1">
+      {/* Transport, not chrome: a video cannot be played without these, which
+          is what separates them from the zoom toolbar images used to carry. */}
+      <div className="flex shrink-0 items-center gap-1.5 border-t border-line bg-panel px-2 py-1.5">
         <IconButton
           aria-label={playing ? "Pause" : "Play"}
+          variant="accent"
           onClick={() => {
             const element = video.current;
             if (!element) return;
@@ -188,12 +193,15 @@ function VideoView({ item, source }: { item: ItemDetail; source: string }) {
             else element.pause();
           }}
         >
-          {playing ? "❚❚" : "▶"}
+          {playing ? <Pause /> : <Play />}
         </IconButton>
 
         <Tooltip label="Back one frame" side="top">
-          <IconButton aria-label="Back one frame" onClick={() => seek(position - FRAME_STEP)}>
-            ⟨
+          <IconButton
+            aria-label="Back one frame"
+            onClick={() => seek(position - FRAME_STEP)}
+          >
+            <ChevronFirst />
           </IconButton>
         </Tooltip>
         <Tooltip label="Forward one frame" side="top">
@@ -201,29 +209,28 @@ function VideoView({ item, source }: { item: ItemDetail; source: string }) {
             aria-label="Forward one frame"
             onClick={() => seek(position + FRAME_STEP)}
           >
-            ⟩
+            <ChevronLast />
           </IconButton>
         </Tooltip>
 
-        <input
-          type="range"
+        <Slider
           aria-label="Position"
+          className="mx-1 min-w-0 flex-1"
           min={0}
           max={Math.max(duration, 0.001)}
           step={0.01}
-          value={position}
-          onChange={(event) => seek(Number(event.target.value))}
-          className="mx-1 min-w-0 flex-1 accent-[var(--color-accent)]"
+          value={[position]}
+          onValueChange={([next]) => seek(next)}
         />
 
-        <span className="shrink-0 font-mono text-[11px] tabular-nums text-fg-dim">
+        <span className="shrink-0 font-mono tabular-nums text-fg-dim">
           {formatDuration(position * 1000)} / {formatDuration(duration * 1000)}
         </span>
 
         <DropdownMenu
           align="end"
           trigger={
-            <Button variant="quiet" aria-label="Playback speed">
+            <Button size="sm" aria-label="Playback speed">
               {speed}×
             </Button>
           }
@@ -250,7 +257,7 @@ function VideoView({ item, source }: { item: ItemDetail; source: string }) {
             element.muted = !element.muted;
           }}
         >
-          {muted ? "🔇" : "🔊"}
+          {muted ? <VolumeX /> : <Volume2 />}
         </IconButton>
       </div>
     </div>

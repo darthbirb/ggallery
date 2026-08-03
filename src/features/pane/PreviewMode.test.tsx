@@ -58,6 +58,12 @@ function renderPreview(over: Partial<React.ComponentProps<typeof PreviewMode>> =
       onPick={onPick}
       detailsExpanded={false}
       onDetailsExpandedChange={vi.fn()}
+      filmstripHeight={64}
+      onFilmstripHeightChange={vi.fn()}
+      onResetFilmstripHeight={vi.fn()}
+      maximised={false}
+      onMaximisedChange={vi.fn()}
+      onClose={vi.fn()}
       refreshToken={0}
       {...over}
     />,
@@ -108,9 +114,38 @@ describe("preview", () => {
     expect(onPick).toHaveBeenCalledWith(8);
   });
 
-  it("says where in the filter the current item is", async () => {
+  it("has no zoom toolbar — scroll and drag are the whole interaction", async () => {
     renderPreview();
-    expect(await screen.findByText("1/2")).toBeInTheDocument();
+    await screen.findByAltText("beach.jpg");
+    // DESIGN.md §2: no fit button, no 1:1 button, no percentage readout.
+    expect(screen.queryByRole("button", { name: /^Fit$/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "1:1" })).toBeNull();
+    expect(screen.queryByText("fit")).toBeNull();
+  });
+
+  it("opens the details from the header, downward, above the media", async () => {
+    const { rerender } = renderPreview({ detailsExpanded: true });
+    const toggle = await screen.findByRole("button", { expanded: true });
+    const captured = await screen.findByText("Captured");
+    const strip = await screen.findByRole("button", { name: "cliff.jpg" });
+
+    // Header, then the details body, then the media, then the strip. The
+    // strip is last in document order, which is what keeps it pinned to the
+    // bottom edge while the details push the media down.
+    expect(
+      toggle.compareDocumentPosition(captured) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      captured.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(rerender).toBeTruthy();
+  });
+
+  it("keeps the filmstrip's height under the caller's control", async () => {
+    renderPreview({ filmstripHeight: 140 });
+    const handle = await screen.findByRole("separator", { name: "Filmstrip height" });
+    expect(handle).toHaveAttribute("aria-valuenow", "140");
+    expect(handle).toHaveAttribute("aria-orientation", "horizontal");
   });
 });
 
