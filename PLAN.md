@@ -193,6 +193,27 @@ folder holds everything, so backup is "copy the folder".
     grid is a per-frame relayout and will cost more than the animation is worth. Honour
     `prefers-reduced-motion`.
 
+28. **Every band owns one job, and the window bar is ours.** Horizontal chrome accretes:
+    the first shell grew a bar holding the library name, its full path, index status, a
+    scope checkbox, the tile-size slider, an *Open pane* button and a hamburger — seven
+    unrelated things under a Windows title bar repeating the app's name. The symptom is
+    that "where does this control go" has no answer, so it goes there.
+
+    Three bands, each with an owner: the **window bar** (the window and the app — mark,
+    name, window controls, later search), the **folder band** (the current grid, including
+    tile size and scope), and the **navigation footer** (the app's own state — Settings,
+    background work). Native decorations are off. A control that fits none of the three is
+    a sign the control is wrong, not that the bar needs another slot.
+
+    **A panel's reopen control lives on the panel's own edge**, never in a bar. The
+    navigation panel folds to a 44px icon rail; the pane folds to a strip of its three mode
+    icons. Symmetric, discoverable, and it keeps the window bar clean.
+
+29. **The app has a mark, and the mark is not the accent.** GGallery ships an identity that
+    reads at 16–20px in the window bar and doubles as the Windows `.ico`. It stays neutral:
+    the accent is user-chosen and changes per session, and an identity that changes colour
+    with a preference is not an identity.
+
 ## Non-goals
 
 Deliberately excluded. Do not build these without an explicit decision to reverse:
@@ -567,6 +588,24 @@ The outcomes are all in decisions 18 and 24–27 and in DESIGN §2; kept here on
   are recorded in [docs/ENGINEERING-NOTES.md](docs/ENGINEERING-NOTES.md) so the question is
   not re-asked. Also added the dev-only kitchen-sink route, which is how every later
   milestone reviews its own appearance in one screenshot.
+
+**M2.5c — the shell, decided.** Runs **before** M2.5b, because 2b adds two modes to a pane
+header this milestone redesigns, and building them twice is the avoidable cost. Per
+decisions 28 and 29, and DESIGN §2:
+
+- **Our own window bar.** `decorations: false`, mark and *GGallery* left, minimise /
+  maximise / close right in Windows order, the rest a drag region. Snap Layouts is
+  knowingly given up — see DESIGN §2 for why that is acceptable here.
+- **Design the mark.** Neutral, legible at 16px, and regenerated as the `.ico`.
+- **The library name and path leave the chrome entirely.** They belong in Settings.
+- **Settings and job status move to a pinned navigation footer**, surviving the fold.
+- **Tile size and *this folder only* move into the folder band**, which owns the grid.
+- **The pane's mode buttons are always visible**, Preview shows an empty state with nothing
+  selected, and a closed pane folds to a strip of its three mode icons. The *Open pane*
+  button is deleted.
+- **Rework the expanded folder band** to DESIGN §2 *The expanded band is identity, not a
+  form* — one counts line, no `Active` chip, notes as a growing line, one chip row, the
+  archetype action demoted to the folder menu, and roughly 140px when empty rather than 330.
 
 **M2.5b — the sorting surfaces.** The pane's **Grid** and **Folders** modes, all three drop
 targets, spring-loading, and inline folder creation in the folder pane.

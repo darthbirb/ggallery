@@ -282,9 +282,9 @@ separate, harder problem — clipboard copy (§1) covers that need for now.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│  ‹ People / Ana      ⌕ query                       [size] [sort] [⌘K]  │
+│ ◈ GGallery      ‹ People / Ana      ⌕ query            ─  □  ✕         │
 ├──────────┬──────────────────────────────────┬──────────────────────────┤
-│   NAV    │ ▸ Ana  ●WIP  2,481 items         │ ▸ file.jpg      ⊡ ⊞ ▤ ⤢ ×│
+│   NAV    │ ▸ Ana ●WIP 2,481 items  ▦──● ☐  │ ▸ file.jpg      ⊡ ⊞ ▤ ⤢ ×│
 │          ├──────────────────────────────────┤──────────────────────────┤
 │Everything│                                  │                          │
 │SortingBox│                                  │                          │
@@ -300,14 +300,49 @@ separate, harder problem — clipboard copy (§1) covers that need for now.
 │Searches  │                                  │                          │
 │Queues    │                                  │                          │
 │ Pending⁷ │                                  │                          │
+├──────────┤                                  │                          │
+│ ⚙  ◍ 42  │                                  │                          │
 └──────────┴──────────────────────────────────┴──────────────────────────┘
       ↑                    ↑                              ↑
  folds to 44px    folder band, collapsed     drag-resizable, fully closable
 ```
 
+### Every band owns one job
+
+The window had grown a bar holding the library name, its full path, index status, a scope
+checkbox, the tile-size slider, an *Open pane* button and a hamburger — seven unrelated
+things with no organising idea, sitting under a Windows title bar that repeated the app's
+name. A control with no obvious home ended up there, which is what made "where does tile
+size go" unanswerable.
+
+Three bands, and nothing lives in one that belongs in another:
+
+| Band | Owns |
+| --- | --- |
+| **Window bar** | The window and the app — mark, name, window controls. Search and the breadcrumb join it in M3. |
+| **Folder band** | The current grid — what you are looking at, and the controls that change it. |
+| **Navigation footer** | The app's own state — Settings, background work. Ambient and ignorable. |
+
+**The window bar is the app's own**, not Windows'. Native decorations are off: the mark and
+*GGallery* sit at the left, minimise / maximise / close at the right in Windows order, and
+the rest is a drag region. Double-click maximises; dragging to a screen edge still snaps.
+
+**Known cost:** Windows 11's Snap Layouts flyout, which appears when hovering the native
+maximise button, does not appear for a custom one without hit-testing that button as
+`HTMAXBUTTON` in Rust. Accepted deliberately — one window on one monitor, and edge-drag
+snapping is unaffected.
+
+**The library's name and path are not in the chrome at all.** One library, chosen once; a
+machine-specific path in permanent chrome is noise. Both live in Settings.
+
 **Navigation panel** — resident, ~200px, drag-resizable, folded away by a visible control.
 Width and folded state remembered; **never summoned by a keypress**. Folded, it becomes a
 44px icon strip that keeps queue badges on screen and every root a drop target.
+
+**A footer pinned below the tree** holds Settings and background-job status, separated by a
+hairline so neither scrolls away with the tree and neither is mistaken for a destination —
+Settings opens a dialog; it is not a place. Both survive folding: in the 44px strip the
+footer is the gear and the job indicator alone.
 
 Groups, in order: **Library** (Everything, Sorting Box, Favourites — above the tree, never
 nodes in it), **Pinned**, **Folders**, **Saved searches**, **Queues** (Pending Review,
@@ -374,17 +409,43 @@ not adopted for the row list itself — it would pull in `SidebarProvider` and i
 width/mobile-sheet machinery to replace a handful of plain buttons. See
 [ENGINEERING-NOTES.md](ENGINEERING-NOTES.md#shadcnui--audit-vs-adopt-m25a3).)*
 
-**Folder band** — a collapsed strip above the grid. Closed, it is one line: title, status
-chip, counts. Clicking expands it to cover, archetype fields edited in place, tags and
-notes.
+**Folder band** — a collapsed strip above the grid, and the only chrome scoped to what the
+grid is showing. Closed, it is one line: chevron, title, status, counts on the left, and on
+the right the controls that change the grid — **tile size** and **this folder only**. Those
+were in the window bar, which owns the window, not the grid.
+
+Clicking expands it to the cover, archetype fields edited in place, tags and notes.
 
 Expanded state is **global and remembered**, not per folder — it sits with panel widths and
 window geometry, never in the database. Per-folder state would reflow the grid every time
 you changed folder, and it is state nobody would curate.
 
-It must look right with **no archetype at all**, which is the default and commonest state —
-the app ships with none. An empty expanded band shows the cover, the counts and an
-*＋ add field* control, not a row of blank labels.
+#### The expanded band is identity, not a form
+
+The first build of it was a data-entry form: four invitations to add something, an empty
+notes box as the heaviest element on screen, and roughly 330px of vertical space conveying
+nothing about a folder with nothing set. In a viewer-first app that is a third of the grid
+spent on an empty form. The rules that follow all come from that.
+
+- **Counts appear once**, in the header, in prose. The first build printed them twice in
+  two different phrasings, the second in mono — which is reserved for paths, hashes and
+  data, so a sentence set in it reads like debug output.
+- **Status renders only when it is not `Active`.** Same rule the tree already follows:
+  absence means nothing to say. A permanent `Active` chip is a legend for the default.
+- **Weight follows importance.** The title identifies what you are looking at and should be
+  the largest thing in the band. Notes are the least-used field and were the largest.
+- **Notes are one line that grows on focus**, never a reserved box.
+- **Fields and tags share one chip row**, with their add controls at its end.
+- **Applying an archetype is a once-per-folder setup action** and belongs in the folder's
+  context menu, not as a standing button competing with content.
+- **Favourite is a header control among the others**, not the heaviest thing in the band
+  parked in the far corner.
+
+**Design against the full case** — an archetype with five fields, eight tags and a real
+note — and let the empty one be that band with things missing. It must look right with **no
+archetype at all**, which is the default and commonest state; empty means the cover, the
+counts and one *＋ add field* control, not a row of blank labels. The empty band should cost
+around 140px, not 330.
 
 **Grid** — justified rows, sized by a slider. Video items show a duration badge and
 scrub through their sprite strip on hover. Selection is click, shift-click for range,
@@ -407,6 +468,15 @@ buttons in that same group**, not a labelled tab row: the header's job is naming
 and three words of chrome is the widest thing that could take the space away from it. While
 Preview was the only mode, a tab saying "Preview" was a label pretending to be a control, so
 there is none.
+
+**The mode buttons are always visible, and Preview always has something to show.** With
+nothing selected it renders its empty state rather than disappearing — switching to Preview
+is never a dead end, and the pane never changes shape because a selection was cleared.
+
+**Closed, the pane folds to a strip of the three mode icons**, exactly as the navigation
+panel folds to its icon rail. Clicking one opens the pane in that mode. There is no *Open
+pane* button in the window bar: a control that exists only while a panel is closed is chrome
+that has to live somewhere, and the panel's own edge is where it belongs.
 
 **There is no theatre view.** Full-window is the pane maximised — one control, one state,
 no transition to design and no scroll position to restore.
