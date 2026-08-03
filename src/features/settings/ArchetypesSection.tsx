@@ -1,35 +1,41 @@
+import { ArrowDown, ArrowUp, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
-import { Button, IconButton } from "../../components/Button";
 import { ConfirmDialog, Dialog } from "../../components/Dialog";
+import { Button, IconButton } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
 import * as ipc from "../../lib/ipc";
 import type { ArchetypeFieldUsage, ArchetypeInfo } from "../../lib/types";
+import { cn } from "../../lib/utils";
 
-interface ArchetypesModalProps {
-  onClose: () => void;
+interface ArchetypesSectionProps {
   /** The folder band shows archetype fields — refetch after any edit. */
   onChanged: () => void;
 }
-
-/** `handle` is text matched with or without a leading `@`. It carries no
- *  knowledge of any platform and does not auto-link — decision 21. */
-const FIELD_TYPES = ["text", "handle", "url", "date", "number"];
 
 /**
  * Create, rename and delete an archetype; add, reorder and remove its fields.
  * Mandatory now that nothing is seeded (PLAN.md decision 21): with no default
  * vocabulary, an editor is the only way to have one at all.
  *
+ * **A field is a name and a position.** It carried a type until M2.5a.1 —
+ * text / handle / url / date / number — which asked the user a question the
+ * app then ignored: decision 21 had already removed the platform linking
+ * `handle` existed for, and nothing else ever read it.
+ *
  * Two edits are never silent, per docs/DESIGN.md §1 "Archetypes": adding a
  * field asks whether folders already using the archetype should get it, and
  * removing one that holds values names the folders it would empty.
+ *
+ * A section inside `SettingsPanel`'s single dialog, not a dialog of its own —
+ * see the comment there. The two prompts above stay real dialogs of their
+ * own; they are transient confirmations, not another screen to navigate to.
  */
-export function ArchetypesModal({ onClose, onChanged }: ArchetypesModalProps) {
+export function ArchetypesSection({ onChanged }: ArchetypesSectionProps) {
   const [archetypes, setArchetypes] = useState<ArchetypeInfo[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [newName, setNewName] = useState("");
   const [newFieldKey, setNewFieldKey] = useState("");
-  const [newFieldType, setNewFieldType] = useState(FIELD_TYPES[0]);
   const [error, setError] = useState<string | null>(null);
   const [removingField, setRemovingField] = useState<{
     key: string;
@@ -37,7 +43,6 @@ export function ArchetypesModal({ onClose, onChanged }: ArchetypesModalProps) {
   } | null>(null);
   const [addingField, setAddingField] = useState<{
     key: string;
-    type: string;
     count: number;
   } | null>(null);
   const [deletingArchetype, setDeletingArchetype] = useState<ArchetypeInfo | null>(null);
@@ -102,12 +107,12 @@ export function ArchetypesModal({ onClose, onChanged }: ArchetypesModalProps) {
         const count = await ipc.countFoldersUsingArchetype(selected.id);
         if (count === 0) {
           await run(async () => {
-            await ipc.addArchetypeField(selected.id, key, newFieldType, false);
+            await ipc.addArchetypeField(selected.id, key, false);
             setNewFieldKey("");
           });
           return;
         }
-        setAddingField({ key, type: newFieldType, count });
+        setAddingField({ key, count });
       } catch (err) {
         setError(ipc.errorMessage(err));
       }
@@ -116,10 +121,10 @@ export function ArchetypesModal({ onClose, onChanged }: ArchetypesModalProps) {
 
   const addField = (applyToExisting: boolean) => {
     if (!selected || !addingField) return;
-    const { key, type } = addingField;
+    const { key } = addingField;
     setAddingField(null);
     void run(async () => {
-      await ipc.addArchetypeField(selected.id, key, type, applyToExisting);
+      await ipc.addArchetypeField(selected.id, key, applyToExisting);
       setNewFieldKey("");
     });
   };
@@ -136,151 +141,128 @@ export function ArchetypesModal({ onClose, onChanged }: ArchetypesModalProps) {
 
   return (
     <>
-      <Dialog
-        open
-        onOpenChange={(open) => !open && onClose()}
-        title="Archetypes"
-        description="A named set of fields a folder can be given. The app ships with none — these are yours."
-        width={640}
-      >
-        <div className="flex min-h-[320px] gap-3 text-[13px]">
-          <div className="flex w-[180px] shrink-0 flex-col gap-1 border-r border-line pr-2">
-            {archetypes.map((archetype) => (
-              <button
-                key={archetype.id}
-                type="button"
-                onClick={() => setSelectedId(archetype.id)}
-                className={`w-full rounded-[4px] px-2 py-1 text-left ${
-                  archetype.id === selectedId
-                    ? "bg-accent/15 text-accent"
-                    : "text-fg-mid hover:bg-hover hover:text-fg"
-                }`}
-              >
-                {archetype.name}
-              </button>
-            ))}
-            {archetypes.length === 0 && (
-              <p className="px-1 py-1 text-fg-dim">None yet.</p>
-            )}
-            <input
-              value={newName}
-              aria-label="New archetype name"
-              onChange={(event) => setNewName(event.target.value)}
-              onKeyDown={(event) => event.key === "Enter" && createArchetype()}
-              placeholder="＋ new archetype"
-              className="mt-1 w-full rounded-[4px] border border-dashed border-line bg-transparent px-1.5 py-0.5 text-fg placeholder:text-fg-dim focus:border-accent-d"
-            />
-          </div>
+      <div className="flex min-h-[380px] gap-4">
+        <div className="flex w-[190px] shrink-0 flex-col gap-1 border-r border-line pr-3">
+          {archetypes.map((archetype) => (
+            <button
+              key={archetype.id}
+              type="button"
+              onClick={() => setSelectedId(archetype.id)}
+              className={cn(
+                "h-8 w-full rounded-[4px] border px-2 text-left",
+                archetype.id === selectedId
+                  ? "border-accent-d bg-accent/15 text-accent"
+                  : "border-transparent text-fg-mid hover:bg-hover hover:text-fg",
+              )}
+            >
+              {archetype.name}
+            </button>
+          ))}
+          {archetypes.length === 0 && (
+            <p className="px-1 py-1 text-fg-dim">None yet.</p>
+          )}
+          <Input
+            value={newName}
+            aria-label="New archetype name"
+            onChange={(event) => setNewName(event.target.value)}
+            onKeyDown={(event) => event.key === "Enter" && createArchetype()}
+            placeholder="＋ new archetype"
+            className="mt-1 border-dashed bg-transparent"
+          />
+        </div>
 
-          <div className="min-w-0 flex-1">
-            {error && (
-              <p className="mb-3 rounded-[4px] border border-danger/40 bg-raised px-3 py-2 text-danger">
-                {error}
-              </p>
-            )}
+        <div className="min-w-0 flex-1">
+          {error && (
+            <p className="mb-3 rounded-[4px] border border-danger/40 bg-raised px-3 py-2 text-danger">
+              {error}
+            </p>
+          )}
 
-            {!selected ? (
-              <p className="text-fg-dim">Select or create an archetype.</p>
-            ) : (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-2">
-                  <input
-                    defaultValue={selected.name}
-                    key={selected.id}
-                    aria-label="Archetype name"
-                    onBlur={(event) => {
-                      const value = event.target.value.trim();
-                      if (value && value !== selected.name) {
-                        void run(() => ipc.renameArchetype(selected.id, value));
-                      }
-                    }}
-                    className="flex-1 rounded-[4px] border border-line bg-ground px-1.5 py-1 font-semibold text-fg focus:border-accent-d"
-                  />
-                  <Button
-                    variant="danger"
-                    onClick={() => setDeletingArchetype(selected)}
-                  >
-                    Delete
-                  </Button>
-                </div>
+          {!selected ? (
+            <p className="text-fg-dim">Select or create an archetype.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <Input
+                  defaultValue={selected.name}
+                  key={selected.id}
+                  aria-label="Archetype name"
+                  onBlur={(event) => {
+                    const value = event.target.value.trim();
+                    if (value && value !== selected.name) {
+                      void run(() => ipc.renameArchetype(selected.id, value));
+                    }
+                  }}
+                  className="flex-1 font-semibold"
+                />
+                <Button variant="danger" onClick={() => setDeletingArchetype(selected)}>
+                  Delete
+                </Button>
+              </div>
 
-                <table className="w-full border-collapse text-left">
-                  <thead>
-                    <tr className="font-mono text-[10px] uppercase tracking-[0.12em] text-fg-dim">
-                      <th className="py-1 pr-2 font-normal">key</th>
-                      <th className="py-1 pr-2 font-normal">type</th>
-                      <th className="py-1"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selected.fields.map((field, index) => (
-                      <tr key={field.key} className="border-t border-line-soft/60">
-                        <td className="py-1 pr-2 font-mono">{field.key}</td>
-                        <td className="py-1 pr-2 text-fg-dim">{field.type}</td>
-                        <td className="py-1 text-right">
+              <table className="w-full border-collapse text-left">
+                <thead>
+                  <tr className="font-mono uppercase tracking-[0.1em] text-fg-dim">
+                    <th className="py-1 pr-2 font-normal">key</th>
+                    <th className="py-1"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selected.fields.map((field, index) => (
+                    <tr key={field.key} className="border-t border-line-soft/60">
+                      <td className="py-1 pr-2 font-mono">{field.key}</td>
+                      <td className="py-1">
+                        <span className="flex items-center justify-end gap-1">
                           <IconButton
                             aria-label={`Move ${field.key} up`}
                             disabled={index === 0}
                             onClick={() => moveField(field.key, -1)}
                           >
-                            ↑
+                            <ArrowUp />
                           </IconButton>
                           <IconButton
                             aria-label={`Move ${field.key} down`}
                             disabled={index === selected.fields.length - 1}
                             onClick={() => moveField(field.key, 1)}
                           >
-                            ↓
+                            <ArrowDown />
                           </IconButton>
                           <IconButton
                             aria-label={`Remove ${field.key}`}
+                            variant="danger"
                             onClick={() => askRemoveField(field.key)}
                           >
-                            ×
+                            <X />
                           </IconButton>
-                        </td>
-                      </tr>
-                    ))}
-                    {selected.fields.length === 0 && (
-                      <tr>
-                        <td colSpan={3} className="py-1.5 text-fg-dim">
-                          No fields yet.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {selected.fields.length === 0 && (
+                    <tr>
+                      <td colSpan={2} className="py-1.5 text-fg-dim">
+                        No fields yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
 
-                <div className="flex items-center gap-2">
-                  <input
-                    value={newFieldKey}
-                    aria-label="New field key"
-                    onChange={(event) => setNewFieldKey(event.target.value)}
-                    onKeyDown={(event) => event.key === "Enter" && askAddField()}
-                    placeholder="field key"
-                    className="flex-1 rounded-[4px] border border-line bg-ground px-1.5 py-0.5 text-fg focus:border-accent-d"
-                  />
-                  <select
-                    value={newFieldType}
-                    aria-label="New field type"
-                    onChange={(event) => setNewFieldType(event.target.value)}
-                    className="rounded-[4px] border border-line bg-ground px-1 py-0.5 text-fg-mid"
-                  >
-                    {FIELD_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                  <Button variant="outline" onClick={askAddField}>
-                    Add field
-                  </Button>
-                </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={newFieldKey}
+                  aria-label="New field key"
+                  onChange={(event) => setNewFieldKey(event.target.value)}
+                  onKeyDown={(event) => event.key === "Enter" && askAddField()}
+                  placeholder="field key"
+                  className="flex-1"
+                />
+                <Button onClick={askAddField}>Add field</Button>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
-      </Dialog>
+      </div>
 
       {addingField && (
         <Dialog
@@ -290,16 +272,14 @@ export function ArchetypesModal({ onClose, onChanged }: ArchetypesModalProps) {
           width={430}
           footer={
             <>
-              <Button variant="outline" onClick={() => addField(false)}>
-                Just the archetype
-              </Button>
+              <Button onClick={() => addField(false)}>Just the archetype</Button>
               <Button variant="accent" onClick={() => addField(true)}>
                 Add to all {addingField.count}
               </Button>
             </>
           }
         >
-          <p className="text-[13px] text-fg-mid">
+          <p className="text-fg-mid">
             {addingField.count === 1 ? "1 folder uses" : `${addingField.count} folders use`}{" "}
             this archetype. The field can be created empty on all of them now, or
             only apply to folders given the archetype later.

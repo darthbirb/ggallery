@@ -1,187 +1,147 @@
 /**
- * Settings.
+ * Settings — one window, with a section list down the left rather than a
+ * chain of windows that each replace the last.
+ *
+ * It used to be four: this dialog, plus Archetypes, Statuses and Tags each
+ * opening as their own full `<Dialog>` that closed Settings to open. That
+ * meant no way back to the list short of closing and reopening the whole
+ * thing, and every switch between them unmounted one dialog and mounted
+ * another. One dialog, one section list, content swapping underneath it —
+ * `ArchetypesSection`, `StatusesSection` and `TagsSection` are the same
+ * editors, now sections rather than screens.
  *
  * Still deliberately small — the full screen (command palette, keyboard
  * reference, blur toggle, backup verification) is M9's. What is here is what
- * earlier milestones made mandatory: the repair-case rename action (M1.6), the
- * archetype, status and tag editors that shipping no vocabulary requires
- * (M2.1, decision 21), and now the interface preferences M2.5a introduces —
- * the accent, and the panel widths, which docs/DESIGN.md §2 says must be
- * editable here and not only by dragging.
+ * earlier milestones made mandatory: the repair-case rename action (M1.6),
+ * the archetype, status and tag editors that shipping no vocabulary requires
+ * (M2.1, decision 21), and the accent, which is a preference and nothing else.
+ *
+ * **Panel widths are not here.** M2.5a put sliders for them in this dialog on
+ * the strength of a DESIGN.md line about being editable "not only by
+ * dragging"; in use they were a number to type at a thing you had already got
+ * right with the mouse. Dragging an edge sizes a panel, double-clicking it
+ * resets — that is the whole interaction, and DESIGN.md now says so.
  */
 
+import { useState } from "react";
+
 import { Dialog } from "../../components/Dialog";
-import { Slider } from "../../components/Slider";
-import {
-  ACCENTS,
-  NAV_DEFAULT,
-  NAV_MAX,
-  NAV_MIN,
-  PANE_DEFAULT,
-  PANE_MIN,
-  PANE_MODES,
-  useUi,
-} from "../../state/ui";
+import { cn } from "../../lib/utils";
+import { ACCENTS, useUi } from "../../state/ui";
+import { ArchetypesSection } from "./ArchetypesSection";
+import { StatusesSection } from "./StatusesSection";
+import { TagsSection } from "./TagsSection";
+
+type Section = "general" | "archetypes" | "statuses" | "tags";
+
+const SECTIONS: { key: Section; label: string }[] = [
+  { key: "general", label: "General" },
+  { key: "archetypes", label: "Archetypes" },
+  { key: "statuses", label: "Folder statuses" },
+  { key: "tags", label: "Tags" },
+];
 
 export function SettingsPanel({
   onClose,
   onNormaliseFilenames,
-  onManageArchetypes,
-  onManageStatuses,
-  onManageTags,
+  onArchetypesChanged,
+  onStatusesChanged,
+  onTagsChanged,
 }: {
   onClose: () => void;
   onNormaliseFilenames: () => void;
-  onManageArchetypes: () => void;
-  onManageStatuses: () => void;
-  onManageTags: () => void;
+  onArchetypesChanged: () => void;
+  onStatusesChanged: () => void;
+  onTagsChanged: () => void;
 }) {
-  const ui = useUi();
+  const [section, setSection] = useState<Section>("general");
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()} title="Settings" width={520}>
-      <Section title="Appearance">
-        <p className="mb-2 text-[12px] text-fg-dim">
-          One accent carries selection, focus, the active tab, drop acceptance
-          and the scrubber. Green and red stay reserved for meaning.
-        </p>
-        <div
-          role="radiogroup"
-          aria-label="Accent"
-          className="flex flex-wrap items-center gap-1.5"
-        >
-          {ACCENTS.map((accent) => (
+    <Dialog open onOpenChange={(open) => !open && onClose()} title="Settings" width={720}>
+      <div className="flex min-h-[420px] gap-4">
+        <nav className="flex w-[170px] shrink-0 flex-col gap-0.5 border-r border-line pr-3">
+          {SECTIONS.map((candidate) => (
             <button
-              key={accent.key}
+              key={candidate.key}
               type="button"
-              role="radio"
-              aria-checked={ui.accent === accent.key}
-              onClick={() => ui.set("accent", accent.key)}
-              data-accent={accent.key}
-              className={`flex items-center gap-1.5 rounded-[4px] border px-2 py-1 text-[12px] ${
-                ui.accent === accent.key
-                  ? "border-accent text-fg"
-                  : "border-line text-fg-mid hover:bg-hover"
-              }`}
+              aria-current={section === candidate.key}
+              onClick={() => setSection(candidate.key)}
+              className={cn(
+                "flex h-8 items-center rounded-[4px] px-2.5 text-left",
+                section === candidate.key
+                  ? "bg-accent/15 text-accent"
+                  : "text-fg-mid hover:bg-hover hover:text-fg",
+              )}
             >
-              <span className="h-3 w-3 rounded-full bg-accent" />
-              {accent.label}
+              {candidate.label}
             </button>
           ))}
+        </nav>
+
+        <div className="min-w-0 flex-1 overflow-y-auto">
+          {section === "general" && (
+            <GeneralSection onNormaliseFilenames={onNormaliseFilenames} />
+          )}
+          {section === "archetypes" && (
+            <ArchetypesSection onChanged={onArchetypesChanged} />
+          )}
+          {section === "statuses" && <StatusesSection onChanged={onStatusesChanged} />}
+          {section === "tags" && <TagsSection onChanged={onTagsChanged} />}
         </div>
-      </Section>
-
-      <Section title="Panels">
-        <WidthRow
-          label="Navigation panel"
-          value={ui.navWidth}
-          min={NAV_MIN}
-          max={NAV_MAX}
-          onChange={(width) => ui.set("navWidth", width)}
-          onReset={ui.resetNavWidth}
-          defaultValue={NAV_DEFAULT}
-        />
-
-        {PANE_MODES.map((mode) => (
-          <WidthRow
-            key={mode.key}
-            label={`Pane — ${mode.label}`}
-            value={ui.paneWidths[mode.key]}
-            min={PANE_MIN}
-            max={1200}
-            onChange={(width) => ui.setPaneWidth(mode.key, width)}
-            onReset={() => ui.setPaneWidth(mode.key, PANE_DEFAULT[mode.key])}
-            defaultValue={PANE_DEFAULT[mode.key]}
-          />
-        ))}
-
-        <p className="mt-1 text-[12px] text-fg-dim">
-          Widths are remembered per pane mode. Dragging a panel edge does the
-          same thing; double-clicking one resets it.
-        </p>
-      </Section>
-
-      <Section title="Library">
-        <Action
-          title="Normalise filenames"
-          body="Find any file that is not UUID-named and rename it — for when something outside the app has renamed a file back."
-          onClick={onNormaliseFilenames}
-        />
-      </Section>
-
-      <Section title="Vocabulary">
-        <Action
-          title="Archetypes"
-          body="Create and edit the folder templates used across your library."
-          onClick={onManageArchetypes}
-        />
-        <Action
-          title="Folder statuses"
-          body="Rename, recolour, reorder, add or remove status values."
-          onClick={onManageStatuses}
-        />
-        <Action
-          title="Tags"
-          body="Rename or delete a tag across the whole library."
-          onClick={onManageTags}
-        />
-      </Section>
+      </div>
     </Dialog>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function GeneralSection({ onNormaliseFilenames }: { onNormaliseFilenames: () => void }) {
+  const ui = useUi();
+
   return (
-    <section className="mb-4 last:mb-0">
-      <h3 className="mb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-fg-dim">
-        {title}
-      </h3>
-      {children}
-    </section>
+    <>
+      <SectionHeading>Accent</SectionHeading>
+      {/* A grid, not a wrapping row: six chips of different label widths
+          left themselves a ragged right edge and the block read as
+          off-centre in the dialog. Three equal columns fill the width. */}
+      <div role="radiogroup" aria-label="Accent" className="grid grid-cols-3 gap-2">
+        {ACCENTS.map((accent) => (
+          <button
+            key={accent.key}
+            type="button"
+            role="radio"
+            aria-checked={ui.accent === accent.key}
+            onClick={() => ui.set("accent", accent.key)}
+            // Scopes `--color-accent` to this button, so the swatch paints
+            // itself in its own hue rather than the one currently chosen —
+            // see the `[data-accent]` rules in `styles/index.css`.
+            data-accent={accent.key}
+            className={cn(
+              "flex h-8 w-full items-center gap-2 rounded-[4px] border bg-raised px-2.5 text-[13px]",
+              ui.accent === accent.key
+                ? "border-accent text-fg"
+                : "border-line text-fg-mid hover:bg-hover hover:text-fg",
+            )}
+          >
+            <span className="size-3.5 rounded-full border border-accent-d bg-accent" />
+            {accent.label}
+          </button>
+        ))}
+      </div>
+
+      <SectionHeading>Library</SectionHeading>
+      <Action
+        title="Normalise filenames"
+        body="Rename anything that lost its UUID name."
+        onClick={onNormaliseFilenames}
+      />
+    </>
   );
 }
 
-function WidthRow({
-  label,
-  value,
-  min,
-  max,
-  onChange,
-  onReset,
-  defaultValue,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  onChange: (width: number) => void;
-  onReset: () => void;
-  defaultValue: number;
-}) {
+function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-1.5 flex items-center gap-3">
-      <span className="w-[150px] shrink-0 truncate text-fg-mid">{label}</span>
-      <Slider
-        label={label}
-        value={Math.min(Math.max(value, min), max)}
-        min={min}
-        max={max}
-        step={2}
-        onChange={onChange}
-        className="min-w-0 flex-1"
-      />
-      <span className="w-14 shrink-0 text-right font-mono text-[11px] tabular-nums text-fg-dim">
-        {Math.round(value)}px
-      </span>
-      <button
-        type="button"
-        onClick={onReset}
-        disabled={Math.round(value) === defaultValue}
-        className="shrink-0 text-[11px] text-fg-dim hover:text-fg disabled:opacity-30"
-      >
-        reset
-      </button>
-    </div>
+    <h3 className="mb-2 mt-4 font-mono uppercase tracking-[0.1em] text-fg-dim first:mt-0">
+      {children}
+    </h3>
   );
 }
 
@@ -198,10 +158,12 @@ function Action({
     <button
       type="button"
       onClick={onClick}
-      className="mb-2 w-full rounded-[4px] border border-line px-3 py-2 text-left last:mb-0 hover:bg-hover"
+      className="flex w-full items-center gap-3 rounded-[5px] border border-line bg-raised px-3 py-2 text-left hover:border-fg-dim hover:bg-hover"
     >
-      <span className="block text-fg">{title}</span>
-      <span className="block text-[12px] text-fg-dim">{body}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-fg">{title}</span>
+        <span className="block text-[13px] text-fg-dim">{body}</span>
+      </span>
     </button>
   );
 }

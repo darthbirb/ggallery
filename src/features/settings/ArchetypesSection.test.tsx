@@ -13,7 +13,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "../../test/harness";
-import { ArchetypesModal } from "./ArchetypesModal";
+import { ArchetypesSection } from "./ArchetypesSection";
 
 vi.mock("../../lib/ipc");
 
@@ -24,7 +24,7 @@ const mocked = vi.mocked(ipc);
 beforeEach(() => {
   mocked.errorMessage.mockImplementation((err: unknown) => String(err));
   mocked.listArchetypes.mockResolvedValue([
-    { id: 3, name: "Trip", fields: [{ key: "city", type: "text", ordinal: 0 }] },
+    { id: 3, name: "Trip", fields: [{ key: "city", ordinal: 0 }] },
   ]);
   mocked.countFoldersUsingArchetype.mockResolvedValue(0);
   mocked.archetypeFieldUsage.mockResolvedValue([]);
@@ -36,14 +36,14 @@ beforeEach(() => {
 
 async function open() {
   const onChanged = vi.fn();
-  renderWithProviders(<ArchetypesModal onClose={vi.fn()} onChanged={onChanged} />);
+  renderWithProviders(<ArchetypesSection onChanged={onChanged} />);
   await userEvent.click(await screen.findByRole("button", { name: "Trip" }));
   return { onChanged };
 }
 
 describe("archetypes", () => {
   it("creates one from the name typed in", async () => {
-    renderWithProviders(<ArchetypesModal onClose={vi.fn()} onChanged={vi.fn()} />);
+    renderWithProviders(<ArchetypesSection onChanged={vi.fn()} />);
     await userEvent.type(
       await screen.findByLabelText("New archetype name"),
       "Person{Enter}",
@@ -58,7 +58,7 @@ describe("archetypes", () => {
     await userEvent.click(screen.getByRole("button", { name: "Add field" }));
 
     await waitFor(() =>
-      expect(mocked.addArchetypeField).toHaveBeenCalledWith(3, "country", "text", false),
+      expect(mocked.addArchetypeField).toHaveBeenCalledWith(3, "country", false),
     );
   });
 
@@ -75,7 +75,7 @@ describe("archetypes", () => {
     await userEvent.click(screen.getByRole("button", { name: /Add to all 3/ }));
 
     await waitFor(() =>
-      expect(mocked.addArchetypeField).toHaveBeenCalledWith(3, "country", "text", true),
+      expect(mocked.addArchetypeField).toHaveBeenCalledWith(3, "country", true),
     );
   });
 
@@ -90,7 +90,7 @@ describe("archetypes", () => {
     );
 
     await waitFor(() =>
-      expect(mocked.addArchetypeField).toHaveBeenCalledWith(3, "country", "text", false),
+      expect(mocked.addArchetypeField).toHaveBeenCalledWith(3, "country", false),
     );
   });
 

@@ -1,12 +1,20 @@
+import { ArrowDown, ArrowUp, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
-import { Button, IconButton } from "../../components/Button";
 import { Dialog } from "../../components/Dialog";
+import { Button, IconButton } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../components/ui/select";
 import * as ipc from "../../lib/ipc";
 import type { FolderStatusDef } from "../../lib/types";
 
-interface StatusesModalProps {
-  onClose: () => void;
+interface StatusesSectionProps {
   /** The tree's WIP mark and the band's status chip both need refetching
    *  after an edit. */
   onChanged: () => void;
@@ -19,8 +27,10 @@ interface StatusesModalProps {
  *
  * Removing a status that folders are using asks where those folders should
  * go, by name, in a dialog rather than a browser prompt.
+ *
+ * A section inside `SettingsPanel`'s single dialog, not a dialog of its own.
  */
-export function StatusesModal({ onClose, onChanged }: StatusesModalProps) {
+export function StatusesSection({ onChanged }: StatusesSectionProps) {
   const [statuses, setStatuses] = useState<FolderStatusDef[]>([]);
   const [newLabel, setNewLabel] = useState("");
   const [newColour, setNewColour] = useState("#6b7280");
@@ -92,107 +102,100 @@ export function StatusesModal({ onClose, onChanged }: StatusesModalProps) {
 
   return (
     <>
-      <Dialog
-        open
-        onOpenChange={(open) => !open && onClose()}
-        title="Folder statuses"
-        description="Rename, recolour, reorder, add or remove. One of them marks folders in the tree — see below."
-        width={500}
-      >
-        {error && (
-          <p className="mb-3 rounded-[4px] border border-danger/40 bg-raised px-3 py-2 text-danger">
-            {error}
-          </p>
-        )}
+      {error && (
+        <p className="mb-3 rounded-[4px] border border-danger/40 bg-raised px-3 py-2 text-danger">
+          {error}
+        </p>
+      )}
 
-        <table className="w-full border-collapse text-left text-[13px]">
-          <tbody>
-            {statuses.map((status, index) => (
-              <tr key={status.key} className="border-t border-line-soft/60">
-                <td className="w-6 py-1.5">
-                  <input
-                    type="color"
-                    aria-label={`${status.label} colour`}
-                    value={status.colour}
-                    onChange={(event) =>
-                      void run(() =>
-                        ipc.recolourFolderStatus(status.key, event.target.value),
-                      )
+      <table className="w-full border-collapse text-left">
+        <tbody>
+          {statuses.map((status, index) => (
+            <tr key={status.key} className="border-t border-line-soft/60">
+              <td className="w-8 py-1.5">
+                <input
+                  type="color"
+                  aria-label={`${status.label} colour`}
+                  value={status.colour}
+                  onChange={(event) =>
+                    void run(() =>
+                      ipc.recolourFolderStatus(status.key, event.target.value),
+                    )
+                  }
+                  className="size-6 cursor-pointer rounded-[4px] border border-line bg-transparent p-0"
+                />
+              </td>
+              <td className="py-1.5 pr-2">
+                <Input
+                  defaultValue={status.label}
+                  key={status.key + status.label}
+                  aria-label={`${status.label} name`}
+                  onBlur={(event) => {
+                    const value = event.target.value.trim();
+                    if (value && value !== status.label) {
+                      void run(() => ipc.renameFolderStatus(status.key, value));
                     }
-                    className="h-4 w-4 border-none bg-transparent p-0"
-                  />
-                </td>
-                <td className="py-1.5 pr-2">
-                  <input
-                    defaultValue={status.label}
-                    key={status.key + status.label}
-                    aria-label={`${status.label} name`}
-                    onBlur={(event) => {
-                      const value = event.target.value.trim();
-                      if (value && value !== status.label) {
-                        void run(() => ipc.renameFolderStatus(status.key, value));
-                      }
-                    }}
-                    className="w-full rounded-[3px] border border-transparent bg-transparent px-1 py-0.5 text-fg hover:border-line-soft focus:border-accent-d"
-                  />
-                </td>
-                <td className="py-1.5 pr-2 font-mono text-[11px] text-fg-dim">
-                  {status.key}
-                </td>
-                <td className="py-1.5 text-right">
+                  }}
+                  className="border-transparent bg-transparent hover:border-line"
+                />
+              </td>
+              <td className="py-1.5 pr-2 font-mono text-fg-dim">{status.key}</td>
+              <td className="py-1.5">
+                <span className="flex items-center justify-end gap-1">
                   <IconButton
                     aria-label={`Move ${status.label} up`}
                     disabled={index === 0}
                     onClick={() => move(status.key, -1)}
                   >
-                    ↑
+                    <ArrowUp />
                   </IconButton>
                   <IconButton
                     aria-label={`Move ${status.label} down`}
                     disabled={index === statuses.length - 1}
                     onClick={() => move(status.key, 1)}
                   >
-                    ↓
+                    <ArrowDown />
                   </IconButton>
                   <IconButton
                     aria-label={`Remove ${status.label}`}
+                    variant="danger"
                     onClick={() => askRemove(status)}
                   >
-                    ×
+                    <X />
                   </IconButton>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
-        <div className="mt-3 flex items-center gap-2">
-          <input
-            type="color"
-            aria-label="New status colour"
-            value={newColour}
-            onChange={(event) => setNewColour(event.target.value)}
-            className="h-5 w-5 border-none bg-transparent p-0"
-          />
-          <input
-            value={newLabel}
-            aria-label="New status name"
-            onChange={(event) => setNewLabel(event.target.value)}
-            onKeyDown={(event) => event.key === "Enter" && create()}
-            placeholder="＋ new status"
-            className="flex-1 rounded-[4px] border border-dashed border-line bg-transparent px-1.5 py-0.5 text-[13px] text-fg placeholder:text-fg-dim focus:border-accent-d"
-          />
-          <Button variant="outline" onClick={create}>
-            Add
-          </Button>
-        </div>
+      <div className="mt-3 flex items-center gap-2">
+        <input
+          type="color"
+          aria-label="New status colour"
+          value={newColour}
+          onChange={(event) => setNewColour(event.target.value)}
+          className="size-8 shrink-0 cursor-pointer rounded-[4px] border border-line bg-transparent p-0"
+        />
+        <Input
+          value={newLabel}
+          aria-label="New status name"
+          onChange={(event) => setNewLabel(event.target.value)}
+          onKeyDown={(event) => event.key === "Enter" && create()}
+          placeholder="＋ new status"
+          className="flex-1 border-dashed bg-transparent"
+        />
+        <Button onClick={create}>
+          <Plus />
+          Add
+        </Button>
+      </div>
 
-        <p className="mt-3 text-[12px] text-fg-dim">
-          The tree marks one status with a single dot and nothing for the rest —
-          one mark meaning &ldquo;needs more&rdquo;, so it is glanceable without
-          a legend.
-        </p>
-      </Dialog>
+      <p className="mt-3 text-[13px] text-fg-dim">
+        The tree marks <span className="text-fg-mid">wip</span> with a dot, and
+        nothing else.
+      </p>
 
       {removing && (
         <ReassignDialog
@@ -234,32 +237,29 @@ function ReassignDialog({
       width={420}
       footer={
         <>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
+          <Button onClick={onClose}>Cancel</Button>
           <Button variant="danger" disabled={!choice} onClick={() => onConfirm(choice)}>
             Remove and reassign
           </Button>
         </>
       }
     >
-      <p className="mb-2 text-[13px] text-fg-mid">
+      <p className="mb-2 text-fg-mid">
         {count === 1 ? "1 folder uses" : `${count} folders use`} this status. Give
         them another one instead:
       </p>
-      <select
-        autoFocus
-        aria-label="Reassign to"
-        value={choice}
-        onChange={(event) => setChoice(event.target.value)}
-        className="w-full rounded-[4px] border border-line bg-ground px-2 py-1 text-[13px] text-fg"
-      >
-        {others.map((other) => (
-          <option key={other.key} value={other.key}>
-            {other.label}
-          </option>
-        ))}
-      </select>
+      <Select value={choice} onValueChange={setChoice}>
+        <SelectTrigger autoFocus aria-label="Reassign to">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {others.map((other) => (
+            <SelectItem key={other.key} value={other.key}>
+              {other.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </Dialog>
   );
 }
