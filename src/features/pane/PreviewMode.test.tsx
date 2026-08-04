@@ -12,7 +12,14 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fakeLibrary, gridItem, itemDetail, renderWithProviders } from "../../test/harness";
+import {
+  fakeLibrary,
+  folderNode,
+  gridItem,
+  itemDetail,
+  renderWithProviders,
+  rootNode,
+} from "../../test/harness";
 import { PreviewMode, paneGrid } from "./PreviewMode";
 
 vi.mock("../../lib/ipc");
@@ -56,11 +63,14 @@ function renderPreview(over: Partial<React.ComponentProps<typeof PreviewMode>> =
       thumbsDir="D:/thumbs"
       onStep={onStep}
       onPick={onPick}
+      folders={[rootNode(), folderNode()]}
       detailsExpanded={false}
       onDetailsExpandedChange={vi.fn()}
       filmstripHeight={64}
       onFilmstripHeightChange={vi.fn()}
       onResetFilmstripHeight={vi.fn()}
+      mode="preview"
+      onModeChange={vi.fn()}
       maximised={false}
       onMaximisedChange={vi.fn()}
       onClose={vi.fn()}
@@ -126,17 +136,17 @@ describe("preview", () => {
   it("opens the details from the header, downward, above the media", async () => {
     const { rerender } = renderPreview({ detailsExpanded: true });
     const toggle = await screen.findByRole("button", { expanded: true });
-    const captured = await screen.findByText("Captured");
+    const created = await screen.findByText("Created");
     const strip = await screen.findByRole("button", { name: "cliff.jpg" });
 
     // Header, then the details body, then the media, then the strip. The
     // strip is last in document order, which is what keeps it pinned to the
     // bottom edge while the details push the media down.
     expect(
-      toggle.compareDocumentPosition(captured) & Node.DOCUMENT_POSITION_FOLLOWING,
+      toggle.compareDocumentPosition(created) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      captured.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING,
+      created.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(rerender).toBeTruthy();
   });
@@ -150,27 +160,34 @@ describe("preview", () => {
 });
 
 describe("details", () => {
-  it("collapsed, shows the filename, dimensions and size only", async () => {
+  it("collapsed, shows dimensions and size only — the name moved to the expanded body", async () => {
     renderPreview();
-    expect(await screen.findByText("beach.jpg")).toBeInTheDocument();
-    expect(screen.getByText(/1200×800/)).toBeInTheDocument();
-    expect(screen.queryByText("Captured")).toBeNull();
+    expect(await screen.findByText(/1200×800/)).toBeInTheDocument();
+    expect(screen.queryByText("beach.jpg")).toBeNull();
+    expect(screen.queryByText("Created")).toBeNull();
   });
 
-  it("expanded, adds the dates, the source and the tags", async () => {
+  it("expanded, adds the name, the dates, the source and the tags", async () => {
     mocked.itemEffectiveTags.mockResolvedValue([
       { tagId: 1, key: null, value: "beach", originId: null },
+      // The folder's own auto title-tag, inherited — same as "Trips" showing
+      // up as a real effective tag on every item inside it.
       { tagId: 2, key: null, value: "Trips", originId: 5 },
     ]);
     renderPreview({ detailsExpanded: true });
 
-    expect(await screen.findByText("Captured")).toBeInTheDocument();
+    expect(await screen.findByText("beach.jpg")).toBeInTheDocument();
+    expect(await screen.findByText("Created")).toBeInTheDocument();
     expect(await screen.findByText("beach")).toBeInTheDocument();
 
     // A manual tag can be removed here; an inherited one cannot — it comes
     // from the folder, and that is where it changes.
     expect(screen.getByRole("button", { name: "Remove beach" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Remove Trips" })).toBeNull();
+
+    // "Trips" is the folder itself — it reads once, as a breadcrumb crumb,
+    // not a second time as a tag-shaped chip repeating the same fact.
+    expect(screen.getAllByText("Trips")).toHaveLength(1);
   });
 
   it("adds a tag to the item from inside the details", async () => {

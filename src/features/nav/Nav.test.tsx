@@ -46,6 +46,11 @@ function renderNav(over: Partial<React.ComponentProps<typeof Nav>> = {}) {
       onEditDetails={vi.fn()}
       favouriteCount={3}
       sortingCount={7}
+      progress={null}
+      failureCount={0}
+      showingFailures={false}
+      onToggleFailures={vi.fn()}
+      onOpenSettings={vi.fn()}
       {...over}
     />,
     { library: fakeLibrary({ folders }) },

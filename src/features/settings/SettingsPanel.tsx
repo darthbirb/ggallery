@@ -21,6 +21,11 @@
  * dragging"; in use they were a number to type at a thing you had already got
  * right with the mouse. Dragging an edge sizes a panel, double-clicking it
  * resets — that is the whole interaction, and DESIGN.md now says so.
+ *
+ * **The library's path lives here, and nowhere else** — M2.5c deleted it
+ * from the window bar entirely (decision 28): one library, chosen once, and
+ * a machine-specific path in permanent chrome is noise. The path already
+ * ends in the library's folder name, so it is the only label this needs.
  */
 
 import { useState } from "react";
@@ -42,12 +47,16 @@ const SECTIONS: { key: Section; label: string }[] = [
 ];
 
 export function SettingsPanel({
+  libraryRoot,
+  onChooseLibrary,
   onClose,
   onNormaliseFilenames,
   onArchetypesChanged,
   onStatusesChanged,
   onTagsChanged,
 }: {
+  libraryRoot: string;
+  onChooseLibrary: () => void;
   onClose: () => void;
   onNormaliseFilenames: () => void;
   onArchetypesChanged: () => void;
@@ -80,7 +89,11 @@ export function SettingsPanel({
 
         <div className="min-w-0 flex-1 overflow-y-auto">
           {section === "general" && (
-            <GeneralSection onNormaliseFilenames={onNormaliseFilenames} />
+            <GeneralSection
+              libraryRoot={libraryRoot}
+              onChooseLibrary={onChooseLibrary}
+              onNormaliseFilenames={onNormaliseFilenames}
+            />
           )}
           {section === "archetypes" && (
             <ArchetypesSection onChanged={onArchetypesChanged} />
@@ -93,11 +106,34 @@ export function SettingsPanel({
   );
 }
 
-function GeneralSection({ onNormaliseFilenames }: { onNormaliseFilenames: () => void }) {
+function GeneralSection({
+  libraryRoot,
+  onChooseLibrary,
+  onNormaliseFilenames,
+}: {
+  libraryRoot: string;
+  onChooseLibrary: () => void;
+  onNormaliseFilenames: () => void;
+}) {
   const ui = useUi();
 
   return (
     <>
+      <SectionHeading>Library</SectionHeading>
+      <div className="flex flex-col gap-2">
+        <Action
+          title="Open a different library…"
+          body={libraryRoot}
+          mono
+          onClick={onChooseLibrary}
+        />
+        <Action
+          title="Normalise filenames"
+          body="Rename anything that lost its UUID name."
+          onClick={onNormaliseFilenames}
+        />
+      </div>
+
       <SectionHeading>Accent</SectionHeading>
       {/* A grid, not a wrapping row: six chips of different label widths
           left themselves a ragged right edge and the block read as
@@ -126,13 +162,6 @@ function GeneralSection({ onNormaliseFilenames }: { onNormaliseFilenames: () => 
           </button>
         ))}
       </div>
-
-      <SectionHeading>Library</SectionHeading>
-      <Action
-        title="Normalise filenames"
-        body="Rename anything that lost its UUID name."
-        onClick={onNormaliseFilenames}
-      />
     </>
   );
 }
@@ -148,10 +177,14 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 function Action({
   title,
   body,
+  mono,
   onClick,
 }: {
   title: string;
   body: string;
+  /** The body is a path, not prose — mono is reserved for paths, hashes and
+   *  data, so it truncates on one line rather than wrapping. */
+  mono?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -162,7 +195,14 @@ function Action({
     >
       <span className="min-w-0 flex-1">
         <span className="block text-fg">{title}</span>
-        <span className="block text-[13px] text-fg-dim">{body}</span>
+        <span
+          className={cn(
+            "block text-[13px] text-fg-dim",
+            mono ? "truncate font-mono" : undefined,
+          )}
+        >
+          {body}
+        </span>
       </span>
     </button>
   );

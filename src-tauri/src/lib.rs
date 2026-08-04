@@ -264,6 +264,7 @@ pub fn run() {
             commands::folders::set_folder_cover,
             commands::folders::reveal_folder,
             commands::folders::apply_folder_archetype,
+            commands::folders::remove_folder_archetype,
             commands::folders::set_folder_label,
             commands::folders::add_folder_flag,
             commands::folders::remove_folder_tag,
@@ -330,7 +331,26 @@ fn build_window(app: &AppHandle) -> Result<()> {
         // Conservative: a logical size that still fits a 1080p screen once
         // Windows applies display scaling.
         .inner_size(1280.0, 820.0)
-        .min_inner_size(960.0, 600.0);
+        .min_inner_size(960.0, 600.0)
+        // Decision 28: the window bar is ours, not Windows'. Snap Layouts'
+        // flyout is knowingly given up — it only appears over a native
+        // maximise button — but edge-drag resizing and edge-snap are
+        // unaffected; see docs/DESIGN.md §2.
+        .decorations(false)
+        // Windows' DWM computes the minimize/restore genie-effect animation
+        // from the window's frame, which an undecorated window has none of —
+        // a long-standing upstream Tauri/Windows gap (tauri-apps/tauri#2064)
+        // that shows up as minimize/restore snapping to the wrong bounds
+        // with no animation. `shadow(true)` gives Windows 11 a real DWM
+        // frame to extend (a 1px border, rounded corners) without bringing
+        // back the title bar; worth confirming interactively since the
+        // same combination has its own reported off-by-a-pixel sizing case
+        // (tauri-apps/tauri#12285) — not a guaranteed fix, the best
+        // available lever.
+        .shadow(true)
+        // Kept invisible until the decorations toggle below has run, so the
+        // trick never flashes a titlebar into view on the way up.
+        .visible(false);
 
     #[cfg(windows)]
     {
@@ -347,6 +367,17 @@ fn build_window(app: &AppHandle) -> Result<()> {
     if config.window.map(|state| state.maximized).unwrap_or(false) {
         let _ = window.maximize();
     }
+
+    // `shadow(true)` alone still leaves minimize/restore snapping to the
+    // wrong bounds on some machines — Windows appears to only wire a window
+    // into DWM's genie-effect animation when it is first shown carrying a
+    // frame, and building directly with `decorations(false)` can skip that
+    // registration entirely. Toggling decorations on and back off forces a
+    // `SWP_FRAMECHANGED` recalculation that re-registers it, done here while
+    // the window is still hidden so nothing flashes.
+    let _ = window.set_decorations(true);
+    let _ = window.set_decorations(false);
+    let _ = window.show();
 
     #[cfg(debug_assertions)]
     window.open_devtools();

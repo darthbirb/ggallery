@@ -146,7 +146,7 @@ export function EmptyMenu({
         {bandExpanded ? "Collapse folder details" : "Expand folder details"}
       </MenuItem>
       <MenuItem onSelect={onTogglePane}>
-        {paneOpen ? "Close the pane" : "Open the pane"}
+        {paneOpen ? "Hide the pane" : "Show the pane"}
       </MenuItem>
     </>
   );

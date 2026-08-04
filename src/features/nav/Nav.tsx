@@ -7,6 +7,11 @@
  *
  * Groups, in order: Library, Pinned, Folders, Saved searches, Queues.
  *
+ * **A footer pinned below the tree** holds Settings and background-job
+ * status, separated by a hairline so neither scrolls away with the tree —
+ * decision 28. It survives folding: in the 44px rail it is the gear and a
+ * small activity dot alone, ambient rather than read.
+ *
  * Three things the panel must not do:
  *
  * - **The library root is not a node.** Everything, the Sorting Box and
@@ -32,6 +37,7 @@ import {
   LayoutGrid,
   PanelLeftClose,
   PanelLeftOpen,
+  Settings,
   Star,
   type LucideIcon,
 } from "lucide-react";
@@ -40,9 +46,14 @@ import { useMemo, useState } from "react";
 import { ContextMenu } from "../../components/Menu";
 import { Tooltip } from "../../components/Tooltip";
 import { Badge } from "../../components/ui/badge";
-import { IconButton } from "../../components/ui/button";
+import { Button, IconButton } from "../../components/ui/button";
 import { formatCount } from "../../lib/format";
-import type { ArchetypeInfo, FolderNode, FolderStatusDef } from "../../lib/types";
+import type {
+  ArchetypeInfo,
+  FolderNode,
+  FolderStatusDef,
+  Progress,
+} from "../../lib/types";
 import { cn } from "../../lib/utils";
 import type { Scope } from "../../state/library";
 import { FolderMenu, FolderTreeBackgroundMenu } from "../menus/FolderMenu";
@@ -96,6 +107,12 @@ export interface NavProps {
   /** How many items are loose at the top level — the Sorting Box's badge, and
    *  the number that says whether there is triage to do. */
   sortingCount: number;
+  /** The footer's background-job status — decision 28. */
+  progress: Progress | null;
+  failureCount: number;
+  showingFailures: boolean;
+  onToggleFailures: () => void;
+  onOpenSettings: () => void;
 }
 
 export function Nav(props: NavProps) {
@@ -117,7 +134,12 @@ function FoldedNav({
   onFoldedChange,
   favouriteCount,
   sortingCount,
+  progress,
+  failureCount,
+  onOpenSettings,
 }: NavProps) {
+  const busy = progress != null && progress.phase !== "idle";
+
   return (
     <nav
       aria-label="Navigation"
@@ -146,7 +168,7 @@ function FoldedNav({
         </Tooltip>
       </div>
 
-      <div className="flex flex-col items-center gap-2 pt-2">
+      <div className="flex min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto pt-2">
         {ROOTS.map((root) => {
           const count = countFor(root, favouriteCount, sortingCount);
           const Icon = root.icon;
@@ -179,6 +201,29 @@ function FoldedNav({
           );
         })}
       </div>
+
+      {/* Folded, the footer is "the gear and the job indicator alone" —
+          decision 28. A dot rather than a count: there is no room for
+          digits at 44px, and this is meant to be glanced at, not read.
+          `h-11`, not `py-2` around the button — matching the expanded
+          footer's height exactly is what keeps the fold reading as the same
+          panel narrowing rather than a shorter one taking its place. */}
+      <div className="flex h-11 shrink-0 items-center justify-center border-t border-line-soft">
+        <Tooltip label="Settings">
+          <IconButton aria-label="Settings" onClick={onOpenSettings} className="relative">
+            <Settings />
+            {(busy || failureCount > 0) && (
+              <span
+                aria-hidden
+                className={cn(
+                  "absolute right-0.5 top-0.5 size-2 rounded-full border border-panel",
+                  failureCount > 0 ? "bg-danger" : "bg-accent",
+                )}
+              />
+            )}
+          </IconButton>
+        </Tooltip>
+      </div>
     </nav>
   );
 }
@@ -195,6 +240,11 @@ function ExpandedNav({
   onEditDetails,
   favouriteCount,
   sortingCount,
+  progress,
+  failureCount,
+  showingFailures,
+  onToggleFailures,
+  onOpenSettings,
 }: NavProps) {
   const [collapsed, setCollapsed] = useState<Set<number>>(() => new Set());
 
@@ -285,9 +335,15 @@ function ExpandedNav({
           taking over, so every measurement down to the first root row is
           shared between the two. */}
       <div className="flex h-11 shrink-0 items-center gap-1 border-b border-line-soft px-2">
-        <span className="min-w-0 flex-1 truncate pl-1 font-mono uppercase tracking-[0.1em] text-fg-dim">
-          Library
-        </span>
+        {/* Three reserved slots, not yet wired to anything. Settings has one
+            working entry point — the footer below the tree — so this row
+            does not repeat it as a second, dead-looking copy. */}
+        <IconButton aria-label="Placeholder" onClick={() => {}} />
+        <IconButton aria-label="Placeholder" onClick={() => {}} />
+        <IconButton aria-label="Placeholder" onClick={() => {}} />
+
+        <span className="flex-1" />
+
         <Tooltip label="Hide the navigation panel" side="bottom">
           <IconButton
             aria-label="Hide the navigation panel"
@@ -342,7 +398,65 @@ function ExpandedNav({
             ever show what can actually be opened. The Sorting Box is not among
             them — it is a library root now, not a queue folder. */}
       </div>
+
+      <FooterStatus
+        progress={progress}
+        failureCount={failureCount}
+        showingFailures={showingFailures}
+        onToggleFailures={onToggleFailures}
+        onOpenSettings={onOpenSettings}
+      />
     </nav>
+  );
+}
+
+/** The app's own state, ambient and ignorable — decision 28. Settings opens
+ *  a dialog, so it is a gear rather than a row; job status only shows up
+ *  while there is something actually happening — an idle item count would
+ *  just repeat what the band above the grid already says. */
+function FooterStatus({
+  progress,
+  failureCount,
+  showingFailures,
+  onToggleFailures,
+  onOpenSettings,
+}: {
+  progress: Progress | null;
+  failureCount: number;
+  showingFailures: boolean;
+  onToggleFailures: () => void;
+  onOpenSettings: () => void;
+}) {
+  return (
+    <footer className="flex h-11 shrink-0 items-center gap-1.5 border-t border-line-soft px-2">
+      <Tooltip label="Settings" side="top">
+        <IconButton aria-label="Settings" onClick={onOpenSettings}>
+          <Settings />
+        </IconButton>
+      </Tooltip>
+
+      {progress && progress.phase !== "idle" && (
+        <span className="min-w-0 flex-1 overflow-hidden truncate font-mono tabular-nums text-fg-dim">
+          {progress.phase === "walking"
+            ? progress.rescanning
+              ? "rescanning…"
+              : "scanning…"
+            : `indexing ${formatCount(progress.items)}…`}
+        </span>
+      )}
+
+      {failureCount > 0 && (
+        <Button
+          size="sm"
+          variant="danger"
+          onClick={onToggleFailures}
+          aria-expanded={showingFailures}
+          className="ml-auto shrink-0 font-mono"
+        >
+          {formatCount(failureCount)}
+        </Button>
+      )}
+    </footer>
   );
 }
 

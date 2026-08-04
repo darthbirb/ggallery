@@ -1,8 +1,8 @@
 /**
- * The folder band. Two things it must get right, from docs/DESIGN.md §2:
- * expanded state is global rather than per folder, and it looks right with no
- * archetype at all — which is the default and commonest state, since the app
- * ships with none.
+ * The folder band. Things it must get right, from docs/DESIGN.md §2:
+ * expanded state is global rather than per folder, it looks right with no
+ * archetype at all — the default and commonest state, since the app ships
+ * with none — and counts appear exactly once.
  */
 
 import { screen, waitFor } from "@testing-library/react";
@@ -55,10 +55,14 @@ beforeEach(() => {
 
 function renderBand(over: Partial<React.ComponentProps<typeof FolderBand>> = {}) {
   const onExpandedChange = vi.fn();
+  const onRecursiveChange = vi.fn();
+  const onTileHeightChange = vi.fn();
   const folder = folderNode({ status: "wip" });
   const result = renderWithProviders(
     <FolderBand
       folder={folder}
+      scopeLabel="Everything"
+      itemCount={0}
       statuses={[
         { key: "active", label: "Active", colour: "#6b7280", ordinal: 0 },
         { key: "wip", label: "WIP", colour: "#eab308", ordinal: 1 },
@@ -69,11 +73,15 @@ function renderBand(over: Partial<React.ComponentProps<typeof FolderBand>> = {})
       thumbsDir="D:/thumbs"
       refreshToken={0}
       onOpen={vi.fn()}
+      tileHeight={132}
+      onTileHeightChange={onTileHeightChange}
+      recursive
+      onRecursiveChange={onRecursiveChange}
       {...over}
     />,
     { library: fakeLibrary() },
   );
-  return { ...result, onExpandedChange };
+  return { ...result, onExpandedChange, onRecursiveChange, onTileHeightChange };
 }
 
 describe("collapsed", () => {
@@ -88,21 +96,48 @@ describe("collapsed", () => {
     expect(screen.queryByLabelText("Folder notes")).toBeNull();
   });
 
+  it("shows no status chip when the folder is Active — absence means nothing to say", async () => {
+    mocked.getFolder.mockResolvedValue(detail({ status: "active" }));
+    renderBand({ folder: folderNode({ status: "active" }) });
+    await screen.findByText(/4 here/);
+    expect(screen.queryByRole("button", { name: "Folder status" })).toBeNull();
+  });
+
   it("expands through the caller, so the state can be global", async () => {
     const { onExpandedChange } = renderBand();
     await userEvent.click(screen.getByRole("button", { name: /Expand folder details/ }));
     expect(onExpandedChange).toHaveBeenCalledWith(true);
   });
+
+  it("carries the tile-size and this-folder-only controls, moved from the window bar", async () => {
+    const { onRecursiveChange } = renderBand();
+    expect(screen.getByLabelText("Tile size")).toBeInTheDocument();
+
+    const checkbox = screen.getByRole("checkbox", { name: /this folder only/ });
+    await userEvent.click(checkbox);
+    expect(onRecursiveChange).toHaveBeenCalledWith(false);
+  });
+
+  it("renders a plain label with no chevron or grid controls for a non-folder scope", () => {
+    renderBand({ folder: null, scopeLabel: "Everything", itemCount: 42 });
+    expect(screen.getByText("Everything")).toBeInTheDocument();
+    expect(screen.getByText(/42 items/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Expand folder details/ })).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: /this folder only/ })).toBeNull();
+    // Tile size still applies to every scope.
+    expect(screen.getByLabelText("Tile size")).toBeInTheDocument();
+  });
 });
 
 describe("expanded, with no archetype", () => {
-  it("shows the cover, the counts and an add-field control — not blank labels", async () => {
+  it("shows the cover, the counts once and an add-field control — not blank labels", async () => {
     renderBand({ expanded: true });
 
     expect(await screen.findByText(/add field/)).toBeInTheDocument();
     expect(screen.getByLabelText("Folder notes")).toBeInTheDocument();
-    expect(screen.getByText(/4 items here/)).toBeInTheDocument();
-    expect(screen.getByText(/2 subfolders/)).toBeInTheDocument();
+    // The header's "4 here · 12 below · 2 subfolders" is the only counts
+    // line — nothing in the expanded panel repeats it.
+    expect(screen.getAllByText(/4 here/)).toHaveLength(1);
     // No archetype exists, so no archetype control is offered at all.
     expect(screen.queryByText(/Apply an archetype/)).toBeNull();
   });
@@ -118,7 +153,7 @@ describe("expanded, with no archetype", () => {
     );
   });
 
-  it("edits an archetype field in place", async () => {
+  it("edits an archetype field in place, as a chip beside the tags", async () => {
     mocked.getFolder.mockResolvedValue(
       detail({
         archetypeId: 3,
@@ -128,7 +163,7 @@ describe("expanded, with no archetype", () => {
     );
     renderBand({ expanded: true });
 
-    await userEvent.click(await screen.findByRole("button", { name: "—" }));
+    await userEvent.click(await screen.findByRole("button", { name: /city/ }));
     await userEvent.type(screen.getByLabelText("city"), "lisbon{Enter}");
 
     await waitFor(() =>
@@ -145,6 +180,18 @@ describe("expanded, with no archetype", () => {
     );
 
     await waitFor(() => expect(mocked.addFolderFlag).toHaveBeenCalledWith(1, "summer"));
+  });
+
+  it("commits a note typed into the growing line", async () => {
+    renderBand({ expanded: true });
+
+    await userEvent.click(await screen.findByLabelText("Folder notes"));
+    await userEvent.type(screen.getByLabelText("Folder notes"), "a real note");
+    await userEvent.tab();
+
+    await waitFor(() =>
+      expect(mocked.setFolderNotes).toHaveBeenCalledWith(1, "a real note"),
+    );
   });
 });
 

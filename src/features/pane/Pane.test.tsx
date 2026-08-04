@@ -1,17 +1,25 @@
 /**
  * The pane's header.
  *
- * It carries the item's identity, not a mode label. M2.5a shipped a tablist
- * whose only tab said "Preview" — a label wearing a control's clothes — and
- * before that two more that were disabled. M2.5b brings a real switcher back
- * to the same slot once there is something to switch between; until then the
- * header names what you are looking at, and the window controls stay put.
+ * It carries dimensions and size, not a mode label or the filename — the
+ * filename moved into the expanded details body to leave room for the
+ * header's own fold and mode controls. M2.5a shipped a tablist whose only
+ * tab said "Preview" — a label wearing a control's clothes — and before that
+ * two more that were disabled; the mode buttons here are the real thing,
+ * with Grid and Folders inert until M2.5b builds them.
  */
 
 import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fakeLibrary, gridItem, itemDetail, renderWithProviders } from "../../test/harness";
+import {
+  fakeLibrary,
+  folderNode,
+  gridItem,
+  itemDetail,
+  renderWithProviders,
+  rootNode,
+} from "../../test/harness";
 import { Pane } from "./Pane";
 
 vi.mock("../../lib/ipc");
@@ -33,11 +41,13 @@ function renderPane(over: Partial<React.ComponentProps<typeof Pane>> = {}) {
   return renderWithProviders(
     <Pane
       mode="preview"
+      onModeChange={vi.fn()}
       onClose={vi.fn()}
       maximised={false}
       onMaximisedChange={vi.fn()}
       slots={[{ key: "primary", itemId: 7 }]}
       items={items}
+      folders={[rootNode(), folderNode()]}
       thumbsDir="D:/thumbs"
       onStep={vi.fn()}
       onPick={vi.fn()}
@@ -54,22 +64,24 @@ function renderPane(over: Partial<React.ComponentProps<typeof Pane>> = {}) {
 }
 
 describe("the pane header", () => {
-  it("names the item rather than the mode", async () => {
+  it("shows dimensions and size rather than a mode label", async () => {
     renderPane();
-    expect(await screen.findByText("beach.jpg")).toBeInTheDocument();
+    expect(await screen.findByText(/1200×800/)).toBeInTheDocument();
     expect(screen.queryByRole("tab")).toBeNull();
     expect(screen.queryByText("Preview")).toBeNull();
   });
 
-  it("keeps maximise and close as labelled controls", () => {
+  it("keeps maximise, fold and the mode switcher as labelled controls", () => {
     renderPane();
     expect(screen.getByRole("button", { name: "Fill the window" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Close the pane" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hide the pane" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Grid" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Folders" })).toBeInTheDocument();
   });
 
   it("still shows the window controls with nothing selected", () => {
     renderPane({ slots: [{ key: "primary", itemId: null }] });
     expect(screen.getByText("Nothing selected.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Close the pane" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hide the pane" })).toBeInTheDocument();
   });
 });

@@ -11,18 +11,28 @@
  * mode own its header without this file knowing what any of them put there.
  */
 
-import type { GridItem } from "../../lib/types";
-import type { PaneMode } from "../../state/ui";
+import { PanelRightOpen } from "lucide-react";
+
+import { Tooltip } from "../../components/Tooltip";
+import { IconButton } from "../../components/ui/button";
+import type { FolderNode, GridItem } from "../../lib/types";
+import { AVAILABLE_PANE_MODES, PANE_MODES, type PaneMode } from "../../state/ui";
+import { PANE_MODE_ICONS } from "./modeIcons";
 import { PreviewMode, type PreviewSlot } from "./PreviewMode";
 
 export interface PaneProps {
   mode: PaneMode;
+  onModeChange: (mode: PaneMode) => void;
   onClose: () => void;
   maximised: boolean;
   onMaximisedChange: (maximised: boolean) => void;
 
   slots: PreviewSlot[];
   items: GridItem[];
+  /** The whole tree, so Preview's details can read an item's ancestor
+   *  folders by title rather than by `folderRel`, which is normalised and
+   *  does not carry the display casing a breadcrumb needs. */
+  folders: FolderNode[];
   thumbsDir: string;
   onStep: (delta: number) => void;
   onPick: (itemId: number) => void;
@@ -37,5 +47,55 @@ export interface PaneProps {
 export function Pane({ mode, ...rest }: PaneProps) {
   // Grid and Folders are M2.5b's; each will render its own `PaneFrame`.
   if (mode !== "preview") return null;
-  return <PreviewMode {...rest} />;
+  return <PreviewMode mode={mode} {...rest} />;
+}
+
+/**
+ * Closed, the pane folds to a strip that mirrors the navigation panel's own
+ * fold exactly: a bordered 44px header holding the button that reopens it,
+ * then the mode icons below — not a separate "Open pane" control, because a
+ * control that exists only while a panel is closed is chrome that has to
+ * live somewhere, and the panel's own edge is where it belongs. Preview is
+ * the only mode that does anything yet; Grid and Folders sit here inert,
+ * like the nav's own placeholder pair, rather than disappearing.
+ */
+export function PaneStrip({
+  mode,
+  onOpen,
+}: {
+  mode: PaneMode;
+  onOpen: (mode: PaneMode) => void;
+}) {
+  return (
+    <nav
+      aria-label="Pane"
+      className="flex h-full w-11 shrink-0 flex-col border-l border-line bg-panel"
+    >
+      <div className="flex h-11 shrink-0 items-center justify-center border-b border-line-soft">
+        <Tooltip label="Show the pane" side="left">
+          <IconButton aria-label="Show the pane" onClick={() => onOpen(mode)}>
+            <PanelRightOpen />
+          </IconButton>
+        </Tooltip>
+      </div>
+
+      <div className="flex flex-col items-center gap-2 pt-2">
+        {PANE_MODES.map((candidate) => {
+          const Icon = PANE_MODE_ICONS[candidate.key];
+          const built = AVAILABLE_PANE_MODES.some((option) => option.key === candidate.key);
+          return (
+            <Tooltip key={candidate.key} label={candidate.label} side="left">
+              <IconButton
+                aria-label={candidate.label}
+                active={mode === candidate.key}
+                onClick={built ? () => onOpen(candidate.key) : () => {}}
+              >
+                <Icon />
+              </IconButton>
+            </Tooltip>
+          );
+        })}
+      </div>
+    </nav>
+  );
 }

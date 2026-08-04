@@ -1,29 +1,24 @@
 /**
  * The shell: one split, grid on the left, pane on the right.
  *
- * The window is a header, a navigation panel that folds, the grid, and a pane
- * that resizes and closes. There is no theatre view — full-window is the pane
- * maximised (docs/DESIGN.md §2).
+ * The window is our own bar (decorations off — decision 28), a navigation
+ * panel that folds, the grid, and a pane that resizes and closes. There is
+ * no theatre view — full-window is the pane maximised (docs/DESIGN.md §2).
  */
 
-import { LayoutGrid, Menu as MenuIcon, PanelRight, Square } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { DropdownMenu, MenuItem, MenuLabel, MenuSeparator } from "./components/Menu";
 import { Resizer } from "./components/Resizer";
 import { Toaster, ToastProviderRoot } from "./components/Toaster";
-import { Tooltip, TooltipProvider } from "./components/Tooltip";
-import { Button, IconButton } from "./components/ui/button";
-import { Checkbox } from "./components/ui/checkbox";
-import { Label } from "./components/ui/label";
+import { TooltipProvider } from "./components/Tooltip";
+import { WindowBar } from "./components/WindowBar";
+import { Button } from "./components/ui/button";
 import { Separator } from "./components/ui/separator";
-import { Slider } from "./components/ui/slider";
 import { KitchenSink } from "./dev/KitchenSink";
 import { FolderBand } from "./features/folder/FolderBand";
 import { Grid } from "./features/grid/Grid";
 import { SCRUBBER_WIDTH } from "./features/grid/Scrubber";
 import { FailureList } from "./features/indexing/FailureList";
-import { IndexStatus } from "./features/indexing/IndexStatus";
 import { NormaliseFilenamesModal } from "./features/import/NormaliseFilenamesModal";
 import { ProgressScreen } from "./features/import/ProgressScreen";
 import { ReviewScreen } from "./features/import/ReviewScreen";
@@ -31,7 +26,7 @@ import { DialogsProvider, useDialogs } from "./features/menus/Dialogs";
 import { EmptyMenu, ItemMenu } from "./features/menus/ItemMenu";
 import { OperationsProvider, useOperations } from "./features/menus/operations";
 import { Nav } from "./features/nav/Nav";
-import { Pane } from "./features/pane/Pane";
+import { Pane, PaneStrip } from "./features/pane/Pane";
 import type { PreviewSlot } from "./features/pane/PreviewMode";
 import { SettingsPanel } from "./features/settings/SettingsPanel";
 import { formatCount } from "./lib/format";
@@ -41,15 +36,7 @@ import { cn } from "./lib/utils";
 import { useLibrary, type LibraryController, type Scope } from "./state/library";
 import { useSelection, type SelectionController } from "./state/selection";
 import { ToastProvider, useToasts } from "./state/toasts";
-import {
-  NAV_FOLDED,
-  NAV_MAX,
-  NAV_MIN,
-  PANE_MIN,
-  TILE_SIZES,
-  UiProvider,
-  useUi,
-} from "./state/ui";
+import { NAV_FOLDED, NAV_MAX, NAV_MIN, PANE_MIN, UiProvider, useUi } from "./state/ui";
 
 /** Tracks `location.hash`, live. Always called — never conditionally — so
  *  the `import.meta.env.DEV` check below stays a plain literal at its call
@@ -94,6 +81,12 @@ export default function App() {
   );
 }
 
+/**
+ * Owns the window bar for every state the app can be in — decorations are
+ * off globally, so a screen with no bar has no way to drag, minimise or
+ * close the window at all, first-run flows included. Each branch below just
+ * fills the space beneath it.
+ */
 function Shell() {
   const library = useLibrary();
   const selection = useSelection(library.items);
@@ -107,20 +100,20 @@ function Shell() {
     if (library.flowPhase !== "idle") setStarting(false);
   }, [library.flowPhase]);
 
+  let content: ReactNode;
+
   // Choose folder → Review → Progress → Gallery, as full-window screens —
   // see docs/DESIGN.md#first-import.
   if (library.flowPhase !== "idle") {
-    return (
+    content = (
       <ProgressScreen
         phase={library.flowPhase}
         renameProgress={library.renameProgress}
         indexProgress={library.progress}
       />
     );
-  }
-
-  if (library.pendingReview) {
-    return (
+  } else if (library.pendingReview) {
+    content = (
       <ReviewScreen
         path={library.pendingReview.path}
         report={library.pendingReview.report}
@@ -139,18 +132,23 @@ function Shell() {
         }}
       />
     );
-  }
-
-  if (!library.info) {
-    return <Welcome library={library} />;
+  } else if (!library.info) {
+    content = <Welcome library={library} />;
+  } else {
+    content = (
+      <OperationsProvider library={library} selection={selection}>
+        <DialogsProvider folders={library.folders}>
+          <Gallery library={library} selection={selection} />
+        </DialogsProvider>
+      </OperationsProvider>
+    );
   }
 
   return (
-    <OperationsProvider library={library} selection={selection}>
-      <DialogsProvider folders={library.folders}>
-        <Gallery library={library} selection={selection} />
-      </DialogsProvider>
-    </OperationsProvider>
+    <div className="flex h-full flex-col bg-ground text-fg">
+      <WindowBar />
+      <div className="min-h-0 flex-1">{content}</div>
+    </div>
   );
 }
 
@@ -173,6 +171,13 @@ function Gallery({
 
   const [statuses, setStatuses] = useState<FolderStatusDef[]>([]);
   const [archetypes, setArchetypes] = useState<ArchetypeInfo[]>([]);
+
+  // The width transitions below are for folding and maximising, not for a
+  // live drag — applying them unconditionally made every mousemove during a
+  // resize queue another 180ms-eased animation, so the edge visibly trailed
+  // the cursor instead of tracking it.
+  const [navResizing, setNavResizing] = useState(false);
+  const [paneResizing, setPaneResizing] = useState(false);
 
   const info = library.info!;
   const { scope } = library;
@@ -203,6 +208,17 @@ function Gallery({
         : null,
     [scope, library.folders],
   );
+
+  // What the band's title slot shows for a scope with no folder identity to
+  // expand into. A real folder never falls through to this.
+  const scopeLabel =
+    scope.kind === "everything"
+      ? "Everything"
+      : scope.kind === "sorting"
+        ? "Sorting Box"
+        : scope.kind === "favourites"
+          ? "Favourites"
+          : "";
 
   const favouriteCount = useMemo(
     () => library.items.filter((item) => item.favorite).length,
@@ -313,9 +329,10 @@ function Gallery({
     return () => window.removeEventListener("keydown", onKey);
   }, [selection, ops, dialogs, toasts, library.items, maximised]);
 
-  const pane = ui.paneOpen && (
+  const pane = (
     <Pane
       mode={ui.paneMode}
+      onModeChange={(mode) => ui.set("paneMode", mode)}
       onClose={() => {
         ui.set("paneOpen", false);
         setMaximised(false);
@@ -324,6 +341,7 @@ function Gallery({
       onMaximisedChange={setMaximised}
       slots={slots}
       items={library.items}
+      folders={library.folders}
       thumbsDir={info.thumbsDir}
       onStep={(delta) => selection.step(delta)}
       onPick={(itemId) => selection.focus(itemId)}
@@ -337,86 +355,8 @@ function Gallery({
   );
 
   return (
-    <div className="grid h-full grid-rows-[44px_1fr] bg-ground text-fg">
-      <header className="flex items-center gap-2 border-b border-line bg-panel px-2">
-        <span className="truncate font-semibold">{info.name}</span>
-        <Tooltip label={info.root} side="bottom">
-          <span className="truncate font-mono text-fg-dim">{info.root}</span>
-        </Tooltip>
-
-        <span className="ml-auto flex items-center gap-2">
-          <IndexStatus
-            progress={library.progress}
-            failureCount={library.failures.length}
-            showingFailures={showFailures}
-            onToggleFailures={() => setShowFailures((open) => !open)}
-          />
-
-          {scope.kind === "folder" && (
-            <>
-              <Separator />
-              <Label htmlFor="this-folder-only" className="gap-2">
-                <Checkbox
-                  id="this-folder-only"
-                  checked={!scope.recursive}
-                  onCheckedChange={(checked) =>
-                    library.setScope({
-                      kind: "folder",
-                      folder: scope.folder,
-                      recursive: !checked,
-                    })
-                  }
-                />
-                this folder only
-              </Label>
-            </>
-          )}
-
-          <Separator />
-
-          {/* The classic zoom-slider metaphor: many small tiles at one end,
-              one large tile at the other. It says what the slider changes
-              without a word or a tooltip to hover for. */}
-          <span className="flex items-center gap-2">
-            {/* `fill="currentColor"` turns lucide's outline squares solid —
-                the metaphor is many small tiles vs. one large tile, and a
-                hollow square reads as an empty slot rather than a tile. */}
-            <LayoutGrid aria-hidden fill="currentColor" className="size-4 shrink-0 text-fg-dim" />
-            <Slider
-              aria-label="Tile size"
-              className="w-24"
-              min={0}
-              max={TILE_SIZES.length - 1}
-              value={[Math.max(TILE_SIZES.indexOf(ui.tileHeight), 0)]}
-              onValueChange={([index]) => ui.set("tileHeight", TILE_SIZES[index])}
-            />
-            <Square aria-hidden fill="currentColor" className="size-4 shrink-0 text-fg-dim" />
-          </span>
-
-          {!ui.paneOpen && (
-            <Button onClick={() => ui.set("paneOpen", true)}>
-              <PanelRight />
-              Open pane
-            </Button>
-          )}
-
-          <DropdownMenu
-            align="end"
-            trigger={
-              <IconButton aria-label="Application menu">
-                <MenuIcon />
-              </IconButton>
-            }
-          >
-            <MenuLabel>Library</MenuLabel>
-            <MenuItem onSelect={library.choose}>Open a different library…</MenuItem>
-            <MenuSeparator />
-            <MenuItem onSelect={() => setShowSettings(true)}>Settings…</MenuItem>
-          </DropdownMenu>
-        </span>
-      </header>
-
-      <div className="flex min-h-0 min-w-0">
+    <div className="flex h-full flex-col bg-ground text-fg">
+      <div className="flex min-h-0 min-w-0 flex-1">
         {/* Maximising is "fill the window", not "unmount everything else" —
             it used to be the latter, which is why it never animated: there
             was nothing to tween between, just an instant swap. This region
@@ -442,7 +382,10 @@ function Gallery({
               width change rather than popping. */}
           <div
             style={{ width: ui.navFolded ? NAV_FOLDED : ui.navWidth }}
-            className="flex min-h-0 shrink-0 flex-col overflow-hidden transition-[width] duration-[180ms] ease-out"
+            className={cn(
+              "flex min-h-0 shrink-0 flex-col overflow-hidden",
+              !navResizing && "transition-[width] duration-[180ms] ease-out",
+            )}
           >
             <Nav
               folders={library.folders}
@@ -455,6 +398,11 @@ function Gallery({
               onEditDetails={editFolderDetails}
               favouriteCount={favouriteCount}
               sortingCount={sortingCount}
+              progress={library.progress}
+              failureCount={library.failures.length}
+              showingFailures={showFailures}
+              onToggleFailures={() => setShowFailures((open) => !open)}
+              onOpenSettings={() => setShowSettings(true)}
             />
           </div>
           {!ui.navFolded && (
@@ -466,22 +414,31 @@ function Gallery({
               max={NAV_MAX}
               onChange={(width) => ui.set("navWidth", width)}
               onReset={ui.resetNavWidth}
+              onDraggingChange={setNavResizing}
             />
           )}
 
           <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {folder && (
-              <FolderBand
-                folder={folder}
-                statuses={statuses}
-                archetypes={archetypes}
-                expanded={ui.bandExpanded}
-                onExpandedChange={(expanded) => ui.set("bandExpanded", expanded)}
-                thumbsDir={info.thumbsDir}
-                refreshToken={library.refreshToken}
-                onOpen={openFolder}
-              />
-            )}
+            <FolderBand
+              folder={folder}
+              scopeLabel={scopeLabel}
+              itemCount={library.items.length}
+              statuses={statuses}
+              archetypes={archetypes}
+              expanded={ui.bandExpanded}
+              onExpandedChange={(expanded) => ui.set("bandExpanded", expanded)}
+              thumbsDir={info.thumbsDir}
+              refreshToken={library.refreshToken}
+              onOpen={openFolder}
+              tileHeight={ui.tileHeight}
+              onTileHeightChange={(height) => ui.set("tileHeight", height)}
+              recursive={scope.kind === "folder" ? scope.recursive : true}
+              onRecursiveChange={(recursive) => {
+                if (scope.kind === "folder") {
+                  library.setScope({ kind: "folder", folder: scope.folder, recursive });
+                }
+              }}
+            />
 
             <Banners
               library={library}
@@ -540,8 +497,8 @@ function Gallery({
                 operations already are, so nothing is lost — the bar carries
                 the two destructive-adjacent actions and a count. */}
             {selection.count > 0 && (
-              <div className="flex shrink-0 border-t border-line bg-panel">
-                <footer className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5">
+              <div className="flex h-11 shrink-0 border-t border-line bg-panel">
+                <footer className="flex h-full min-w-0 flex-1 items-center gap-2 px-3">
                   <span className="font-mono tabular-nums text-fg">
                     {formatCount(selection.count)} selected
                   </span>
@@ -582,34 +539,52 @@ function Gallery({
           </main>
         </div>
 
-        {ui.paneOpen && !maximised && (
-          <Resizer
-            label="Pane width"
-            side="right"
-            value={ui.paneWidth}
-            min={PANE_MIN}
-            max={1200}
-            onChange={(width) => ui.setPaneWidth(width)}
-            onReset={ui.resetPaneWidth}
-          />
-        )}
+        {ui.paneOpen ? (
+          <>
+            {!maximised && (
+              <Resizer
+                label="Pane width"
+                side="right"
+                value={ui.paneWidth}
+                min={PANE_MIN}
+                max={1200}
+                onChange={(width) => ui.setPaneWidth(width)}
+                onReset={ui.resetPaneWidth}
+                onDraggingChange={setPaneResizing}
+              />
+            )}
 
-        {ui.paneOpen && (
-          <div
-            style={{
-              flexGrow: maximised ? 1 : 0,
-              flexShrink: maximised ? 1 : 0,
-              flexBasis: maximised ? "0%" : `${ui.paneWidth}px`,
+            <div
+              style={{
+                flexGrow: maximised ? 1 : 0,
+                flexShrink: maximised ? 1 : 0,
+                flexBasis: maximised ? "0%" : `${ui.paneWidth}px`,
+              }}
+              className={cn(
+                "flex min-h-0 overflow-hidden",
+                !paneResizing && "transition-[flex-grow,flex-basis] duration-[180ms] ease-out",
+              )}
+            >
+              {pane}
+            </div>
+          </>
+        ) : (
+          // No "Open pane" button — a closed pane folds to a strip of its
+          // mode icons, the same gesture the nav rail uses for its own fold.
+          <PaneStrip
+            mode={ui.paneMode}
+            onOpen={(mode) => {
+              ui.set("paneMode", mode);
+              ui.set("paneOpen", true);
             }}
-            className="flex min-h-0 overflow-hidden transition-[flex-grow,flex-basis] duration-[180ms] ease-out"
-          >
-            {pane}
-          </div>
+          />
         )}
       </div>
 
       {showSettings && (
         <SettingsPanel
+          libraryRoot={info.root}
+          onChooseLibrary={library.choose}
           onClose={() => setShowSettings(false)}
           onNormaliseFilenames={() => {
             setShowSettings(false);

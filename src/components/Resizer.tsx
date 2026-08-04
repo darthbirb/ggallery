@@ -24,6 +24,13 @@ export interface ResizerProps {
   side: "left" | "right" | "top" | "bottom";
   onReset?: () => void;
   label: string;
+  /** Fires as a drag starts and ends. A panel whose size is fed through a CSS
+   *  transition (folding, maximising) must drop that transition for the
+   *  duration of a live drag — otherwise every mousemove queues another
+   *  eased animation and the edge trails behind the cursor instead of
+   *  tracking it, which is the whole difference between this handle feeling
+   *  laggy and the filmstrip's (untransitioned) one feeling instant. */
+  onDraggingChange?: (dragging: boolean) => void;
 }
 
 const KEY_STEP = 16;
@@ -36,6 +43,7 @@ export function Resizer({
   side,
   onReset,
   label,
+  onDraggingChange,
 }: ResizerProps) {
   const [dragging, setDragging] = useState(false);
   const origin = useRef({ at: 0, size: 0 });
@@ -57,7 +65,10 @@ export function Resizer({
       const delta = (at - origin.current.at) * towards;
       onChange(clamp(origin.current.size + delta));
     };
-    const onUp = () => setDragging(false);
+    const onUp = () => {
+      setDragging(false);
+      onDraggingChange?.(false);
+    };
 
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -90,6 +101,7 @@ export function Resizer({
           size: value,
         };
         setDragging(true);
+        onDraggingChange?.(true);
       }}
       onDoubleClick={() => onReset?.()}
       onKeyDown={(event) => {
