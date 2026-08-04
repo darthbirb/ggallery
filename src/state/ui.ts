@@ -63,6 +63,9 @@ export const NAV_DEFAULT = 200;
 /** Folded: an icon strip that keeps queue badges on screen. */
 export const NAV_FOLDED = 44;
 export const PANE_MIN = 260;
+/** Closed, the pane folds to a strip of its mode icons — same width as the
+ *  nav rail's own fold, `NAV_FOLDED`. */
+export const PANE_STRIP_WIDTH = 44;
 
 /** The filmstrip's height, dragged by the handle on its top edge. The floor
  *  is a usable thumbnail plus its scrollbar channel; the ceiling stops it

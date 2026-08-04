@@ -92,6 +92,15 @@ animate. The working shape is `flex-grow`/`flex-basis` tweened over 180ms with t
 collapsing side fading and going `inert`, so it is untabbable and unclickable while it is
 still on screen.
 
+**Second instance of the same rule: the pane's own open/closed fold.** `App.tsx` rendered
+the open pane and its closed `PaneStrip` as an `if`/`else` between two different subtrees —
+one unmounting exactly as the other mounted, so there was nothing present across the change
+for CSS to tween, the identical bug in a second place. Fixed the same way: one persistent
+container whose `flex-basis` tweens between `paneWidth` and the strip's width, with
+open/closed passed down as a prop rather than branched on, and the pane content and the
+strip both staying mounted underneath it, cross-fading via opacity with `inert` on whichever
+is not current.
+
 **A collapsible tree has to be nested in the DOM to animate.** The nav tree was built by
 pushing every visible row into one flat array, which is the cheapest way to render a tree
 and makes an expand animation impossible — a folder's children are siblings of the folder,

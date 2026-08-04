@@ -36,7 +36,15 @@ import { cn } from "./lib/utils";
 import { useLibrary, type LibraryController, type Scope } from "./state/library";
 import { useSelection, type SelectionController } from "./state/selection";
 import { ToastProvider, useToasts } from "./state/toasts";
-import { NAV_FOLDED, NAV_MAX, NAV_MIN, PANE_MIN, UiProvider, useUi } from "./state/ui";
+import {
+  NAV_FOLDED,
+  NAV_MAX,
+  NAV_MIN,
+  PANE_MIN,
+  PANE_STRIP_WIDTH,
+  UiProvider,
+  useUi,
+} from "./state/ui";
 
 /** Tracks `location.hash`, live. Always called — never conditionally — so
  *  the `import.meta.env.DEV` check below stays a plain literal at its call
@@ -539,46 +547,68 @@ function Gallery({
           </main>
         </div>
 
-        {ui.paneOpen ? (
-          <>
-            {!maximised && (
-              <Resizer
-                label="Pane width"
-                side="right"
-                value={ui.paneWidth}
-                min={PANE_MIN}
-                max={1200}
-                onChange={(width) => ui.setPaneWidth(width)}
-                onReset={ui.resetPaneWidth}
-                onDraggingChange={setPaneResizing}
-              />
-            )}
-
-            <div
-              style={{
-                flexGrow: maximised ? 1 : 0,
-                flexShrink: maximised ? 1 : 0,
-                flexBasis: maximised ? "0%" : `${ui.paneWidth}px`,
-              }}
-              className={cn(
-                "flex min-h-0 overflow-hidden",
-                !paneResizing && "transition-[flex-grow,flex-basis] duration-[180ms] ease-out",
-              )}
-            >
-              {pane}
-            </div>
-          </>
-        ) : (
-          // No "Open pane" button — a closed pane folds to a strip of its
-          // mode icons, the same gesture the nav rail uses for its own fold.
-          <PaneStrip
-            mode={ui.paneMode}
-            onOpen={(mode) => {
-              ui.set("paneMode", mode);
-              ui.set("paneOpen", true);
-            }}
+        {!maximised && ui.paneOpen && (
+          <Resizer
+            label="Pane width"
+            side="right"
+            value={ui.paneWidth}
+            min={PANE_MIN}
+            max={1200}
+            onChange={(width) => ui.setPaneWidth(width)}
+            onReset={ui.resetPaneWidth}
+            onDraggingChange={setPaneResizing}
           />
         )}
+
+        {/* One wrapper for both the open pane and its closed strip, so
+            folding tweens this width rather than swapping two different
+            subtrees — the pane's own instance of the rule the nav panel
+            fold and the maximise region above already follow
+            (ENGINEERING-NOTES.md §Motion, "animate a panel closing by
+            tweening its size, not by unmounting it"). Both stay mounted and
+            cross-fade; `inert` on whichever is not current keeps it out of
+            tab order and off screen readers without the layout jump
+            `display: none` would cause mid-transition. */}
+        <div
+          style={{
+            flexGrow: maximised ? 1 : 0,
+            flexShrink: maximised ? 1 : 0,
+            flexBasis: maximised ? "0%" : `${ui.paneOpen ? ui.paneWidth : PANE_STRIP_WIDTH}px`,
+          }}
+          className={cn(
+            "relative flex min-h-0 overflow-hidden",
+            !paneResizing && "transition-[flex-grow,flex-basis] duration-[180ms] ease-out",
+          )}
+        >
+          <div
+            inert={!ui.paneOpen}
+            className={cn(
+              "absolute inset-0 flex min-h-0 transition-opacity duration-[180ms] ease-out",
+              ui.paneOpen ? "opacity-100" : "pointer-events-none opacity-0",
+            )}
+          >
+            {pane}
+          </div>
+
+          {/* No "Open pane" button — a closed pane folds to a strip of its
+              mode icons, the same gesture the nav rail uses for its own
+              fold. */}
+          <div
+            inert={ui.paneOpen}
+            className={cn(
+              "absolute inset-0 transition-opacity duration-[180ms] ease-out",
+              ui.paneOpen ? "pointer-events-none opacity-0" : "opacity-100",
+            )}
+          >
+            <PaneStrip
+              mode={ui.paneMode}
+              onOpen={(mode) => {
+                ui.set("paneMode", mode);
+                ui.set("paneOpen", true);
+              }}
+            />
+          </div>
+        </div>
       </div>
 
       {showSettings && (
