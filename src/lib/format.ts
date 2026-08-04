@@ -51,6 +51,25 @@ export function formatDate(seconds: number): string {
   return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
 }
 
+/** `8:32 AM` — built by hand rather than through `toLocaleString`, whose
+ *  AM/PM casing follows the OS locale and silently comes back lowercase on
+ *  some of them. One implementation means it is never inconsistent between
+ *  two dates sitting in the same panel. */
+function formatTime(date: Date): string {
+  const period = date.getHours() >= 12 ? "PM" : "AM";
+  const hours = date.getHours() % 12 || 12;
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes} ${period}`;
+}
+
+/** Unix seconds to `12 Jun 2024, 8:32 AM` — `formatDate` plus a time, for the
+ *  pane's Created/Added rows, where the hour matters and the OS locale's
+ *  am/pm rendering does not. */
+export function formatDateTime(seconds: number): string {
+  const date = new Date(seconds * 1000);
+  return `${formatDate(seconds)}, ${formatTime(date)}`;
+}
+
 /** Unix seconds to `"3 days ago"` / `"5 months ago"` — coarse, one unit,
  *  matching docs/DESIGN.md's folder header mockup ("last added: 5 months
  *  ago"). Not meant to be precise; it's a staleness signal. */

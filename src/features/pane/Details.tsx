@@ -1,32 +1,65 @@
 /**
  * The previewed item's identity and details, in two parts.
  *
- * `DetailsHeader` is the pane's title bar — a chevron, the filename, and
- * dimensions · size — and `DetailsBody` is what the chevron opens, **below
- * it**, pushing the media down. That is the reverse of what M2.5a.1 first
- * shipped: details had their own strip above the filmstrip and grew upward,
- * which gave the pane two headers and a band of chrome sitting between the
- * media and the strip. The pane has one header, and it names what you are
- * looking at.
+ * `DetailsHeader` is the pane's title bar — a chevron and dimensions · size
+ * — and `DetailsBody` is what the chevron opens, **below it**, pushing the
+ * media down. That is the reverse of what M2.5a.1 first shipped: details had
+ * their own strip above the filmstrip and grew upward, which gave the pane
+ * two headers and a band of chrome sitting between the media and the strip.
+ * The pane has one header.
  *
- * Collapsed shows filename, dimensions and size only. Expanded adds duration,
- * codec, dates, source URL and tags — inherited greyed, manual solid.
- * Expanded state is global and remembered, like the folder band's.
+ * The filename does not live in the header — the header now shares its row
+ * with the pane's own fold and mode controls, and `DetailsBody`'s "File
+ * Name"/"Original Name" rows are where it reads instead, expanded only.
+ * Collapsed shows dimensions and size only. Expanded adds duration, codec,
+ * dates, the folder hierarchy, and fields and tags — inherited greyed,
+ * manual solid. Expanded state is global and remembered, like the folder
+ * band's.
  *
  * This is also where item tags are added and removed, which is the capability
  * M2's disposable panel was carrying. It does not disappear with that panel.
  */
 
-import { ChevronRight } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ChevronRight, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Chip } from "../../components/Chip";
 import { PillInput } from "../../components/ui/input";
-import { formatBytes, formatDuration } from "../../lib/format";
+import { formatBytes, formatDateTime, formatDuration } from "../../lib/format";
 import * as ipc from "../../lib/ipc";
-import type { EffectiveTag, ItemDetail } from "../../lib/types";
+import type { EffectiveTag, FolderNode, ItemDetail } from "../../lib/types";
 import { cn } from "../../lib/utils";
 import { useOperations } from "../menus/operations";
+
+/** The item's folder and every ancestor above it, root-excluded, root-first —
+ *  by title, not `folderRel`: `rel_path` is normalised for the filesystem
+ *  (case-folded, slug-safe) and does not carry the casing a breadcrumb, or a
+ *  dedupe against a real tag's text, needs to match on. */
+function ancestorTitles(folders: FolderNode[], folderId: number): string[] {
+  const byId = new Map(folders.map((node) => [node.id, node]));
+  const titles: string[] = [];
+  let current = byId.get(folderId);
+  while (current && current.parentId !== null) {
+    titles.unshift(current.title);
+    current = byId.get(current.parentId);
+  }
+  return titles;
+}
+
+/** Inherited (uneditable here) before manual, each group alphabetical —
+ *  never one flat alphabetical list, or a folder's own tags scatter among
+ *  whatever this item happens to add on top of them instead of reading as
+ *  the fixed, structural part they are. */
+function compareInheritedFirst(
+  a: EffectiveTag,
+  b: EffectiveTag,
+  sortKey: (tag: EffectiveTag) => string,
+): number {
+  const rank = (tag: EffectiveTag) => (tag.originId !== null ? 0 : 1);
+  const byOrigin = rank(a) - rank(b);
+  if (byOrigin !== 0) return byOrigin;
+  return sortKey(a).localeCompare(sortKey(b), undefined, { sensitivity: "base" });
+}
 
 export function DetailsHeader({
   item,
@@ -46,7 +79,7 @@ export function DetailsHeader({
       aria-expanded={expanded}
       onClick={() => onExpandedChange(!expanded)}
       className={cn(
-        "flex h-8 min-w-0 flex-1 items-center gap-2 rounded-[4px] px-1.5 text-left",
+        "flex h-8 flex-1 items-center gap-2 rounded-[4px] px-1.5 text-left",
         "hover:bg-hover",
       )}
     >
@@ -58,7 +91,6 @@ export function DetailsHeader({
           expanded && "rotate-90",
         )}
       />
-      <span className="min-w-0 truncate text-fg">{item.origName ?? item.diskName}</span>
       <span className="shrink-0 font-mono tabular-nums text-fg-dim">
         {dimensions} · {formatBytes(item.sizeBytes)}
       </span>
@@ -68,9 +100,11 @@ export function DetailsHeader({
 
 export function DetailsBody({
   item,
+  folders,
   refreshToken,
 }: {
   item: ItemDetail;
+  folders: FolderNode[];
   refreshToken: number;
 }) {
   const ops = useOperations();
@@ -100,59 +134,94 @@ export function DetailsBody({
     setTags(await ipc.itemEffectiveTags(item.id).catch(() => tags));
   };
 
+  const removeTag = (tagId: number) => {
+    void ops.removeItemTag(item.id, tagId).then(async () => {
+      setTags(await ipc.itemEffectiveTags(item.id).catch(() => tags));
+    });
+  };
+
+  const fileName = item.diskName;
+  const originalName = item.origName ?? item.diskName;
+
+  const crumbs = useMemo(
+    () => ancestorTitles(folders, item.folderId),
+    [folders, item.folderId],
+  );
+
+  // Every folder auto-tags itself with its own title (DATA-MODEL's "tag
+  // resolution"), which would otherwise repeat every crumb above as a
+  // second, tag-shaped copy of the same folder. Only an *inherited* flag is
+  // deduped against it — a manual one on this item that happens to share the
+  // text is a deliberate choice, not the folder leaking through, so it stays.
+  const crumbSet = useMemo(() => new Set(crumbs), [crumbs]);
+  const fields = tags
+    .filter((tag): tag is EffectiveTag & { key: string } => tag.key !== null)
+    .sort((a, b) => compareInheritedFirst(a, b, (tag) => tag.key ?? ""));
+  const flags = tags
+    .filter((tag) => tag.key === null && !(tag.originId !== null && crumbSet.has(tag.value)))
+    .sort((a, b) => compareInheritedFirst(a, b, (tag) => tag.value));
+
   return (
     // `reveal-down` per decision 27, "details opening": mounted only while
     // expanded (PreviewMode.tsx), so this is the enter animation; there is no
     // exit animation to match, since collapsing unmounts it immediately.
     <section className="reveal-down max-h-[45%] shrink-0 overflow-y-auto border-b border-line bg-panel px-2.5 pb-2.5 pt-1 text-[13px]">
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-        <Row label="On disk" value={item.diskName} mono />
-        <Row label="Folder" value={item.folderTitle} />
+        {/* The header dropped the filename to make room for the pane's fold
+            and mode controls — these two rows are where it reads now. Both
+            mono: they are the same kind of value (a name, verbatim), and
+            showing one plain and one mono was the "fonts are inconsistent"
+            complaint that got them renamed in the first place. */}
+        <Row label="File Name" value={fileName} mono />
+        <Row
+          label="Original Name"
+          value={originalName === fileName ? "—" : originalName}
+          mono
+        />
         {item.durationMs != null && (
           <Row label="Duration" value={formatDuration(item.durationMs)} mono />
         )}
         {item.codec && <Row label="Codec" value={item.codec} mono />}
-        <Row
-          label="Captured"
-          value={
-            item.capturedAt
-              ? `${new Date(item.capturedAt * 1000).toLocaleString()}${
-                  // Where the value came from, so a guess is never mistaken
-                  // for metadata — DESIGN.md §1 "Items".
-                  item.capturedSrc ? ` (${item.capturedSrc})` : ""
-                }`
-              : "unknown"
-          }
-        />
-        <Row label="Added" value={new Date(item.addedAt * 1000).toLocaleString()} />
+        {/* Where the date came from used to be spelled out in words next to
+            it — "(exif)", "(mtime)" — which read as debug output, not
+            information. `capturedAt` already resolves to the best date
+            available (real metadata, or the file's own creation time as a
+            fallback — see `media::probe`), so the value alone is enough. */}
+        <Row label="Created" value={item.capturedAt ? formatDateTime(item.capturedAt) : "unknown"} />
+        <Row label="Added" value={formatDateTime(item.addedAt)} />
         {item.sourceUrl && <Row label="Source" value={item.sourceUrl} mono />}
       </dl>
 
-      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-        {tags.map((tag) => (
+      <FolderBreadcrumb titles={crumbs} />
+
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {fields.map((field) => (
+          <ItemFieldChip
+            key={field.tagId}
+            label={field.key}
+            value={field.value}
+            // Inherited fields are greyed and cannot be removed here — they
+            // come from the folder, and that is where they change.
+            muted={field.originId !== null}
+            onRemove={field.originId === null ? () => removeTag(field.tagId) : undefined}
+            removeLabel={`Remove ${field.key}`}
+          />
+        ))}
+
+        {flags.map((tag) => (
           <Chip
             key={tag.tagId}
-            // Inherited tags are greyed and cannot be removed here — they
-            // come from the folder, and that is where they change.
             muted={tag.originId !== null}
-            onRemove={
-              tag.originId === null
-                ? () => {
-                    void ops.removeItemTag(item.id, tag.tagId).then(async () => {
-                      setTags(await ipc.itemEffectiveTags(item.id).catch(() => tags));
-                    });
-                  }
-                : undefined
-            }
+            onRemove={tag.originId === null ? () => removeTag(tag.tagId) : undefined}
             removeLabel={`Remove ${tag.value}`}
           >
-            {tag.key ? `${tag.key}: ${tag.value}` : tag.value}
+            {tag.value}
           </Chip>
         ))}
 
         <PillInput
           value={draft}
-          placeholder="＋ tag"
+          placeholder="＋ add tag"
           aria-label="Add a tag to this item"
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
@@ -161,6 +230,92 @@ export function DetailsBody({
         />
       </div>
     </section>
+  );
+}
+
+/** The item's ancestor folders, root-first — what the "Folder: X" row used to
+ *  say, without also repeating the immediate folder a second time as a
+ *  tag-shaped chip below (its title is auto-tagged onto every item inside
+ *  it; see the dedupe above `ancestorTitles` feeds). The library root itself
+ *  is excluded, so an item with no crumbs is one sitting loose at the top
+ *  level — flagged in red as "Unsorted" rather than left blank, since a
+ *  quiet gap here used to read as a missing value rather than a real state
+ *  worth noticing.
+ *
+ *  Small mono segments joined by a slash, deliberately neither `Chip`'s pill
+ *  nor `ItemFieldChip`'s two-tone rectangle — a folder reads as neither a tag
+ *  nor a field, and looking like either would be the same confusion this
+ *  replaced. */
+function FolderBreadcrumb({ titles }: { titles: string[] }) {
+  if (titles.length === 0) {
+    return (
+      <div className="mt-2 flex items-center font-mono text-[12px]">
+        <span className="truncate rounded-[3px] border border-danger/40 bg-danger/10 px-1.5 py-0.5 text-danger">
+          Unsorted
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1 font-mono text-[12px] text-fg-dim">
+      {titles.map((title, index) => (
+        <span key={index} className="flex items-center gap-1">
+          {index > 0 && <span aria-hidden>/</span>}
+          <span className="truncate rounded-[3px] bg-raised px-1.5 py-0.5">{title}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** A read-only twin of `FolderBand`'s `FieldChip` — the same two-tone
+ *  rectangle, so a labelled field reads as the same kind of thing whether it
+ *  is looked at from a folder or an item. No in-place editing here: this
+ *  adds and removes whole fields, it does not rewrite a value. */
+function ItemFieldChip({
+  label,
+  value,
+  muted,
+  onRemove,
+  removeLabel,
+}: {
+  label: string;
+  value: string;
+  muted?: boolean;
+  onRemove?: () => void;
+  removeLabel?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-7 max-w-full shrink-0 items-stretch overflow-hidden rounded-[4px] border text-[13px]",
+        muted ? "border-line-soft" : "border-line",
+      )}
+    >
+      <span className="flex shrink-0 items-center bg-ground px-2 text-fg-dim">{label}</span>
+      <span
+        className={cn(
+          "flex min-w-0 items-center truncate px-2",
+          muted ? "bg-ground text-fg-dim" : "bg-raised text-fg-mid",
+        )}
+      >
+        {value || <span className="text-fg-dim">—</span>}
+      </span>
+      {onRemove && (
+        <button
+          type="button"
+          aria-label={removeLabel ?? "Remove"}
+          onClick={onRemove}
+          className={cn(
+            "grid w-5 shrink-0 place-items-center text-fg-dim hover:bg-danger/20 hover:text-danger",
+            muted ? "bg-ground" : "bg-raised",
+          )}
+        >
+          <X className="size-3.5" />
+        </button>
+      )}
+    </span>
   );
 }
 
