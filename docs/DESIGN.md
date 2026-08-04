@@ -46,7 +46,7 @@ milestone, not in the milestone itself.
 A folder is a real directory on disk *and* a record in the database. It has:
 
 - **Title** — free text, anything. A person, a place, an event, a topic.
-- **Archetype** — optional template that pre-creates a set of empty labelled fields.
+- **Archetype** — optional template that pre-creates a set of empty labels.
 - **Labels** — key/value pairs, nullable. `instagram: @ana`, `city: lisbon`.
 - **Flags** — plain tags. `archived`, `favourite`.
 - **Cover** — an item inside it, chosen manually or picked automatically.
@@ -159,7 +159,7 @@ Two shapes, one system:
 - **Flag** — value only. `beach`, `blurry`.
 
 Both live in the same table and are matched by the same query syntax. A label with an
-empty value still exists and still renders — that is what makes archetype fields visible
+empty value still exists and still renders — that is what makes archetype labels visible
 while unfilled.
 
 ### Inheritance
@@ -205,7 +205,7 @@ Choosing an archetype creates its labels with empty values, visible and waiting 
 folder header.
 
 Editing an archetype prompts before touching folders that use it — *"3 folders use this
-archetype. Add the new field to them?"* Removing a field never deletes existing values
+archetype. Add the new label to them?"* Removing a field never deletes existing values
 without an explicit confirmation naming the affected folders.
 
 ### Folder status
@@ -414,7 +414,7 @@ grid is showing. Closed, it is one line: chevron, title, status, counts on the l
 the right the controls that change the grid — **tile size** and **this folder only**. Those
 were in the window bar, which owns the window, not the grid.
 
-Clicking expands it to the cover, archetype fields edited in place, tags and notes.
+Clicking expands it to the cover, archetype labels edited in place, tags and notes.
 
 Expanded state is **global and remembered**, not per folder — it sits with panel widths and
 window geometry, never in the database. Per-folder state would reflow the grid every time
@@ -435,16 +435,16 @@ spent on an empty form. The rules that follow all come from that.
 - **Weight follows importance.** The title identifies what you are looking at and should be
   the largest thing in the band. Notes are the least-used field and were the largest.
 - **Notes are one line that grows on focus**, never a reserved box.
-- **Fields and tags share one chip row**, with their add controls at its end.
+- **Labels and tags share one chip row**, with their add controls at its end.
 - **Applying an archetype is a once-per-folder setup action** and belongs in the folder's
   context menu, not as a standing button competing with content.
 - **Favourite is a header control among the others**, not the heaviest thing in the band
   parked in the far corner.
 
-**Design against the full case** — an archetype with five fields, eight tags and a real
+**Design against the full case** — an archetype with five labels, eight tags and a real
 note — and let the empty one be that band with things missing. It must look right with **no
 archetype at all**, which is the default and commonest state; empty means the cover, the
-counts and one *＋ add field* control, not a row of blank labels. The empty band should cost
+counts and one *＋ add label* control, not a row of blank labels. The empty band should cost
 around 140px, not 330.
 
 **Grid** — justified rows, sized by a slider. Video items show a duration badge and
@@ -486,8 +486,16 @@ no transition to design and no scroll position to restore.
 The selected item, fit to the pane. **Splits into N panes**, which is what makes it the
 only comparison surface the app needs:
 
-- *Images* — scroll to zoom, drag to pan. **No zoom toolbar** — no fit button, no 1:1
-  button. Scroll and drag are the whole interaction.
+- *Images* — scroll to zoom, drag to pan, the centre of what's visible staying fixed as
+  the zoom changes. **No zoom UI at fit** — no fit button, no 1:1 button, nothing on
+  screen. Once zoom leaves fit, a single small percentage readout appears in a corner of
+  the viewer; clicking it returns to fit. One control, absent by default, and it doubles
+  as the discoverable form of the double-click-to-fit gesture.
+
+  *(The original rule banned a zoom toolbar outright: a permanent strip of chrome under
+  every photograph competed with the photograph. That objection holds only for something
+  permanent — a control that is absent until zoom actually leaves fit does not compete
+  with anything, because at fit there is nothing there.)*
 - *Video* — play/pause, scrub, frame-step, speed, **loop on by default**, and volume that
   persists between items.
 - Chevrons and arrows move through the current filter, in the grid's order. A filmstrip

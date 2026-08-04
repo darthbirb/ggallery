@@ -8,7 +8,7 @@
  * slot even though nothing in M2.5a passes more than one yet.
  */
 
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -124,13 +124,27 @@ describe("preview", () => {
     expect(onPick).toHaveBeenCalledWith(8);
   });
 
-  it("has no zoom toolbar — scroll and drag are the whole interaction", async () => {
+  it("at fit, has no zoom UI at all — scroll and drag are the whole interaction", async () => {
     renderPreview();
     await screen.findByAltText("beach.jpg");
     // DESIGN.md §2: no fit button, no 1:1 button, no percentage readout.
     expect(screen.queryByRole("button", { name: /^Fit$/ })).toBeNull();
     expect(screen.queryByRole("button", { name: "1:1" })).toBeNull();
     expect(screen.queryByText("fit")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Zoom/ })).toBeNull();
+  });
+
+  it("once zoom leaves fit, shows a percentage readout that returns to fit on click", async () => {
+    renderPreview();
+    const image = await screen.findByAltText("beach.jpg");
+
+    fireEvent.wheel(image, { deltaY: -100 });
+
+    const readout = await screen.findByRole("button", {
+      name: /^Zoom \d+% — click to fit$/,
+    });
+    await userEvent.click(readout);
+    expect(screen.queryByRole("button", { name: /^Zoom/ })).toBeNull();
   });
 
   it("opens the details from the header, downward, above the media", async () => {

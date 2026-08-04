@@ -6,10 +6,13 @@
  * twelve is multi-view (M10). It therefore takes everything it needs as props
  * and owns no knowledge of how many of it exist.
  *
- * **Images have no zoom toolbar** — no fit button, no 1:1 button, no
- * percentage readout (docs/DESIGN.md §2). Scroll and drag are the whole
- * interaction, and a strip of chrome under every photograph was three
- * controls competing with the thing you opened the app to look at.
+ * **Images have no zoom UI at fit** — no fit button, no 1:1 button, no
+ * percentage readout, nothing on screen (docs/DESIGN.md §2). Scroll and drag
+ * are the whole interaction there. Once zoom leaves fit, a single small
+ * percentage readout appears in a corner and doubles as the discoverable
+ * form of the double-click-to-fit gesture — the rule this replaced banned a
+ * *permanent* strip of chrome competing with the photograph; a control
+ * that is absent until it is relevant does not compete with anything.
  *
  * Volume is deliberately module-level: docs/DESIGN.md §2 asks for volume that
  * persists between items, and an item change unmounts the `<video>`.
@@ -23,6 +26,7 @@ import {
   Play,
   Volume2,
   VolumeX,
+  X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -67,6 +71,7 @@ function ImageView({ item, source }: { item: ItemDetail; source: string }) {
   const [zoom, setZoom] = useState<number | null>(null); // null = fit
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const dragging = useRef<{ x: number; y: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Double-click returns to fit. Not a control — a gesture, alongside the
   // other two — so it adds nothing to the surface.
@@ -75,16 +80,36 @@ function ImageView({ item, source }: { item: ItemDetail; source: string }) {
     setPan({ x: 0, y: 0 });
   }, []);
 
+  // The scale "fit" is actually rendering at, so the first wheel step out of
+  // it starts from what is already on screen instead of from 100% of the
+  // image's native pixels. Without this, an image much larger or smaller
+  // than the pane jumps the instant zoom leaves fit — a big native photo in
+  // a small pane, say, snapping from a fifth of its size to full size in one
+  // scroll tick. `<= 1` matches the fit rendering itself, which shrinks a
+  // large image to the box but never stretches a small one past its own
+  // size (`max-h-full max-w-full`, no `width`/`height` forcing it wider).
+  const fitScale = () => {
+    const box = containerRef.current;
+    if (!box || !item.width || !item.height) return 1;
+    return Math.min(1, box.clientWidth / item.width, box.clientHeight / item.height);
+  };
+
   return (
     <div
+      ref={containerRef}
       className="relative h-full min-h-0 overflow-hidden"
       onWheel={(event) => {
-        // Scroll to zoom, drag to pan — DESIGN.md §2 "Preview mode".
-        const current = zoom ?? 1;
+        // Scroll to zoom, drag to pan — DESIGN.md §2 "Preview mode". A point
+        // at image-space p lands at p·zoom + pan, so the viewport centre
+        // sits at -pan/zoom; rescaling pan by the same ratio as zoom holds
+        // that point fixed instead of letting the image slide out from
+        // under wherever was actually being looked at.
+        const current = zoom ?? fitScale();
         const next = Math.min(
           Math.max(current * (event.deltaY < 0 ? 1.12 : 0.89), 0.1),
           12,
         );
+        setPan((prev) => ({ x: (prev.x * next) / current, y: (prev.y * next) / current }));
         setZoom(next);
       }}
       onMouseDown={(event) => {
@@ -127,6 +152,25 @@ function ImageView({ item, source }: { item: ItemDetail; source: string }) {
             : "absolute left-1/2 top-1/2 origin-center -translate-x-1/2 -translate-y-1/2"
         }
       />
+
+      {/* Absent at fit — DESIGN.md §2 "Preview mode". Once zoom leaves fit
+          this is the only zoom UI there is: a readout that doubles as the
+          discoverable form of the double-click-to-fit gesture. Bright, not
+          dimmed-until-hover — dimming a control that only appears when it is
+          already relevant reads as "ignore me", the opposite of the point.
+          The trailing `X` is what says "click removes this" without
+          requiring the hover state to find out. */}
+      {zoom !== null && (
+        <button
+          type="button"
+          aria-label={`Zoom ${Math.round(zoom * 100)}% — click to fit`}
+          onClick={reset}
+          className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full border border-line-soft bg-ground/90 py-0.5 pl-2 pr-1.5 font-mono text-[12px] tabular-nums text-fg hover:border-fg-dim hover:bg-ground"
+        >
+          {Math.round(zoom * 100)}%
+          <X className="size-3 text-fg-dim" />
+        </button>
+      )}
     </div>
   );
 }
