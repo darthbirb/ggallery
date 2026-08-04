@@ -8,6 +8,7 @@ import type {
   ImportProgress,
   IndexFailure,
   LibraryInfo,
+  LowercaseMergeReport,
   Progress,
   ReviewReport,
   VerifyReport,
@@ -88,6 +89,14 @@ export interface LibraryController {
   /** Set only if the post-import verification found a problem — surfaced
    *  once, silently absent otherwise, per docs/DESIGN.md#first-import. */
   verifyIssue: VerifyReport | null;
+  /** Set when an operation fails because a folder's directory has gone
+   *  missing from disk (docs/DESIGN.md §M2.5d) — named so the banner can
+   *  offer removing the broken record as a way out. `null` otherwise. */
+  folderMissing: { id: number; title: string } | null;
+  /** What the one-time lowercase fold merged, if this `open` was the one
+   *  that ran it and it merged something (PLAN.md decision 31) — surfaced
+   *  once, silently absent otherwise, like `verifyIssue`. */
+  lowercaseMergeReport: LowercaseMergeReport | null;
   /** Pick a library folder — the first one, or a different one later. */
   choose: () => void;
   open: (path: string) => void;
@@ -96,6 +105,12 @@ export interface LibraryController {
   /** Review → Cancel. Back to the picker; nothing on disk has changed. */
   cancelImport: () => void;
   dismissVerifyIssue: () => void;
+  /** Record that an operation just failed because a folder's directory is
+   *  missing — called from `operations.ts`'s shared failure handler, not
+   *  from a scan; nothing here goes looking for one. */
+  reportFolderMissing: (folder: { id: number; title: string }) => void;
+  dismissFolderMissing: () => void;
+  dismissLowercaseMergeReport: () => void;
   retry: () => void;
   setScope: (scope: Scope) => void;
   /** Re-read the current view. Every mutation ends in one of these, so the
@@ -134,6 +149,10 @@ export function useLibrary(): LibraryController {
   const [flowPhase, setFlowPhase] = useState<FlowPhase>("idle");
   const [renameProgress, setRenameProgress] = useState<ImportProgress | null>(null);
   const [verifyIssue, setVerifyIssue] = useState<VerifyReport | null>(null);
+  const [folderMissing, setFolderMissing] = useState<{ id: number; title: string } | null>(null);
+  const [lowercaseMergeReport, setLowercaseMergeReport] = useState<LowercaseMergeReport | null>(
+    null,
+  );
 
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
@@ -194,6 +213,7 @@ export function useLibrary(): LibraryController {
 
       const opened = await ipc.openLibrary(path);
       setInfo(opened);
+      setLowercaseMergeReport(opened.lowercaseMergeReport);
       setRemembered(opened.root);
       const next = EVERYTHING;
       setScopeState(next);
@@ -455,11 +475,16 @@ export function useLibrary(): LibraryController {
     flowPhase,
     renameProgress,
     verifyIssue,
+    folderMissing,
+    lowercaseMergeReport,
     choose,
     open,
     confirmImport,
     cancelImport,
     dismissVerifyIssue: () => setVerifyIssue(null),
+    reportFolderMissing: (folder) => setFolderMissing(folder),
+    dismissFolderMissing: () => setFolderMissing(null),
+    dismissLowercaseMergeReport: () => setLowercaseMergeReport(null),
     retry,
     setScope,
     reload,

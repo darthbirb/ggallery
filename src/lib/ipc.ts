@@ -422,3 +422,15 @@ export function errorMessage(error: unknown): string {
   }
   return "Something went wrong.";
 }
+
+/** The folder a `"folder-missing"` error names, so a caller can offer
+ *  removing the broken record — `null` for every other kind of failure. */
+export function errorMissingFolder(error: unknown): { id: number; title: string } | null {
+  if (error && typeof error === "object" && "folderId" in error) {
+    const { folderId, folderTitle } = error as AppError;
+    if (typeof folderId === "number" && typeof folderTitle === "string") {
+      return { id: folderId, title: folderTitle };
+    }
+  }
+  return null;
+}

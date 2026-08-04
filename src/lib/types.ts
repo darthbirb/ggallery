@@ -11,6 +11,31 @@ export interface LibraryInfo {
   folderCount: number;
   /** Path of the ffmpeg in use, or null when videos cannot be thumbnailed. */
   ffmpeg: string | null;
+  /** Set only on the `open` that ran the lowercase fold-and-merge (PLAN.md
+   *  decision 31) and only if it merged something — surfaced once. */
+  lowercaseMergeReport: LowercaseMergeReport | null;
+}
+
+/** What decision 31's one-time fold merged in an existing library — "Beach"
+ *  and "beach" becoming one tag, or two sibling folders "Ana"/"ana" becoming
+ *  one folder. Reported rather than done silently. */
+export interface LowercaseMergeReport {
+  tagsMerged: TagMerge[];
+  foldersMerged: FolderMerge[];
+}
+
+export interface TagMerge {
+  /** The distinct spellings that collapsed into one, original case. */
+  originals: string[];
+  folded: string;
+  key: string | null;
+}
+
+export interface FolderMerge {
+  originals: string[];
+  folded: string;
+  /** `null` for a top-level folder. */
+  parentTitle: string | null;
 }
 
 export interface LibraryStatus {
@@ -79,6 +104,11 @@ export interface IndexFailure {
 export interface AppError {
   kind: string;
   message: string;
+  /** Set when `kind === "folder-missing"` — which folder's directory has
+   *  gone missing from disk, and its title, so the frontend can name it and
+   *  offer to remove it without re-deriving either from local state. */
+  folderId: number | null;
+  folderTitle: string | null;
 }
 
 // --- M1.5 import wizard ------------------------------------------------

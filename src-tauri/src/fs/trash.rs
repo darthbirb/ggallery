@@ -39,13 +39,25 @@ fn trash_destination(paths: &LibraryPaths, rel_path: &str) -> PathBuf {
 
 /// Physically moves whatever is at `rel_path` into trash, creating parent
 /// directories as needed. Returns the trash-relative destination actually
-/// used (forward slashes, matching the rest of the app's path convention).
+/// used (forward slashes, matching the rest of the app's path convention),
+/// or an empty string if there was nothing there to move.
+///
+/// **Deleting has to work even when the source is already gone.** A folder
+/// record can be left pointing at a directory that no longer exists (moving
+/// a folder can leave one behind); if a broken record's own delete also
+/// failed with the same raw "cannot find the path", removing it would be the
+/// one way out this app doesn't actually offer (docs/DESIGN.md §M2.5d).
+/// There is nothing left on disk to lose, so this is not a silent skip of a
+/// real failure — it is the correct outcome.
 fn move_to_trash(paths: &LibraryPaths, rel_path: &str) -> Result<String> {
+    let src = paths.to_abs(rel_path)?;
+    if !src.exists() {
+        return Ok(String::new());
+    }
     let dest = trash_destination(paths, rel_path);
     if let Some(parent) = dest.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let src = paths.to_abs(rel_path)?;
     std::fs::rename(&src, &dest)?;
     let trash_rel = dest
         .strip_prefix(paths.trash_dir())
@@ -92,6 +104,12 @@ pub fn trash_folder(
 /// Move something back out of trash to `rel_path`. Undo's half of
 /// `move_to_trash`; the caller puts the database rows back.
 pub fn restore_from_trash(paths: &LibraryPaths, trash_rel: &str, rel_path: &str) -> Result<()> {
+    // `move_to_trash`'s sentinel for "there was nothing on disk to move" —
+    // the directory was already missing when it was deleted. The database
+    // rows are still worth putting back; there is just nothing to move.
+    if trash_rel.is_empty() {
+        return Ok(());
+    }
     let src = paths.trash_dir().join(trash_rel);
     if !src.exists() {
         return Err(AppError::invalid(format!(
@@ -295,5 +313,42 @@ mod tests {
         assert!(report.errors.is_empty());
         assert!(paths.trash_dir().join("a.jpg").is_file());
         assert!(!root.join("a.jpg").exists());
+    }
+
+    // docs/DESIGN.md §M2.5d — "a folder whose directory is missing must fail
+    // usefully". Delete is the one action that must still *succeed*: there
+    // is nothing left on disk to lose, so refusing would be the one way out
+    // this app doesn't offer.
+    #[test]
+    fn deleting_a_folder_whose_directory_is_already_gone_still_removes_the_record() {
+        let root = scratch("trash-folder-already-gone");
+        std::fs::create_dir_all(root.join("People/Ana")).unwrap();
+
+        let (paths, conn) = open_db(&root);
+        db::folders::upsert(&conn, "", "Library").unwrap();
+        db::folders::upsert(&conn, "people", "People").unwrap();
+        let ana = db::folders::upsert(&conn, "people/ana", "Ana").unwrap();
+
+        // Simulate the record outliving its directory — moved or deleted
+        // from outside the app.
+        std::fs::remove_dir_all(root.join("People/Ana")).unwrap();
+
+        trash_folder(&paths, &conn, ana, &db::journal::new_batch()).unwrap();
+
+        assert!(
+            db::folders::id_for_rel(&conn, "people/ana").unwrap().is_none(),
+            "no longer resolvable at its old path"
+        );
+        assert!(!paths.trash_dir().join("people/ana").exists(), "nothing to move in");
+    }
+
+    #[test]
+    fn restoring_a_folder_that_had_nothing_to_trash_is_a_no_op() {
+        let root = scratch("restore-nothing-to-trash");
+        let (paths, _conn) = open_db(&root);
+        // The empty-string sentinel `move_to_trash` returns when its source
+        // was already missing — restoring it must not try to move anything.
+        restore_from_trash(&paths, "", "people/ana").unwrap();
+        assert!(!root.join("people/ana").exists());
     }
 }

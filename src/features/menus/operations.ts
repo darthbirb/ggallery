@@ -64,9 +64,14 @@ interface Deps {
   toasts: ToastQueue;
 }
 
-/** Report a failure the same way as a success: in the strip, not a dialog. */
-function fail(toasts: ToastQueue, what: string, err: unknown) {
-  toasts.push({ message: `${what}: ${ipc.errorMessage(err)}`, tone: "danger" });
+/** Report a failure the same way as a success: in the strip, not a dialog.
+ *  A `"folder-missing"` failure also names the folder to `library`, which is
+ *  what lets `Banners` (App.tsx) offer removing the broken record — the
+ *  toast alone says what happened; it has nowhere to put a way out. */
+function fail(deps: Deps, what: string, err: unknown) {
+  deps.toasts.push({ message: `${what}: ${ipc.errorMessage(err)}`, tone: "danger" });
+  const missing = ipc.errorMissingFolder(err);
+  if (missing) deps.library.reportFolderMissing(missing);
 }
 
 /** Undo for one journal batch, wired to the toast that names the operation. */
@@ -107,7 +112,7 @@ export function buildOperations(deps: Deps): Operations {
           undoneMessage: `Moved ${plural(report.moved, "item")} back`,
         });
       } catch (err) {
-        fail(toasts, "Could not move", err);
+        fail(deps, "Could not move", err);
       }
     },
 
@@ -129,7 +134,7 @@ export function buildOperations(deps: Deps): Operations {
           undoneMessage: `Restored ${plural(report.trashed, "item")}`,
         });
       } catch (err) {
-        fail(toasts, "Could not delete", err);
+        fail(deps, "Could not delete", err);
       }
     },
 
@@ -140,7 +145,7 @@ export function buildOperations(deps: Deps): Operations {
         // Not destructive, and instantly reversible by the same control —
         // the badge on the tile is the feedback, so no toast.
       } catch (err) {
-        fail(toasts, "Could not change favourite", err);
+        fail(deps, "Could not change favourite", err);
       }
     },
 
@@ -148,7 +153,7 @@ export function buildOperations(deps: Deps): Operations {
       try {
         await ipc.revealItem(itemId);
       } catch (err) {
-        fail(toasts, "Could not open Explorer", err);
+        fail(deps, "Could not open Explorer", err);
       }
     },
 
@@ -156,7 +161,7 @@ export function buildOperations(deps: Deps): Operations {
       try {
         await ipc.openItem(itemId);
       } catch (err) {
-        fail(toasts, "Could not open the file", err);
+        fail(deps, "Could not open the file", err);
       }
     },
 
@@ -165,7 +170,7 @@ export function buildOperations(deps: Deps): Operations {
         await ipc.copyItemFile(itemId);
         toasts.push({ message: "File copied" });
       } catch (err) {
-        fail(toasts, "Could not copy the file", err);
+        fail(deps, "Could not copy the file", err);
       }
     },
 
@@ -174,7 +179,7 @@ export function buildOperations(deps: Deps): Operations {
         await ipc.copyItemPath(itemId);
         toasts.push({ message: "Path copied" });
       } catch (err) {
-        fail(toasts, "Could not copy the path", err);
+        fail(deps, "Could not copy the path", err);
       }
     },
 
@@ -188,7 +193,7 @@ export function buildOperations(deps: Deps): Operations {
           message: `Tagged ${plural(itemIds.length, "item")} ${key ? `${key}: ${value}` : value}`,
         });
       } catch (err) {
-        fail(toasts, "Could not add the tag", err);
+        fail(deps, "Could not add the tag", err);
       }
     },
 
@@ -197,7 +202,7 @@ export function buildOperations(deps: Deps): Operations {
         await ipc.removeItemTag(itemId, tagId);
         library.reload();
       } catch (err) {
-        fail(toasts, "Could not remove the tag", err);
+        fail(deps, "Could not remove the tag", err);
       }
     },
 
@@ -209,7 +214,7 @@ export function buildOperations(deps: Deps): Operations {
           message: itemId === null ? "Cover cleared" : "Cover set",
         });
       } catch (err) {
-        fail(toasts, "Could not set the cover", err);
+        fail(deps, "Could not set the cover", err);
       }
     },
 
@@ -219,7 +224,7 @@ export function buildOperations(deps: Deps): Operations {
         library.refreshFolders();
         toasts.push({ message: `Created ${name} in ${parentTitle}` });
       } catch (err) {
-        fail(toasts, "Could not create the folder", err);
+        fail(deps, "Could not create the folder", err);
       }
     },
 
@@ -235,7 +240,7 @@ export function buildOperations(deps: Deps): Operations {
           undoneMessage: `Renamed back to ${folder.title}`,
         });
       } catch (err) {
-        fail(toasts, "Could not rename the folder", err);
+        fail(deps, "Could not rename the folder", err);
       }
     },
 
@@ -249,7 +254,7 @@ export function buildOperations(deps: Deps): Operations {
           undoneMessage: `Moved ${folder.title} back`,
         });
       } catch (err) {
-        fail(toasts, "Could not move the folder", err);
+        fail(deps, "Could not move the folder", err);
       }
     },
 
@@ -263,7 +268,7 @@ export function buildOperations(deps: Deps): Operations {
           undoneMessage: `Restored ${folder.title}`,
         });
       } catch (err) {
-        fail(toasts, "Could not delete the folder", err);
+        fail(deps, "Could not delete the folder", err);
       }
     },
 
@@ -273,7 +278,7 @@ export function buildOperations(deps: Deps): Operations {
         library.refreshFolders();
         toasts.push({ message: `Status set to ${label}` });
       } catch (err) {
-        fail(toasts, "Could not set the status", err);
+        fail(deps, "Could not set the status", err);
       }
     },
 
@@ -285,7 +290,7 @@ export function buildOperations(deps: Deps): Operations {
           message: favorite ? `Pinned ${title}` : `Unpinned ${title}`,
         });
       } catch (err) {
-        fail(toasts, "Could not pin the folder", err);
+        fail(deps, "Could not pin the folder", err);
       }
     },
 
@@ -293,7 +298,7 @@ export function buildOperations(deps: Deps): Operations {
       try {
         await ipc.setFolderNotes(folderId, notes);
       } catch (err) {
-        fail(toasts, "Could not save the notes", err);
+        fail(deps, "Could not save the notes", err);
       }
     },
 
@@ -302,7 +307,7 @@ export function buildOperations(deps: Deps): Operations {
         await ipc.setFolderLabel(folderId, key, value);
         library.refreshFolders();
       } catch (err) {
-        fail(toasts, "Could not save the label", err);
+        fail(deps, "Could not save the label", err);
       }
     },
 
@@ -311,7 +316,7 @@ export function buildOperations(deps: Deps): Operations {
         await ipc.addFolderFlag(folderId, value);
         library.refreshFolders();
       } catch (err) {
-        fail(toasts, "Could not add the tag", err);
+        fail(deps, "Could not add the tag", err);
       }
     },
 
@@ -320,7 +325,7 @@ export function buildOperations(deps: Deps): Operations {
         await ipc.removeFolderTag(folderId, tagId);
         library.refreshFolders();
       } catch (err) {
-        fail(toasts, "Could not remove the tag", err);
+        fail(deps, "Could not remove the tag", err);
       }
     },
 
@@ -330,7 +335,7 @@ export function buildOperations(deps: Deps): Operations {
         library.refreshFolders();
         toasts.push({ message: `Applied ${name}` });
       } catch (err) {
-        fail(toasts, "Could not apply the archetype", err);
+        fail(deps, "Could not apply the archetype", err);
       }
     },
 
@@ -340,7 +345,7 @@ export function buildOperations(deps: Deps): Operations {
         library.refreshFolders();
         toasts.push({ message: "Removed the archetype" });
       } catch (err) {
-        fail(toasts, "Could not remove the archetype", err);
+        fail(deps, "Could not remove the archetype", err);
       }
     },
 
@@ -348,7 +353,7 @@ export function buildOperations(deps: Deps): Operations {
       try {
         await ipc.revealFolder(folderId);
       } catch (err) {
-        fail(toasts, "Could not open Explorer", err);
+        fail(deps, "Could not open Explorer", err);
       }
     },
   };
