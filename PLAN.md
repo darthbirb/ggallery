@@ -665,10 +665,11 @@ decisions 28 and 29, and DESIGN §2:
 
 **M2.5d — the follow-ups.** Small, independent, and none of them blocked by M2.6 below:
 
-- **Lowercase on the way in** (decision 31) for titles, keys, values and flags, in the
-  input controls. The data migration that merges existing collisions belongs to M2.6,
-  where the folder tables are already being rewritten.
-- **Every chip is a query term** (decision 32) — breadcrumb, folder band and details panel.
+- **Lowercase, input and data both** (decision 31): titles, keys, values and flags folded
+  on the way in, plus the migration that folds what already exists and **merges** the
+  collisions that creates, reporting what it merged. Both halves here rather than split
+  across milestones — apart, the interface would lowercase what you type while still
+  displaying `Beach` from before, which reads as a bug rather than a transition.
 - **Zoom anchors on the cursor**, not the centre of what is visible. *(Specified as the
   centre in M2.5c and corrected in use: the centre is right when zooming with a keyboard
   and wrong when zooming with the wheel, because the wheel already tells you where to
@@ -700,9 +701,6 @@ would otherwise be built against paths and then rebuilt.
   it, verify by hash, and write `library.jsonl` *before* moving anything so the mapping
   exists on disk independently of the database. Offer a dry run. This is M1.5's problem
   again and should reuse M1.5's shape.
-- **Lowercase migration.** Fold titles, keys, values and flags to lowercase, **merging**
-  the collisions this creates and reporting what it merged. `Beach` and `beach` become
-  one tag carrying both sets of attachments.
 - **`inbox/`**, watched, replacing the watched library root.
 - **`library.jsonl` becomes the rebuild path** — complete enough to reconstruct the
   database, folders included, not just items. Plus rolling `.gallery/backups/`.
@@ -753,6 +751,12 @@ component vocabulary every later milestone builds from.
 
 Query parser, unified search bar, sectioned results (folders then media), saved
 searches, FTS index.
+
+**Decision 32 lands here, not earlier.** Every chip being a query term needs a query bar
+to write into, and there is none until this milestone — clicking a chip in M2.5d would
+have to apply a filter directly, which is precisely the second model decision 32 exists
+to avoid, built first and then removed. The chips become clickable when the bar they
+target exists, in one pass, across the breadcrumb, the folder band and the details panel.
 
 ### M4 — Sorting Box and triage
 

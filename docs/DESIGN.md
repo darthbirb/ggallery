@@ -181,6 +181,10 @@ the folder band, a flag in the details panel — clicking any of them writes its
 the search bar and shows the result. `path:people/ana`, `instagram:@ana`, `beach`.
 Ctrl-click appends rather than replaces.
 
+**Chips are not clickable until the search bar exists** — M3. A chip that filtered the
+grid directly would be the second model this rule exists to prevent, and building one
+first means building it twice.
+
 The alternative — folders navigate, tags filter — is one click shorter for the commonest
 case and costs a second model to learn, a second thing that can be wrong, and the answer
 to *"why am I looking at these?"* being invisible. One rule means the bar is always the
