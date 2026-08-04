@@ -252,3 +252,17 @@ pub fn mtime_secs(meta: &Metadata) -> i64 {
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0)
 }
+
+/// The filesystem's own creation time — NTFS always records one, unlike the
+/// POSIX systems `Metadata::created()` is also defined for. This is the
+/// fallback `captured_at` uses (`media::probe`) when a file carries no EXIF
+/// or container date: the moment the file actually came to exist, not the
+/// moment it was last touched, which is what `mtime_secs` above answers
+/// instead and is a worse stand-in for "when was this taken".
+pub fn created_secs(meta: &Metadata, fallback: i64) -> i64 {
+    meta.created()
+        .ok()
+        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(fallback)
+}

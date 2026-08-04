@@ -2,8 +2,11 @@
 //!
 //! Probing never fails a job: a file the app cannot parse is still a real file
 //! in the library and must still appear in the grid. Missing metadata is left
-//! `None` and `captured_at` falls back to the file's mtime, flagged as such so
-//! the inspector can show where the date came from.
+//! `None` and `captured_at` falls back to the file's own creation time
+//! (`fs::walk::created_secs`, not its modification time — the file was made
+//! once and may have been touched many times since), flagged as such so a
+//! guess is never mistaken for metadata even though the inspector no longer
+//! spells the source out in words.
 
 use std::path::Path;
 
@@ -18,11 +21,11 @@ pub struct Probe {
     pub codec: Option<String>,
     pub bitrate: Option<i64>,
     pub captured_at: Option<i64>,
-    /// exif | container | mtime
+    /// exif | container | created
     pub captured_src: Option<String>,
 }
 
-pub fn probe(path: &Path, kind: Kind, mtime: i64, ffmpeg: Option<&Ffmpeg>) -> Probe {
+pub fn probe(path: &Path, kind: Kind, created: i64, ffmpeg: Option<&Ffmpeg>) -> Probe {
     let mut out = match kind {
         Kind::Image => probe_image(path),
         Kind::Video => ffmpeg.map(|ff| probe_video(path, ff)).unwrap_or_default(),
@@ -30,8 +33,8 @@ pub fn probe(path: &Path, kind: Kind, mtime: i64, ffmpeg: Option<&Ffmpeg>) -> Pr
     };
 
     if out.captured_at.is_none() {
-        out.captured_at = Some(mtime);
-        out.captured_src = Some("mtime".into());
+        out.captured_at = Some(created);
+        out.captured_src = Some("created".into());
     }
     out
 }

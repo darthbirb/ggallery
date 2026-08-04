@@ -95,6 +95,9 @@ pub fn run_hash(
     let meta = std::fs::metadata(&path)?;
     let size = meta.len() as i64;
     let mtime = walk::mtime_secs(&meta);
+    // The captured-date fallback wants when the file was made, not when it
+    // was last touched — `mtime` stays the change-detection field below.
+    let created = walk::created_secs(&meta, mtime);
 
     let ext = extension_of(&payload.disk_name);
     // Content-aware, not extension-only, for gif/webp/png — an animated one
@@ -102,7 +105,7 @@ pub fn run_hash(
     let kind = Kind::classify(&path, &ext);
 
     let hash = hash::blake3_file(&path)?;
-    let probed = probe::probe(&path, kind, mtime, tools.ffmpeg.as_ref());
+    let probed = probe::probe(&path, kind, created, tools.ffmpeg.as_ref());
 
     let existing = db::items::existing(conn, payload.folder_id, &payload.disk_name)?;
     // A brand-new row whose name already parses as `<uuid>.<ext>` arrived
