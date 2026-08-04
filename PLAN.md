@@ -11,7 +11,7 @@ keeping, triage so filing does not become a chore that stops you adding to it.
 A better media viewer, built for one person, that happens to also organise. Not an
 organiser that happens to display files.
 
-Folders on disk are the organising truth; tags, labels and search live on top. One root
+Folders are data, not directories; tags, labels and search live on top. One root
 folder holds everything, so backup is "copy the folder".
 
 - [docs/DESIGN.md](docs/DESIGN.md) — product and UX specification
@@ -41,13 +41,14 @@ folder holds everything, so backup is "copy the folder".
    `tiktok`, `youtube` fields that stay visible while unfilled.
 5. **Filenames are UUIDv4** plus the real extension. Original filename is kept in
    the database as searchable metadata.
-6. **The library root *is* the Sorting Box.** There is no `Sorting Box/` directory —
-   anything sitting loose at the top level is unfiled by definition, which is the same
-   statement, and dropping files into the library root is the obvious gesture anyway.
-   Files arrive via the app, Windows drag-and-drop, downloads, or being pasted in from
-   Explorer, and the root is watched live. *(Revised in M2.5a.1; this decision
-   previously named a watched `<root>/Sorting Box/` subfolder, which
-   [docs/DESIGN.md](docs/DESIGN.md) §2 and §4 had already superseded.)*
+6. **The Sorting Box is "no folder", not a place.** An item with no `folder_id` is
+   unfiled by definition; there is no `Sorting Box/` directory and no magic location.
+   Files arrive via the app, Windows drag-and-drop, downloads, or being dropped into
+   the watched `<root>/inbox/`, and everything that arrives without a destination
+   lands there. *(Revised twice: this decision first named a watched
+   `<root>/Sorting Box/` subfolder, then the library root itself. Rule 30 made both
+   moot — with files stored flat, "loose at the top level" no longer describes
+   anything.)*
 7. **Triage is fullscreen-first**, one item at a time with destination hotkeys. Grid
    multi-select mode is one keystroke away.
 8. **Every compression is reviewed manually** before replacing anything.
@@ -213,6 +214,53 @@ folder holds everything, so backup is "copy the folder".
     reads at 16–20px in the window bar and doubles as the Windows `.ico`. It stays neutral:
     the accent is user-chosen and changes per session, and an identity that changes colour
     with a preference is not an identity.
+30. **Folders are data. Files are stored flat.** *(Reverses the founding rule that the
+    filesystem was authoritative; see M2.6.)* The hierarchy — parentage, titles, order —
+    lives in the database and nowhere else. On disk every file sits at
+    `<root>/files/<first two hex chars of uuid>/<uuid>.<ext>`, sharded 256 ways so no
+    directory holds 100k entries.
+
+    The rule it replaces existed because directory names were the last human-readable
+    structure on disk. But filenames are already opaque UUIDs (rule 5), so that structure
+    was carrying the entire organisation on its own, and paying for it: a folder move was
+    a physical move of every file beneath it, a rename rewrote every descendant path, and
+    the database and the filesystem could drift apart mid-operation and leave a record
+    pointing at a directory that no longer exists. Undo had to reverse thousands of file
+    operations. Titles were constrained by `MAX_PATH`, by forbidden characters, by
+    reserved device names, and by case-insensitive sibling collisions.
+
+    As data, a move is `UPDATE folder SET parent_id`, a rename is one column, undo is one
+    row, and none of those constraints reach the title at all.
+
+    **What this gives up is the redundant copy.** A lost database used to leave the
+    directory tree behind as a readable record of the organisation. Two things buy that
+    back, and they are load-bearing rather than nice to have: `library.jsonl` becomes the
+    rebuild path rather than a convenience, and `.gallery/backups/` keeps rolling copies
+    of the database. This is a net improvement, because a corrupt database today loses
+    every tag while the folders survive — the tree was never a backup of the *whole*
+    organisation, only of its skeleton.
+
+    **New files arrive through `<root>/inbox/`**, which is watched. Dropping a file into
+    `files/` by hand is meaningless now, so the gesture "put things in the library folder
+    from Explorer" needs somewhere real to land. Anything in `inbox/` is renamed, sharded
+    and recorded, and appears in the Sorting Box.
+31. **Everything the tag system stores is lowercase.** Folder titles, label keys, label
+    values and flags are lowercased on the way in — typing `Beach` stores and displays
+    `beach`. Notes, original filenames and every other free-text field are untouched.
+
+    Case-insensitive *matching* was already true; what was not true was case-insensitive
+    *identity*, so `Beach` and `beach` could both exist and mean the same thing while
+    counting separately. Since a folder title is inherited as a tag, leaving titles
+    cased would keep exactly that inconsistency alive at the top of the tree.
+32. **Every chip is a query term.** Clicking a folder, label or tag chip anywhere —
+    the breadcrumb, the folder band, the details panel — writes its term into the search
+    bar and shows the result. `path:people/ana`, `instagram:@ana`, `beach`. Ctrl-click
+    adds a term to what is already there rather than replacing it.
+
+    This is the sidebar's existing rule (*"sidebar interactions mutate this string rather
+    than bypassing it"*, [docs/DATA-MODEL.md](docs/DATA-MODEL.md#query-language)) applied
+    to every other clickable piece of vocabulary. One model, the bar always shows why the
+    grid holds what it holds, and going back is clearing it.
 
 ## Non-goals
 
@@ -250,8 +298,10 @@ Gallery/                    ← anywhere, USB stick included
 verification. The same code path serves the "Update tools" button, which is required
 rather than optional — yt-dlp breaks against sites every few weeks.
 
-**Absolute paths must never reach the database.** Everything is relative to root,
-forward slashes, normalised case. This is the single rule that keeps portability alive.
+**Absolute paths must never reach the database.** Since rule 30 there is very little
+path left to store — an item's location is derived from its own uuid — but the rule
+still governs the config file, the cache and the trash. This is what keeps portability
+alive.
 
 ## On-disk layout
 
@@ -259,26 +309,35 @@ forward slashes, normalised case. This is the single rule that keeps portability
 <root>/
   .gallery/
     library.db            ← SQLite, WAL, checkpointed on exit
-    library.jsonl         ← plaintext export, disaster recovery
+    library.jsonl         ← plaintext export, and the rebuild path
+    backups/              ← rolling copies of library.db
     cache/
       thumbs/ab/cd/<uuid>.webp
       sprites/ab/cd/<uuid>.webp    ← 10-frame scrub strip per video
-    trash/                ← soft-deleted files, rel_path preserved
+    trash/                ← soft-deleted files, flat, same sharding
     pending/              ← compressed candidates awaiting review
     lock                  ← single-instance guard
-  loose-file.jpg          ← anything at this level is the Sorting Box
-  People/
-    ana/
-  Places/
+  files/
+    a3/a3f2c1d4-….jpg     ← every file, sharded by the uuid's first two chars
+    b7/b7e40021-….mp4
+  inbox/                  ← watched; drop files here from Explorer
 ```
+
+There is no folder structure on disk. `files/` is sharded 256 ways because a single
+directory holding 100k entries is slow to enumerate and painful for every backup tool
+that touches it; the shard is derived from the uuid, so no lookup is needed to find a
+file.
 
 Cache runs ~4–6GB at 100k items. It stays inside root so that copying the folder gives
 a working library immediately rather than a 30-minute thumbnail rebuild. One setting
 relocates it; it is safe to delete at any time.
 
-`library.jsonl` is written on a debounce, one line per item keyed by UUID, carrying
-folder path, tags and labels. If the database ever corrupts it rebuilds from a file you
-can read in Notepad.
+`library.jsonl` is written on a debounce, one line per item keyed by UUID, carrying its
+folder path, title, tags and labels, plus one record per folder. **It is the rebuild
+path, not a convenience** — since rule 30 the database is the only structured copy of
+the organisation, so the plaintext one has to be complete enough to reconstruct it, and
+readable in Notepad when it matters. `.gallery/backups/` keeps rolling copies of the
+database itself for the same reason.
 
 ---
 
@@ -503,9 +562,11 @@ Specified in [docs/DESIGN.md](docs/DESIGN.md) §1 *Folder operations*, *Item ope
 - **Create** a folder — directory plus record, optional archetype.
 - **Rename** — title and directory name are independent. Retitling touches the record
   only; renaming the directory moves it on disk and rewrites every descendant `rel_path`.
+  *(M2.2 collapsed these into one control; M2.6 removed the directory half entirely.)*
 - **Move** a folder — descendants follow, and the effective-tag cache rebuilds for the
   subtree because inherited tags are recomputed from the new ancestry.
 - **Move items** between folders — real file move, `folder_id` update, tag-cache rebuild.
+  *(M2.6 drops the file move; the location is derived from the uuid.)*
 - **Delete** to `.gallery/trash/` with relative paths preserved. Never a hard delete; this
   pulls `fs/trash.rs` forward from M4.
 - **Delete items** from the grid, not only from triage and theatre view.
@@ -527,24 +588,19 @@ effective-tag rebuild.
 UI is disposable scaffolding again: whatever is cheapest to exercise the operations. M2.5
 designs where these controls actually live.
 
-### M2.2 — One folder name
+### M2.2 — One folder name *(superseded by M2.6)*
 
 M2.1 made the display title and the directory name independently editable. That was my
 call and it was wrong: two operations behind what reads as one control, with a silent
 failure mode — a folder keeps whatever name it was born with unless you separately
-remember to rename the directory.
+remember to rename the directory. M2.2 collapsed them, deriving the directory name from
+the title and sanitising it for Windows.
 
-Collapse them. Retitling renames the directory, derived from the title and sanitised for
-Windows; the subtree-rename job M2.1 already built does the work, and at 105ms over 100
-descendants the churn that motivated the split is not worth avoiding.
-
-Specified in [docs/DESIGN.md](docs/DESIGN.md) §1 *Folder names*: forbidden characters,
-reserved device names, trailing dots and spaces, a length cap, sibling collisions, and
-what happens when a title sanitises to nothing. Renaming a directory in Explorer updates
-the title, unless the title already sanitises to that name.
-
-**Do this before M2.5**, small as it is — otherwise the redesign ships two rename controls
-that immediately collapse into one.
+**Decision 30 deleted the problem rather than solving it.** With no directories, a folder
+has a title and nothing else to keep in step; the sanitising rules, the reserved device
+names and the sibling-collision suffixes all leave with them. Kept here as history
+because the reasoning — *two operations behind one control is a bug* — is what the
+single-name rule still rests on.
 
 ### M2.5 — The interface, designed from scratch
 
@@ -607,8 +663,59 @@ decisions 28 and 29, and DESIGN §2:
   form* — one counts line, no `Active` chip, notes as a growing line, one chip row, the
   archetype action demoted to the folder menu, and roughly 140px when empty rather than 330.
 
+**M2.5d — the follow-ups.** Small, independent, and none of them blocked by M2.6 below:
+
+- **Lowercase on the way in** (decision 31) for titles, keys, values and flags, in the
+  input controls. The data migration that merges existing collisions belongs to M2.6,
+  where the folder tables are already being rewritten.
+- **Every chip is a query term** (decision 32) — breadcrumb, folder band and details panel.
+- **Zoom anchors on the cursor**, not the centre of what is visible. *(Specified as the
+  centre in M2.5c and corrected in use: the centre is right when zooming with a keyboard
+  and wrong when zooming with the wheel, because the wheel already tells you where to
+  look.)*
+- **Fill-window is an arrow, and it moves left** — pointing left to fill, right to
+  restore, placed to the left of *Details* rather than among the right-hand controls. The
+  icon it replaces described a state rather than the action it performs.
+- **The footer's selection count moves right**, replacing *right click for more* — which
+  is instruction, not status, and instruction the user needed once.
+- **Folder details show their ancestry**, the same breadcrumb the item details panel
+  already has, target folder included.
+- **A folder whose directory is missing must fail usefully** rather than reporting *the
+  system cannot find…* on every action. M2.6 removes the cause; this makes the symptom
+  actionable in the meantime, and error text that names the folder and offers a way out
+  is worth having whatever the storage model is.
+- **Clicking an item while the pane is folded must open it**, once, and the grid's
+  scrollbar must not paint over the folded strip.
+
+**M2.6 — folders as data.** Decision 30. Runs **before** M2.5b, which builds drag-to-move
+and inline folder creation — the exact operations whose meaning this changes, and which
+would otherwise be built against paths and then rebuilt.
+
+- **Schema.** `folder.rel_path` is dropped; identity is `id` and hierarchy is `parent_id`.
+  `UNIQUE(parent_id, title)` replaces the path's uniqueness. `item.folder_id` becomes
+  nullable — `NULL` is the Sorting Box.
+- **Storage migration.** Every file moves to `files/<xx>/<uuid>.<ext>`. This is the
+  single most dangerous operation the app has ever performed: it touches every file in a
+  100k library, and a half-finished run must be resumable rather than ambiguous. Journal
+  it, verify by hash, and write `library.jsonl` *before* moving anything so the mapping
+  exists on disk independently of the database. Offer a dry run. This is M1.5's problem
+  again and should reuse M1.5's shape.
+- **Lowercase migration.** Fold titles, keys, values and flags to lowercase, **merging**
+  the collisions this creates and reporting what it merged. `Beach` and `beach` become
+  one tag carrying both sets of attachments.
+- **`inbox/`**, watched, replacing the watched library root.
+- **`library.jsonl` becomes the rebuild path** — complete enough to reconstruct the
+  database, folders included, not just items. Plus rolling `.gallery/backups/`.
+- **Repair the records the old model broke**, including folders left pointing at
+  directories that no longer exist after a move.
+
+Everything the filesystem used to enforce — forbidden characters, reserved device names,
+`MAX_PATH`, sibling collisions — leaves the codebase with it. M2.2 exists only as
+history after this.
+
 **M2.5b — the sorting surfaces.** The pane's **Grid** and **Folders** modes, all three drop
-targets, spring-loading, and inline folder creation in the folder pane.
+targets, spring-loading, and inline folder creation in the folder pane. **Depends on M2.6**:
+a drop is a row update here, not a file move.
 
 **The mode switcher is icon buttons in the pane header**, in the same group as maximise and
 close — not a labelled tab row. *(Decided in M2.5a.2, before the modes exist.* Three text

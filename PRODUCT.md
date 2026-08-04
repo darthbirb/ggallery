@@ -46,7 +46,10 @@ compression, a dedupe tool, rename scripts, and dragging between two Explorer wi
 - **The repository and the library are separate.** The app is a portable `.exe`; the
   library is a folder elsewhere on disk, chosen on first run, recorded in
   `gallery.config.json` next to the exe. Never assume a path.
-- **Folders on disk are the organising truth.** Tags, labels and search sit on top.
+- **Folders are data, not directories.** The hierarchy lives in the database; every file
+  is stored flat under `files/`, sharded by its uuid. Tags, labels and search sit on top.
+  A plaintext `library.jsonl` plus rolling database backups are the redundant copy the
+  directory tree used to be.
 - **One library folder holds everything**, so backup is "copy the folder".
 - **Runs from a USB stick.** Nothing is written outside the app directory and the library
   root — no registry, no `%APPDATA%`, no installer.

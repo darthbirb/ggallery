@@ -212,6 +212,13 @@ This applies to every flag of this shape, including the dev-mode grid.
 
 ## Filesystem watching
 
+*(PLAN decision 30 narrows this section's scope sharply: with folders stored as data
+there is no watched tree of user directories, only `inbox/`, and a folder can no longer
+be renamed in Explorer because it does not exist there. The pairing rule below still
+applies to `inbox/` — a file renamed while sitting in it is one event pair, not a delete
+and an add — and the whole section is kept because the failure it describes is the kind
+that surfaces months after the cause.)*
+
 **A rename arrives as a `From`/`To` pair, and treating the halves independently destroys
 data.** Windows emits both events adjacently for a single rename. Handled as an unrelated
 removal followed by an unrelated creation, renaming a folder in Explorer retires every item
@@ -225,9 +232,10 @@ An unmatched `From` is a real removal — something left the watched tree — bu
 be known to be unmatched once no `To` follows. Flush it when the next `From` arrives, or
 after the settle window expires.
 
-**Derive a moved folder's destination name from its title, never from `rel_path`.**
-`rel_path` is stored lower-cased for comparison; using it as a source for a real directory
-name silently lower-cases every folder that gets moved.
+*(Also retired by decision 30: "derive a moved folder's destination name from its title,
+never from `rel_path`" — there is no destination name, no `rel_path`, and no directory to
+give a name to. The class of bug it belonged to is worth remembering, though: a value
+stored normalised for comparison is not a value you can render or write back.)*
 
 ---
 

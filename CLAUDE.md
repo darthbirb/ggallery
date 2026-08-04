@@ -4,8 +4,9 @@ A gallery viewer and collection organiser for Windows, in that order. The main a
 looking at things — browsing, opening, comparing. Folders, tags, search, downloads,
 compression and triage all exist to serve that, not the other way round.
 
-Folders on disk are the organising truth; tags, labels and search sit on top. One library
-folder holds everything, so backup is "copy the folder".
+Folders are data, not directories: the hierarchy lives in the database and every file
+sits flat under `files/`, sharded by uuid. Tags, labels and search sit on top. One
+library folder holds everything, so backup is still "copy the folder".
 
 Single user, runs locally, no network service of any kind.
 

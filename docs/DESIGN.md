@@ -43,9 +43,10 @@ milestone, not in the milestone itself.
 
 ### Folders
 
-A folder is a real directory on disk *and* a record in the database. It has:
+A folder is a record in the database. It has no directory on disk and no location — the
+hierarchy is data (PLAN decision 30). It has:
 
-- **Title** — free text, anything. A person, a place, an event, a topic.
+- **Title** — free text, anything. A person, a place, an event, a topic. Lowercase.
 - **Archetype** — optional template that pre-creates a set of empty labels.
 - **Labels** — key/value pairs, nullable. `instagram: @ana`, `city: lisbon`.
 - **Flags** — plain tags. `archived`, `favourite`.
@@ -70,50 +71,38 @@ that is not editable and not removable.
 
 ### Folder operations
 
-Folders are created, renamed, moved and deleted from inside the app. Every one of these
-changes the filesystem and the database together, and the filesystem is authoritative:
+Folders are created, renamed, moved and deleted from inside the app. **None of these
+touch a file.** Every one is a row update, which is what makes them instant, safely
+undoable, and incapable of leaving the database describing something the disk contradicts:
 
-- **Create** — makes the directory on disk and the record, with an optional archetype.
-- **Rename** — there is one name. Retitling a folder renames its directory to match, and
-  every descendant's `rel_path` updates with it. See *Folder names* below.
-- **Move** — dragging a folder onto another, or a menu action. Descendant paths and the
-  effective-tag cache both follow, because inherited tags are recomputed from the new
-  ancestry.
-- **Delete** — the folder and its contents go to `.gallery/trash/` with their relative
-  paths preserved. Never a hard delete.
+- **Create** — one record, with an optional archetype.
+- **Rename** — one column. There is one name and nothing derived from it.
+- **Move** — dragging a folder onto another, or a menu action: `parent_id`, plus an
+  effective-tag rebuild for the subtree, because inherited tags are recomputed from the
+  new ancestry.
+- **Delete** — the folder's record goes, and its items go to `.gallery/trash/`. Never a
+  hard delete.
 
 Items move between folders the same way: drag onto a sidebar folder, a menu action, or a
-triage hotkey. A move is a real file move plus a `folder_id` update plus a tag-cache
-rebuild for that item.
+triage hotkey. A move is a `folder_id` update plus a tag-cache rebuild for that item —
+the file itself never moves, because its location is derived from its own uuid.
 
 **All of these are journalled** so `Ctrl+Z` reaches them once the replayer lands. Renames
 of *files* remain the exception — see §10.
 
 ### Folder names
 
-**A folder has one name.** The title is what the user types; the directory on disk is
-derived from it. Renaming is a single act with a single visible result.
+**A folder has one name, and nothing constrains it.** The title is what the user types.
+It is stored and shown lowercase (PLAN decision 31), and beyond that it can hold anything
+— slashes, colons, emoji, four hundred characters, the same title as a folder in another
+branch. Only siblings must differ.
 
-Files are opaque UUIDs by design, so directory names are the only human-readable structure
-left on disk. Making them UUIDs too — or letting them drift permanently out of step with
-the title — would leave a library that cannot be browsed, backed up selectively, or
-understood without the app running. That contradicts the premise the whole design rests on.
-
-The derived name is the title, made safe for Windows:
-
-- Characters the filesystem forbids (`\ / : * ? " < > |`) are replaced with `-`.
-- Trailing dots and spaces are stripped; Windows silently drops them anyway.
-- Reserved device names (`CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`) get a
-  trailing `_`.
-- The segment is capped in length, so deep nesting does not hit the path limit.
-- If the result collides with a sibling directory, ` (2)`, ` (3)` and so on are appended.
-  The *title* is untouched by this — two folders may legitimately share a title.
-- If the title sanitises to nothing at all, the directory keeps its previous name and the
-  title still changes. Better a mismatch than a nameless directory.
-
-Renaming a directory **in Explorer** updates the title to match, unless the current title
-already sanitises to that new name — in which case only the derived name changed and the
-title is left alone.
+*(This section used to specify how a title was sanitised into a directory name:
+forbidden characters, reserved device names, trailing dots, length caps, collision
+suffixes, and what happened when a title sanitised to nothing. Decision 30 deleted the
+directory, and every one of those rules with it. The reasoning that survives is the
+original one — two operations behind what reads as one control is a bug — which now
+costs nothing to honour.)*
 
 ### Item operations
 
@@ -185,6 +174,30 @@ Effective tags are materialised into a cache table for query speed, invalidated 
 item moves, a folder's tags change, a folder moves or is renamed, or an archetype is
 applied. See [DATA-MODEL.md](DATA-MODEL.md#tag-resolution).
 
+### Clicking vocabulary
+
+**Every chip is a query term** (PLAN decision 32). A folder in a breadcrumb, a label in
+the folder band, a flag in the details panel — clicking any of them writes its term into
+the search bar and shows the result. `path:people/ana`, `instagram:@ana`, `beach`.
+Ctrl-click appends rather than replaces.
+
+The alternative — folders navigate, tags filter — is one click shorter for the commonest
+case and costs a second model to learn, a second thing that can be wrong, and the answer
+to *"why am I looking at these?"* being invisible. One rule means the bar is always the
+explanation, clearing it is always the way back, and composing two terms is something the
+user discovers rather than something that has to be built.
+
+### Lowercase
+
+**Titles, label keys, label values and flags are lowercase**, folded on the way in rather
+than at display time, so what you see is what is stored. Notes, original filenames and
+every other free-text field keep their case.
+
+Matching was already case-insensitive; identity was not, so `Beach` and `beach` could
+both exist, split one tag's items between them, and appear twice in every list. And since
+a folder's title is inherited as a tag, leaving titles cased would keep that split alive
+at the top of the tree.
+
 ### Archetypes
 
 A named set of field definitions, created and managed entirely by the user.
@@ -255,17 +268,19 @@ create and cannot remove.
 Three distinct things must be reachable, however a design chooses to express them:
 
 - **Everything** — every item in the library, recursively, ignoring folder structure.
-- **Sorting Box** — items sitting at the top level and nowhere else. Not everything
-  recursively; just what has not been filed yet.
+- **Sorting Box** — items in no folder at all. Not everything recursively; just what has
+  not been filed yet.
 - **The folder tree** — the folders the user actually made. **When there are none, it shows
   nothing.** Not a root node, not a placeholder branch.
 
-Then **Favourites**, then the tree. All expressible already: no filter, a non-recursive
-filter on the root folder, `is:favorite`, and the tree itself.
+Then **Favourites**, then the tree. All expressible already: no filter, `is:unsorted`,
+`is:favorite`, and the tree itself.
 
-**The library root *is* the Sorting Box.** There is no `Sorting Box/` directory — anything
-sitting loose at the top level is by definition unfiled, which is the same statement. One
-less magic folder, and dropping files into the library root is the obvious gesture anyway.
+**The Sorting Box is "no folder", not a place.** There is no `Sorting Box/` directory and
+no root folder standing in for one — an item that has not been filed simply has no
+`folder_id`, which is the same statement with nothing to keep in sync. The gesture of
+dropping files in from Explorer is served by the watched `<root>/inbox/`, and anything
+that arrives there without a destination lands here.
 
 ### Direct manipulation — a requirement
 
@@ -348,9 +363,15 @@ Groups, in order: **Library** (Everything, Sorting Box, Favourites — above the
 nodes in it), **Pinned**, **Folders**, **Saved searches**, **Queues** (Pending Review,
 Trash, each with a count badge).
 
-The Sorting Box is a *library root*, not a queue: it is the library root itself, so it
-belongs with Everything and Favourites rather than in a group of folders. The count badge
-it would have had in Queues sits on the root row instead.
+The Sorting Box is a *library root*, not a queue: it is a state rather than a folder, so
+it belongs with Everything and Favourites rather than in a group of folders. The count
+badge it would have had in Queues sits on that row instead.
+
+**The grid's footer is status, not instruction.** It holds what is selected, and the
+count is right-aligned — the edge a count belongs on, and where the eye already goes for
+a total. *(It first held "right click for more" at the left. That is a tutorial, and a
+tutorial in permanent chrome is a line you read once and then look past forever, taking
+up the one place a live count could have been.)*
 
 Pinned folders live in their own group above the tree rather than floating within it — so
 favouriting something never reorders the tree, and the row you reach for stays where it was.
@@ -440,6 +461,12 @@ spent on an empty form. The rules that follow all come from that.
   context menu, not as a standing button competing with content.
 - **Favourite is a header control among the others**, not the heaviest thing in the band
   parked in the far corner.
+- **A subfolder shows its ancestry as a breadcrumb**, the same one the item details panel
+  uses, the folder itself included as the last crumb. Every crumb is a query term. Without
+  it the band names a folder and says nothing about where it sits, which matters more here
+  than for an item because the answer is also where the folder's inherited labels come
+  from — and those are rendered greyed in the same chip row, so their origin has to be
+  visible somewhere.
 
 **Design against the full case** — an archetype with five labels, eight tags and a real
 note — and let the empty one be that band with things missing. It must look right with **no
@@ -481,13 +508,23 @@ that has to live somewhere, and the panel's own edge is where it belongs.
 **There is no theatre view.** Full-window is the pane maximised — one control, one state,
 no transition to design and no scroll position to restore.
 
+**Full-window is an arrow, and it sits at the left of the header**, pointing left to
+expand and right to restore. Two reasons it is not with maximise and close on the right:
+the arrow describes the direction the pane will actually travel, which only reads if the
+control is on the edge the pane grows from, and it belongs beside *Details* — the other
+control that changes how much of the pane you see — rather than beside the ones that
+change *whether* the pane is there. *(It was first drawn as a generic fill-the-window
+glyph on the right, which named a state rather than an action and pointed nowhere.)*
+
 #### Preview mode
 
 The selected item, fit to the pane. **Splits into N panes**, which is what makes it the
 only comparison surface the app needs:
 
-- *Images* — scroll to zoom, drag to pan, the centre of what's visible staying fixed as
-  the zoom changes. **No zoom UI at fit** — no fit button, no 1:1 button, nothing on
+- *Images* — scroll to zoom, drag to pan, **the point under the cursor staying fixed** as
+  the zoom changes. *(Specified first as the centre of the visible area, corrected in use:
+  the centre is the right anchor for a keyboard zoom, and the wrong one for a wheel, which
+  has already told you where you are looking.)* **No zoom UI at fit** — no fit button, no 1:1 button, nothing on
   screen. Once zoom leaves fit, a single small percentage readout appears in a corner of
   the viewer; clicking it returns to fit. One control, absent by default, and it doubles
   as the discoverable form of the double-click-to-fit gesture.
@@ -621,14 +658,17 @@ directly editable, so click-driven and keyboard-driven use are the same mechanis
 
 ## 4. Sorting Box
 
-**The library root itself**, watched live — not a subfolder. Anything loose at the top level
-is unfiled by definition, so a dedicated directory would only be a second way of saying the
-same thing. Items appear from:
+**An item with no folder.** Not a directory and not a special folder record — unfiled is a
+state, so anything else would be a second way of saying it that could then disagree.
+Items appear from:
 
 - The app's **Add Files** picker (`Ctrl+O`)
 - **Dragging from Explorer** onto the window
 - **Downloads** (M5)
-- **Pasting files into the folder** in Explorer — the watcher picks them up
+- **Dropping files into `<root>/inbox/`** in Explorer — the watcher picks them up,
+  renames and shards them, and the file leaves `inbox/` as it is indexed. This is the one
+  place on disk the user is meant to put things: `files/` is sharded by uuid, so putting
+  something there by hand means nothing.
 
 Files arriving at the root are renamed to UUIDs, hashed, thumbnailed, and checked against
 existing content hashes. Exact duplicates of something already in the library are flagged on

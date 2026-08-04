@@ -6,6 +6,12 @@ SQLite, WAL mode, checkpointed to a single file on clean exit. Lives at
 **All paths are relative to root, forward slashes, normalised case.** No absolute path
 ever enters the database.
 
+**Folders are records, not directories** (PLAN decision 30). Nothing in this schema
+stores a folder's location on disk, because a folder has none: the hierarchy is
+`parent_id`, and a file's location is derived from its own uuid. Everything the
+filesystem used to constrain — name length, forbidden characters, sibling collisions —
+constrains nothing here.
+
 ---
 
 ## Schema
@@ -15,8 +21,7 @@ ever enters the database.
 ```sql
 CREATE TABLE folder (
   id            INTEGER PRIMARY KEY,
-  rel_path      TEXT    NOT NULL UNIQUE,   -- 'People/ana'
-  title         TEXT    NOT NULL,          -- 'Ana'  (display, ≠ dirname)
+  title         TEXT    NOT NULL,          -- 'ana' — lowercase, free text
   parent_id     INTEGER REFERENCES folder(id) ON DELETE CASCADE,
   archetype_id  INTEGER REFERENCES archetype(id),
   cover_item_id INTEGER REFERENCES item(id),
@@ -26,6 +31,7 @@ CREATE TABLE folder (
   last_added_at INTEGER,                   -- newest item added beneath, recursive
   created_at    INTEGER NOT NULL
 );
+CREATE UNIQUE INDEX idx_folder_sibling ON folder(parent_id, title);
 CREATE INDEX idx_folder_parent ON folder(parent_id);
 CREATE INDEX idx_folder_status ON folder(status, last_added_at);
 
@@ -41,18 +47,22 @@ CREATE TABLE folder_status (               -- user-editable value set
 through every ancestor. That is what makes `status:wip sort:staleness` a usable to-do
 list rather than a set of labels you forgot you applied.
 
-`title` is what the user typed; the last segment of `rel_path` is derived from it by
-sanitising for the filesystem, so a title may legitimately differ from its directory name
-(forbidden characters, length caps, sibling collisions). They are not independently
-editable — renaming a folder changes both. See [DESIGN.md](DESIGN.md) §1 *Folder names*.
+`title` is the folder's only name and is stored lowercase (PLAN decision 31), free text
+otherwise — a title may contain anything a filesystem would have rejected. Siblings must
+differ; unrelated branches may share a title freely, which is why the uniqueness index is
+on `(parent_id, title)` and not on `title` alone.
+
+**Renaming a folder is one column.** Moving one is `parent_id`. Neither touches a file,
+so neither can leave the database and the disk disagreeing — the failure that motivated
+decision 30.
 
 ### Items
 
 ```sql
 CREATE TABLE item (
   id           INTEGER PRIMARY KEY,
-  uuid         TEXT    NOT NULL UNIQUE,     -- identity, and the cache key
-  folder_id    INTEGER NOT NULL REFERENCES folder(id),
+  uuid         TEXT    NOT NULL UNIQUE,     -- identity, cache key, and location
+  folder_id    INTEGER REFERENCES folder(id),  -- NULL = Sorting Box
   disk_name    TEXT    NOT NULL,            -- actual filename on disk
   ext          TEXT    NOT NULL,
   orig_name    TEXT,                        -- searchable, pre-import name
@@ -75,7 +85,7 @@ CREATE TABLE item (
   derived_from INTEGER REFERENCES item(id), -- compression lineage
   download_id  INTEGER REFERENCES download(id)
 );
-CREATE UNIQUE INDEX idx_item_disk ON item(folder_id, disk_name COLLATE NOCASE);
+CREATE UNIQUE INDEX idx_item_disk ON item(disk_name COLLATE NOCASE);
 CREATE INDEX idx_item_folder   ON item(folder_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_item_hash     ON item(hash);
 CREATE INDEX idx_item_captured ON item(captured_at);
@@ -88,8 +98,15 @@ badge, and its own sidebar entry, and it should never appear in the tag vocabula
 alongside `beach` and `blurry`. `captured_src` keeps a manual override visibly distinct
 from real metadata.
 
-The file on disk is `<folder.rel_path>/<disk_name>`. Path is derived, never stored on
-the item — so moving a folder is a single row update, not a rewrite of every child.
+The file on disk is `files/<uuid[0:2]>/<disk_name>`. **The location is a function of the
+item's own identity**, so it never changes: filing an item, moving its folder, renaming
+an ancestor and emptying the Sorting Box are all row updates that touch no file at all.
+The shard is the uuid's first two hex characters — 256 directories, ~400 files each at
+100k, which keeps enumeration and every backup tool that walks the library fast without
+needing a lookup to resolve a path.
+
+`folder_id` is nullable and `NULL` *is* the Sorting Box — not a sentinel folder, not a
+reserved row. `is:unsorted` is `folder_id IS NULL`.
 
 `disk_name` exists because M1 is strictly read-only over the library: files keep whatever
 names they already have, so the app has to remember them. After M1.5 renames everything,
@@ -113,8 +130,13 @@ CREATE INDEX idx_tag_value ON tag(value COLLATE NOCASE);
 CREATE INDEX idx_tag_key   ON tag(key   COLLATE NOCASE);
 ```
 
-A label with no value yet is stored with `value = ''` so archetype fields exist and
+A label with no value yet is stored with `value = ''` so archetype labels exist and
 render before they are filled.
+
+**`key` and `value` are stored lowercase** (PLAN decision 31), lowered on the way in
+rather than at comparison time. The `NOCASE` indexes below are what make matching
+case-insensitive; storing lowercase is what makes *identity* case-insensitive, so
+`Beach` and `beach` cannot both exist and split one tag's items in two.
 
 ```sql
 -- tags attached directly to a folder
@@ -293,8 +315,8 @@ committing — see [DESIGN.md](DESIGN.md#core-concepts).
 A recursive-descent parser compiling to SQL. Terms are ANDed implicitly.
 
 ```
-path:People/Ana        prefix match, recursive
-path:=People/Ana       that folder only
+path:people/ana        prefix match, recursive — folder titles, not directories
+path:=people/ana       that folder only
 
 tag:beach              flag, exact
 tag:bea*               flag, prefix
@@ -315,7 +337,7 @@ uploader:@ana
 
 is:favorite
 is:untagged            no manual tags
-is:unsorted            in the Sorting Box
+is:unsorted            folder_id IS NULL — the Sorting Box
 is:duplicate           has an unresolved dupe_pair
 is:compressed          derived_from IS NOT NULL
 is:pending             awaiting compression review
@@ -333,9 +355,11 @@ sunset                 bare word with no operator → FTS over orig_name and tag
 title, then fall through to FTS. The search dropdown shows which interpretation matched
 so an ambiguous term is never silently wrong.
 
-Sidebar interactions mutate this string rather than bypassing it: clicking a folder
-appends `path:`, ctrl-clicking a tag appends `tag:`, alt-clicking prepends `-`. The bar
-stays directly editable.
+**Every clickable piece of vocabulary mutates this string rather than bypassing it**
+(PLAN decision 32) — the sidebar, the breadcrumb, the folder band's chips and the details
+panel's. Clicking a folder writes `path:`, a label writes `key:value`, a flag writes its
+bare word; ctrl-click appends a term instead of replacing, alt-click prepends `-`. The
+bar stays directly editable, and it is always the reason the grid holds what it holds.
 
 ---
 
@@ -350,6 +374,10 @@ stays directly editable.
   `derived_from` at the trashed original — so tags, folder placement and history all
   survive untouched.
 - **`library.jsonl`** is written on a debounce: one line per item with uuid, folder path,
-  orig_name, hash, and resolved tags. It is the rebuild path if the database is ever
-  lost, and the disaster-recovery record of what the first-import rename did — no
-  tooling reads it back to reconstruct names; see docs/DESIGN.md#first-import.
+  orig_name, hash, and resolved tags, plus one line per folder with its title, parent and
+  own tags. **Since decision 30 it is the only other complete copy of the organisation**,
+  so it must be sufficient to rebuild the database rather than merely helpful — folders
+  included, not just items. It doubles as the disaster-recovery record of what the
+  first-import rename did; see docs/DESIGN.md#first-import.
+- **`.gallery/backups/`** keeps rolling copies of `library.db`, for the same reason.
+  Cheap: the database is small next to the media it describes.

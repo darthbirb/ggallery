@@ -102,9 +102,12 @@ fs/
                       (and, once M4 builds it, the watcher) calls for anything arriving
                       after the library is marked imported
   watch.rs            filesystem watcher
-  relocate.rs         M2.1 — folder create/rename-directory/move and item move.
-                      Each function is the whole orchestration: disk, then the
-                      database, then the journal
+  relocate.rs         M2.1 — folder create/rename/move and item move. Was disk,
+                      then database, then journal; M2.6 removes the disk half
+                      entirely (decision 30), leaving row updates and the journal
+  shard.rs            M2.6 — files/<xx>/<uuid>.<ext>: resolving an item's
+                      location from its uuid, and the one-time migration that
+                      flattens an existing library into it
   trash.rs            soft delete — M2.1 pulls this forward from M4; the
                       Ctrl+Z replayer is still M4's job. M2.5a adds
                       `restore_from_trash`, the half its undo needs

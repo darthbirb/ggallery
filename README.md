@@ -56,11 +56,17 @@ GGallery/                     ← this repo, anywhere
   tools/                      ← ffmpeg, HandBrakeCLI, yt-dlp, gallery-dl
 
 D:\MyMedia\                   ← your library, anywhere else, chosen on first run
-  .gallery/                   ← database, cache, trash — all app state lives here
-  loose-file.jpg              ← anything at this level is the Sorting Box
-  People/
-  Places/
+  .gallery/                   ← database, cache, trash, backups — all app state
+  files/                      ← every file, flat, sharded by uuid
+    a3/a3f2c1d4-….jpg
+  inbox/                      ← drop files here from Explorer
 ```
+
+**There are no folders on disk.** Your folder hierarchy is data in the database, not
+directories — which is what makes moving and renaming folders instant and undoable, and
+what frees folder names from everything Windows forbids in a path. `library.jsonl` in
+`.gallery/` is the plaintext copy of that structure, readable in Notepad, and the
+database can be rebuilt from it.
 
 ---
 
@@ -178,12 +184,15 @@ docs/
 | M1.8 | The library is live — filesystem watcher, no re-index button | Built |
 | M2 | Folders as entities — archetypes, labels, tag inheritance | Built |
 | M2.1 | Folder and item operations — create, rename, move, delete | Built |
-| M2.2 | One folder name — retitling renames the directory | Built |
+| M2.2 | One folder name — retitling renames the directory | Superseded |
 | M2.5a | The shell and the viewer — split layout, nav panel, pane, accent | Built |
 | M2.5a.1 | Make it look built — shadcn/ui adopted, sizing and selection decided | Built |
 | M2.5a.2 | The rest of the finish — motion, cursors, one Settings dialog | Built |
 | M2.5a.3 | Build versus adopt — audited, nothing adopted, kitchen-sink route added | Built |
-| M2.5b | The sorting surfaces — pane grid and folder modes, drops | Next |
+| M2.5c | The shell decided — own window bar, the mark, nav footer, band rework | Built |
+| M2.5d | Follow-ups — lowercase, chips as queries, cursor zoom, footer count | Next |
+| M2.6 | Folders as data — flat sharded storage, DB hierarchy, inbox | |
+| M2.5b | The sorting surfaces — pane grid and folder modes, drops | |
 | M3 | Search — query parser, sectioned results | |
 | M4 | Sorting Box and triage — hotkey culling, undo, trash | |
 | M5 | Downloads — yt-dlp and gallery-dl integration | |
