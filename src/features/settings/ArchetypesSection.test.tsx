@@ -54,8 +54,8 @@ describe("archetypes", () => {
   it("adds a field straight away when no folder uses the archetype", async () => {
     await open();
 
-    await userEvent.type(screen.getByLabelText("New field key"), "country");
-    await userEvent.click(screen.getByRole("button", { name: "Add field" }));
+    await userEvent.type(screen.getByLabelText("New label key"), "country");
+    await userEvent.click(screen.getByRole("button", { name: "Add label" }));
 
     await waitFor(() =>
       expect(mocked.addArchetypeField).toHaveBeenCalledWith(3, "country", false),
@@ -66,10 +66,10 @@ describe("archetypes", () => {
     mocked.countFoldersUsingArchetype.mockResolvedValue(3);
     await open();
 
-    await userEvent.type(screen.getByLabelText("New field key"), "country");
-    await userEvent.click(screen.getByRole("button", { name: "Add field" }));
+    await userEvent.type(screen.getByLabelText("New label key"), "country");
+    await userEvent.click(screen.getByRole("button", { name: "Add label" }));
 
-    // "3 folders use this archetype. Add the new field to them?" — named, and
+    // "3 folders use this archetype. Add the new label to them?" — named, and
     // answerable both ways.
     expect(await screen.findByText(/3 folders use/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Add to all 3/ }));
@@ -83,8 +83,8 @@ describe("archetypes", () => {
     mocked.countFoldersUsingArchetype.mockResolvedValue(2);
     await open();
 
-    await userEvent.type(screen.getByLabelText("New field key"), "country");
-    await userEvent.click(screen.getByRole("button", { name: "Add field" }));
+    await userEvent.type(screen.getByLabelText("New label key"), "country");
+    await userEvent.click(screen.getByRole("button", { name: "Add label" }));
     await userEvent.click(
       await screen.findByRole("button", { name: /Just the archetype/ }),
     );

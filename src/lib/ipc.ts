@@ -242,6 +242,14 @@ export function itemEffectiveTags(itemId: number): Promise<EffectiveTag[]> {
   return invoke<EffectiveTag[]>("item_effective_tags", { itemId });
 }
 
+/** A folder's own labels and flags come back from `getFolder`; this is only
+ *  the part it inherits from its ancestors — DESIGN.md §2's "inherited
+ *  greyed, manual solid" rule, applied to a folder's own band the same way
+ *  it already applies to an item's details. */
+export function folderInheritedTags(folderId: number): Promise<EffectiveTag[]> {
+  return invoke<EffectiveTag[]>("folder_inherited_tags", { folderId });
+}
+
 export function addItemTag(
   itemId: number,
   key: string | null,

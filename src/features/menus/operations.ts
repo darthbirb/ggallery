@@ -302,7 +302,7 @@ export function buildOperations(deps: Deps): Operations {
         await ipc.setFolderLabel(folderId, key, value);
         library.refreshFolders();
       } catch (err) {
-        fail(toasts, "Could not save the field", err);
+        fail(toasts, "Could not save the label", err);
       }
     },
 

@@ -39,16 +39,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Chip } from "../../components/Chip";
 import { ContextMenu, DropdownMenu, MenuItem, MenuLabel } from "../../components/Menu";
 import { Tooltip } from "../../components/Tooltip";
-import { IconButton } from "../../components/ui/button";
-import { Checkbox } from "../../components/ui/checkbox";
-import { fieldClassName, Input, PillInput } from "../../components/ui/input";
-import { Label } from "../../components/ui/label";
+import { Button, IconButton } from "../../components/ui/button";
+import { fieldClassName, Input } from "../../components/ui/input";
 import { Separator } from "../../components/ui/separator";
 import { Slider } from "../../components/ui/slider";
 import { formatCount, formatTimeAgo } from "../../lib/format";
 import * as ipc from "../../lib/ipc";
 import type {
   ArchetypeInfo,
+  EffectiveTag,
   FolderDetail,
   FolderNode,
   FolderStatusDef,
@@ -100,16 +99,23 @@ export function FolderBand({
 }: FolderBandProps) {
   const ops = useOperations();
   const [detail, setDetail] = useState<FolderDetail | null>(null);
+  const [inherited, setInherited] = useState<EffectiveTag[]>([]);
 
   const refresh = useCallback(async () => {
     if (!folder) {
       setDetail(null);
+      setInherited([]);
       return;
     }
     try {
       setDetail(await ipc.getFolder(folder.id));
     } catch {
       setDetail(null);
+    }
+    try {
+      setInherited(await ipc.folderInheritedTags(folder.id));
+    } catch {
+      setInherited([]);
     }
   }, [folder]);
 
@@ -179,14 +185,19 @@ export function FolderBand({
       <span className="ml-auto flex shrink-0 items-center gap-2">
         {folder && (
           <>
-            <Label htmlFor="this-folder-only" className="gap-2">
-              <Checkbox
-                id="this-folder-only"
-                checked={!recursive}
-                onCheckedChange={(checked) => onRecursiveChange(!checked)}
-              />
-              this folder only
-            </Label>
+            <Tooltip
+              label={recursive ? "Showing everything below — click to scope to here" : "Scoped to here — click to include everything below"}
+              side="bottom"
+            >
+              <Button
+                size="sm"
+                aria-pressed={!recursive}
+                active={!recursive}
+                onClick={() => onRecursiveChange(!recursive)}
+              >
+                {recursive ? "All items" : "Here only"}
+              </Button>
+            </Tooltip>
             <Separator />
           </>
         )}
@@ -253,6 +264,7 @@ export function FolderBand({
           <div className="min-w-0 flex-1">
             <ChipRow
               detail={detail}
+              inherited={inherited}
               onSetLabel={async (key, value) => {
                 await ops.setFolderLabel(folder.id, key, value);
                 void refresh();
@@ -378,25 +390,40 @@ function Cover({
  *  DESIGN.md §2 asks for, one flowing block instead of two separate ones.
  *  They still read as different kinds of things: a field is structured
  *  key/value data, so `FieldChip` is rectangular and two-toned; a flag is
- *  just a word, so it keeps `Chip`'s round pill. */
+ *  just a word, so it keeps `Chip`'s round pill. **Adding either one is the
+ *  same gesture** — a dashed ＋ button that is replaced in place by an
+ *  inline input (or, for a label, two), committed on Enter or on clicking
+ *  away, cancelled on Escape, and then the button returns. A label and a
+ *  tag differ in shape because their data does; the interaction does not. */
 function ChipRow({
   detail,
+  inherited,
   onSetLabel,
   onAddFlag,
   onRemoveTag,
 }: {
   detail: FolderDetail | null;
+  inherited: EffectiveTag[];
   onSetLabel: (key: string, value: string) => void;
   onAddFlag: (value: string) => void;
   onRemoveTag: (tagId: number) => void;
 }) {
-  const [addingField, setAddingField] = useState(false);
-  const [tagValue, setTagValue] = useState("");
+  const [addingLabel, setAddingLabel] = useState(false);
+  const [addingTag, setAddingTag] = useState(false);
   const fields = detail?.fields ?? [];
   const flags = detail?.flags ?? [];
+  // Inherited before manual, same rule the item details panel follows —
+  // the fixed, structural part reads first, ahead of whatever this folder
+  // adds on top of it.
+  const inheritedFields = inherited.filter((tag) => tag.key !== null);
+  const inheritedFlags = inherited.filter((tag) => tag.key === null);
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
+      {inheritedFields.map((tag) => (
+        <FieldChip key={`inherited-${tag.tagId}`} fieldKey={tag.key!} value={tag.value} muted />
+      ))}
+
       {fields.map((field) => (
         <FieldChip
           key={field.key}
@@ -404,6 +431,12 @@ function ChipRow({
           value={field.value}
           onCommit={(value) => value !== field.value && onSetLabel(field.key, value)}
         />
+      ))}
+
+      {inheritedFlags.map((tag) => (
+        <Chip key={`inherited-${tag.tagId}`} muted>
+          {tag.value}
+        </Chip>
       ))}
 
       {flags.map((flag) => (
@@ -416,62 +449,137 @@ function ChipRow({
         </Chip>
       ))}
 
-      {addingField ? (
-        <NewFieldInput
-          onCancel={() => setAddingField(false)}
-          onCommit={(key) => {
-            setAddingField(false);
-            // A label with an empty value still exists and still renders —
-            // that is what makes a waiting field visible.
-            onSetLabel(key, "");
+      {addingLabel ? (
+        <NewLabelInput
+          onCancel={() => setAddingLabel(false)}
+          onCommit={(key, value) => {
+            setAddingLabel(false);
+            onSetLabel(key, value);
           }}
         />
       ) : (
-        <button
-          type="button"
-          onClick={() => setAddingField(true)}
-          className="inline-flex h-7 shrink-0 items-center rounded-[4px] border border-dashed border-line px-2.5 text-[13px] text-fg-dim hover:border-fg-dim hover:text-fg"
-        >
-          ＋ add field
-        </button>
+        <AddChipButton label="＋ add label" onClick={() => setAddingLabel(true)} />
       )}
 
-      <PillInput
-        value={tagValue}
-        placeholder="＋ add tag"
-        aria-label="Add a tag to this folder"
-        onChange={(event) => setTagValue(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && tagValue.trim()) {
-            onAddFlag(tagValue.trim());
-            setTagValue("");
-          }
-        }}
-      />
+      {addingTag ? (
+        <NewFlagInput
+          onCancel={() => setAddingTag(false)}
+          onCommit={(value) => {
+            setAddingTag(false);
+            onAddFlag(value);
+          }}
+        />
+      ) : (
+        <AddChipButton label="＋ add tag" onClick={() => setAddingTag(true)} />
+      )}
     </div>
   );
 }
 
-function NewFieldInput({
+/** The collapsed state of either add control — one shape for both, so the
+ *  only difference between adding a label and adding a tag is what opens
+ *  when it is clicked. */
+function AddChipButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex h-7 shrink-0 items-center rounded-[4px] border border-dashed border-line px-2.5 text-[13px] text-fg-dim hover:border-fg-dim hover:text-fg"
+    >
+      {label}
+    </button>
+  );
+}
+
+/** Both halves of a new label, side by side — key then value, so it can be
+ *  added in one motion instead of creating an empty field and then hunting
+ *  for it in the row to give it a value. Enter in the key field moves to the
+ *  value field rather than committing, since a label with no value typed yet
+ *  is not necessarily a finished one — Enter *there*, or clicking away from
+ *  both fields, commits (a still-empty value is fine: a label with an empty
+ *  value still exists and still renders). Escape from either cancels the
+ *  whole thing. */
+function NewLabelInput({
   onCommit,
   onCancel,
 }: {
-  onCommit: (key: string) => void;
+  onCommit: (key: string, value: string) => void;
   onCancel: () => void;
 }) {
   const [key, setKey] = useState("");
+  const [value, setValue] = useState("");
+  const containerRef = useRef<HTMLSpanElement>(null);
+  const valueRef = useRef<HTMLInputElement>(null);
+
+  const cancel = () => {
+    setKey("");
+    setValue("");
+    onCancel();
+  };
+
+  return (
+    <span
+      ref={containerRef}
+      onBlur={(event) => {
+        if (!containerRef.current?.contains(event.relatedTarget as Node | null)) {
+          key.trim() ? onCommit(key.trim(), value.trim()) : onCancel();
+        }
+      }}
+      className="inline-flex h-7 shrink-0 items-stretch overflow-hidden rounded-[4px] border border-accent-d text-[13px]"
+    >
+      <input
+        autoFocus
+        value={key}
+        placeholder="label"
+        aria-label="New label name"
+        onChange={(event) => setKey(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            valueRef.current?.focus();
+          }
+          if (event.key === "Escape") cancel();
+        }}
+        className="h-full w-20 border-r border-line-soft bg-ground px-2 text-fg placeholder:text-fg-dim focus:outline-none"
+      />
+      <input
+        ref={valueRef}
+        value={value}
+        placeholder="value"
+        aria-label="New label value"
+        onChange={(event) => setValue(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+          if (event.key === "Escape") cancel();
+        }}
+        className="h-full w-20 bg-raised px-2 text-fg placeholder:text-fg-dim focus:outline-none"
+      />
+    </span>
+  );
+}
+
+/** The tag half of the same pattern — one field, since a flag is only ever
+ *  a value. */
+function NewFlagInput({
+  onCommit,
+  onCancel,
+}: {
+  onCommit: (value: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState("");
   return (
     <input
       autoFocus
-      value={key}
-      placeholder="field name"
-      aria-label="New field name"
-      onChange={(event) => setKey(event.target.value)}
-      onBlur={() => (key.trim() ? onCommit(key.trim()) : onCancel())}
+      value={value}
+      placeholder="tag"
+      aria-label="New tag"
+      onChange={(event) => setValue(event.target.value)}
+      onBlur={() => (value.trim() ? onCommit(value.trim()) : onCancel())}
       onKeyDown={(event) => {
         if (event.key === "Enter") event.currentTarget.blur();
         if (event.key === "Escape") {
-          setKey("");
+          setValue("");
           onCancel();
         }
       }}
@@ -483,23 +591,43 @@ function NewFieldInput({
 /** A labelled field: two segments — the key, then the value, editable in
  *  place on click. Rectangular and two-toned rather than a pill, so a
  *  structured key/value field never reads as the same kind of thing as a
- *  plain flag; flags keep the round shape, fields do not. */
+ *  plain flag; flags keep the round shape, fields do not.
+ *
+ *  `muted` renders an inherited field: greyed and read-only, since it comes
+ *  from an ancestor folder and that is where it changes — the same rule
+ *  `Details.tsx`'s `ItemFieldChip` already applies to an item's inherited
+ *  labels. */
 function FieldChip({
   fieldKey,
   value,
+  muted,
   onCommit,
 }: {
   fieldKey: string;
   value: string;
-  onCommit: (value: string) => void;
+  muted?: boolean;
+  onCommit?: (value: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
 
+  if (muted) {
+    return (
+      <span className="inline-flex h-7 max-w-full shrink-0 items-stretch overflow-hidden rounded-[4px] border border-line-soft text-[13px]">
+        <span className="flex shrink-0 items-center border-r border-line-soft bg-ground px-2 text-fg-dim">
+          {fieldKey}
+        </span>
+        <span className="flex min-w-0 items-center truncate bg-ground px-2 text-fg-dim">
+          {value || <span className="text-fg-dim">—</span>}
+        </span>
+      </span>
+    );
+  }
+
   if (editing) {
     return (
       <span className="inline-flex h-7 shrink-0 items-stretch overflow-hidden rounded-[4px] border border-accent-d text-[13px]">
-        <span className="flex shrink-0 items-center bg-ground px-2 text-fg-dim">
+        <span className="flex shrink-0 items-center border-r border-line-soft bg-ground px-2 text-fg-dim">
           {fieldKey}
         </span>
         <Input
@@ -509,7 +637,7 @@ function FieldChip({
           onChange={(event) => setDraft(event.target.value)}
           onBlur={() => {
             setEditing(false);
-            onCommit(draft);
+            onCommit?.(draft);
           }}
           onKeyDown={(event) => {
             if (event.key === "Enter") event.currentTarget.blur();
@@ -533,7 +661,7 @@ function FieldChip({
       }}
       className="inline-flex h-7 max-w-full shrink-0 items-stretch overflow-hidden rounded-[4px] border border-line text-[13px] hover:border-fg-dim"
     >
-      <span className="flex shrink-0 items-center bg-ground px-2 text-fg-dim">
+      <span className="flex shrink-0 items-center border-r border-line-soft bg-ground px-2 text-fg-dim">
         {fieldKey}
       </span>
       <span className="flex min-w-0 items-center truncate bg-raised px-2 text-fg-mid">

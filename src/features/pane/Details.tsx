@@ -293,7 +293,9 @@ function ItemFieldChip({
         muted ? "border-line-soft" : "border-line",
       )}
     >
-      <span className="flex shrink-0 items-center bg-ground px-2 text-fg-dim">{label}</span>
+      <span className="flex shrink-0 items-center border-r border-line-soft bg-ground px-2 text-fg-dim">
+        {label}
+      </span>
       <span
         className={cn(
           "flex min-w-0 items-center truncate px-2",

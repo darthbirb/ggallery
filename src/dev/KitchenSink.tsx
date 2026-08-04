@@ -218,7 +218,7 @@ export function KitchenSink() {
         <Section title="Folder band — expanded, empty vs. the full case">
           <p className="text-fg-dim">
             No archetype at all is the default state — cover, counts and one
-            ＋ add field control, ~140px. The full case (five fields, eight
+            ＋ add label control, ~140px. The full case (five labels, eight
             tags, a real note) is what it grows into, never what it starts as.
           </p>
           <div className="flex max-w-[720px] flex-col gap-4">
@@ -480,10 +480,7 @@ function BandRow({
       <span className="ml-auto flex shrink-0 items-center gap-2">
         {thisFolderOnly && (
           <>
-            <Label className="gap-2">
-              <Checkbox />
-              this folder only
-            </Label>
+            <Button size="sm">All items</Button>
             <Separator />
           </>
         )}
@@ -532,7 +529,9 @@ function BandExpanded({
               key={key}
               className="inline-flex h-7 shrink-0 items-stretch overflow-hidden rounded-[4px] border border-line text-[13px]"
             >
-              <span className="flex items-center bg-ground px-2 text-fg-dim">{key}</span>
+              <span className="flex items-center border-r border-line-soft bg-ground px-2 text-fg-dim">
+                {key}
+              </span>
               <span className="flex items-center bg-raised px-2 text-fg-mid">
                 {value || <span className="text-fg-dim">—</span>}
               </span>
@@ -541,10 +540,14 @@ function BandExpanded({
           {tags.map((tag) => (
             <Chip key={tag}>{tag}</Chip>
           ))}
+          {/* Adding either one is the same gesture — a dashed ＋ button that
+              is replaced in place by an inline input on click. */}
           <span className="inline-flex h-7 shrink-0 items-center rounded-[4px] border border-dashed border-line px-2.5 text-[13px] text-fg-dim">
-            ＋ add field
+            ＋ add label
           </span>
-          <PillInput placeholder="＋ tag" readOnly />
+          <span className="inline-flex h-7 shrink-0 items-center rounded-[4px] border border-dashed border-line px-2.5 text-[13px] text-fg-dim">
+            ＋ add tag
+          </span>
         </div>
 
         <div className="mt-2.5 h-8 truncate rounded-[4px] px-1.5 leading-8 text-fg-mid">

@@ -45,6 +45,7 @@ function detail(over: Partial<FolderDetail> = {}): FolderDetail {
 beforeEach(() => {
   mocked.errorMessage.mockImplementation((err: unknown) => String(err));
   mocked.getFolder.mockResolvedValue(detail());
+  mocked.folderInheritedTags.mockResolvedValue([]);
   mocked.assetUrl.mockReturnValue("asset://thumb");
   mocked.setFolderStatus.mockResolvedValue(undefined);
   mocked.setFolderLabel.mockResolvedValue(undefined);
@@ -109,13 +110,25 @@ describe("collapsed", () => {
     expect(onExpandedChange).toHaveBeenCalledWith(true);
   });
 
-  it("carries the tile-size and this-folder-only controls, moved from the window bar", async () => {
+  it("carries the tile-size and here-only/all-items toggle, moved from the window bar", async () => {
     const { onRecursiveChange } = renderBand();
     expect(screen.getByLabelText("Tile size")).toBeInTheDocument();
 
-    const checkbox = screen.getByRole("checkbox", { name: /this folder only/ });
-    await userEvent.click(checkbox);
+    // `recursive` starts true — "All items" is the current state, and
+    // clicking it scopes down to here only.
+    const toggle = screen.getByRole("button", { name: "All items" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(toggle);
     expect(onRecursiveChange).toHaveBeenCalledWith(false);
+  });
+
+  it("reads 'Here only' and stays pressed once scoped to just this folder", async () => {
+    const { onRecursiveChange } = renderBand({ recursive: false });
+
+    const toggle = screen.getByRole("button", { name: "Here only" });
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(toggle);
+    expect(onRecursiveChange).toHaveBeenCalledWith(true);
   });
 
   it("renders a plain label with no chevron or grid controls for a non-folder scope", () => {
@@ -123,17 +136,17 @@ describe("collapsed", () => {
     expect(screen.getByText("Everything")).toBeInTheDocument();
     expect(screen.getByText(/42 items/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Expand folder details/ })).toBeNull();
-    expect(screen.queryByRole("checkbox", { name: /this folder only/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /All items|Here only/ })).toBeNull();
     // Tile size still applies to every scope.
     expect(screen.getByLabelText("Tile size")).toBeInTheDocument();
   });
 });
 
 describe("expanded, with no archetype", () => {
-  it("shows the cover, the counts once and an add-field control — not blank labels", async () => {
+  it("shows the cover, the counts once and an add-label control — not blank labels", async () => {
     renderBand({ expanded: true });
 
-    expect(await screen.findByText(/add field/)).toBeInTheDocument();
+    expect(await screen.findByText(/add label/)).toBeInTheDocument();
     expect(screen.getByLabelText("Folder notes")).toBeInTheDocument();
     // The header's "4 here · 12 below · 2 subfolders" is the only counts
     // line — nothing in the expanded panel repeats it.
@@ -142,15 +155,44 @@ describe("expanded, with no archetype", () => {
     expect(screen.queryByText(/Apply an archetype/)).toBeNull();
   });
 
-  it("adds a one-off field as a label with an empty value", async () => {
+  it("adds a one-off label with both its name and value in one motion", async () => {
     renderBand({ expanded: true });
 
-    await userEvent.click(await screen.findByText(/add field/));
-    await userEvent.type(screen.getByLabelText("New field name"), "city{Enter}");
+    await userEvent.click(await screen.findByText(/add label/));
+    // Enter in the name field moves to the value field rather than
+    // committing — a label with no value typed yet is not necessarily done.
+    await userEvent.type(screen.getByLabelText("New label name"), "city{Enter}");
+    await userEvent.type(screen.getByLabelText("New label value"), "Lisbon{Enter}");
+
+    await waitFor(() =>
+      expect(mocked.setFolderLabel).toHaveBeenCalledWith(1, "city", "Lisbon"),
+    );
+  });
+
+  it("still allows a label with an empty value — it exists and renders anyway", async () => {
+    renderBand({ expanded: true });
+
+    await userEvent.click(await screen.findByText(/add label/));
+    await userEvent.type(screen.getByLabelText("New label name"), "city{Enter}{Enter}");
 
     await waitFor(() =>
       expect(mocked.setFolderLabel).toHaveBeenCalledWith(1, "city", ""),
     );
+  });
+
+  it("shows a parent folder's labels and flags, greyed and ahead of this folder's own", async () => {
+    mocked.folderInheritedTags.mockResolvedValue([
+      { tagId: 9, key: null, value: "People", originId: 100 },
+      { tagId: 10, key: "country", value: "Portugal", originId: 100 },
+    ]);
+    renderBand({ expanded: true });
+
+    expect(await screen.findByText("People")).toBeInTheDocument();
+    expect(await screen.findByText("Portugal")).toBeInTheDocument();
+    // Inherited, not this folder's own — there is nothing to remove or
+    // rename here, so no aria-label offers to.
+    expect(screen.queryByRole("button", { name: "Remove People" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /country/ })).toBeNull();
   });
 
   it("edits an archetype field in place, as a chip beside the tags", async () => {
@@ -174,10 +216,8 @@ describe("expanded, with no archetype", () => {
   it("adds a flag to the folder's tag set", async () => {
     renderBand({ expanded: true });
 
-    await userEvent.type(
-      await screen.findByLabelText("Add a tag to this folder"),
-      "summer{Enter}",
-    );
+    await userEvent.click(await screen.findByText(/add tag/));
+    await userEvent.type(screen.getByLabelText("New tag"), "summer{Enter}");
 
     await waitFor(() => expect(mocked.addFolderFlag).toHaveBeenCalledWith(1, "summer"));
   });

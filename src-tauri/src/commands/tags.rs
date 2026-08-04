@@ -25,6 +25,19 @@ pub async fn item_effective_tags(
 }
 
 #[tauri::command]
+pub async fn folder_inherited_tags(
+    state: State<'_, AppState>,
+    folder_id: i64,
+) -> Result<Vec<EffectiveTag>> {
+    let library = state.library()?;
+    blocking(move || {
+        let conn = library.conn()?;
+        db::tags::folder_inherited_tags(&conn, folder_id)
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn add_item_tag(
     state: State<'_, AppState>,
     item_id: i64,

@@ -287,6 +287,37 @@ pub fn item_effective_tags(conn: &Connection, item_id: i64) -> Result<Vec<Effect
     Ok(rows)
 }
 
+/// A folder's *inherited* labels and flags — every ancestor's `folder_tag`
+/// rows, minus this folder's own (already surfaced by `get_detail`'s
+/// `fields`/`flags`). DESIGN.md §2's "inherited greyed, manual solid" rule
+/// applies to a folder's own band the same way it already does to an item's
+/// details.
+///
+/// Live, not cached: folder depth is small and this is read only when a band
+/// expands, unlike `item_effective_tag`, which backs every grid query and so
+/// has to be materialised.
+pub fn folder_inherited_tags(conn: &Connection, folder_id: i64) -> Result<Vec<EffectiveTag>> {
+    let ancestry = resolve_ancestor_tags(conn, folder_id)?;
+    let mut rows = Vec::with_capacity(ancestry.len());
+    for (tag_id, origin_id) in ancestry {
+        if origin_id == folder_id {
+            continue;
+        }
+        let (key, value): (Option<String>, String) = conn.query_row(
+            "SELECT key, value FROM tag WHERE id = ?1",
+            params![tag_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?;
+        rows.push(EffectiveTag {
+            tag_id,
+            key,
+            value,
+            origin_id: Some(origin_id),
+        });
+    }
+    Ok(rows)
+}
+
 pub fn add_item_tag(conn: &Connection, item_id: i64, key: Option<&str>, value: &str) -> Result<()> {
     let tag_id = get_or_create_tag(conn, key, value)?;
     conn.execute(
@@ -526,6 +557,34 @@ mod tests {
         values.sort();
         // People, Ana (titles), family, beach (flags).
         assert_eq!(values, vec!["Ana", "People", "beach", "family"]);
+    }
+
+    #[test]
+    fn a_subfolder_inherits_its_ancestors_labels_and_flags_but_not_its_own() {
+        let conn = memory_conn();
+        let people = folder(&conn, "people", "People");
+        let ana = folder(&conn, "people/ana", "Ana");
+        flag(&conn, people, "family", "manual");
+        crate::db::folders::set_label(&conn, people, "country", "Portugal").unwrap();
+        flag(&conn, ana, "beach", "manual");
+
+        let inherited = folder_inherited_tags(&conn, ana).unwrap();
+
+        // Ana's own "beach" flag is not inherited from itself.
+        assert!(!inherited.iter().any(|t| t.value == "beach"));
+        // People's title, its manual flag and its label all come through,
+        // each carrying People's id as the origin.
+        assert!(inherited
+            .iter()
+            .any(|t| t.key.is_none() && t.value == "People" && t.origin_id == Some(people)));
+        assert!(inherited
+            .iter()
+            .any(|t| t.key.is_none() && t.value == "family" && t.origin_id == Some(people)));
+        assert!(inherited
+            .iter()
+            .any(|t| t.key.as_deref() == Some("country")
+                && t.value == "Portugal"
+                && t.origin_id == Some(people)));
     }
 
     #[test]

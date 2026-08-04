@@ -22,6 +22,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (3, include_str!("migrations/003_drop_seeded_archetypes.sql")),
     (4, include_str!("migrations/004_folder_soft_delete.sql")),
     (5, include_str!("migrations/005_drop_archetype_field_type.sql")),
+    (6, include_str!("migrations/006_drop_root_title_tag.sql")),
 ];
 
 /// Open a connection with the pragmas the whole app assumes. Every thread that

@@ -73,11 +73,20 @@ pub fn upsert(conn: &Connection, rel_path: &str, title: &str) -> Result<i64> {
     )?;
     let id = conn.last_insert_rowid();
     // Every folder's title is a tag from the moment it exists — see
-    // `db::tags::sync_title_tag`. No retag job is enqueued here: a folder
-    // the walker just created has zero items under it at this instant
-    // (directories are visited before their contents), so there is nothing
-    // yet for a rebuild to do.
-    crate::db::tags::sync_title_tag(conn, id, title)?;
+    // `db::tags::sync_title_tag` — except the root (`rel_path` empty, per
+    // `fs::paths::parent_rel`'s own doc comment: "`None` for the root folder
+    // itself"). DESIGN.md's "Navigation roots" is explicit that the root is
+    // not a folder in the interface, so auto-tagging it would put the
+    // library directory's own name on every single item. `parent_id` is not
+    // the right signal here — it can legitimately be `None` for a real
+    // folder upserted before its own ancestors exist. No retag job is
+    // enqueued for the non-root case either: a folder the walker just
+    // created has zero items under it at this instant (directories are
+    // visited before their contents), so there is nothing yet for a
+    // rebuild to do.
+    if !rel_path.is_empty() {
+        crate::db::tags::sync_title_tag(conn, id, title)?;
+    }
     Ok(id)
 }
 
@@ -1105,6 +1114,35 @@ mod folder_metadata_tests {
         add_archetype_field(conn, id, "instagram", false).unwrap();
         add_archetype_field(conn, id, "tiktok", false).unwrap();
         id
+    }
+
+    #[test]
+    fn the_root_folder_gets_no_title_tag() {
+        let conn = memory_conn();
+        // rel_path "" with no parent segment is how the walker creates the
+        // library root — see `fs::walk::root_title`.
+        let root = upsert(&conn, "", "Pictures").unwrap();
+        let ana = upsert(&conn, "ana", "Ana").unwrap();
+
+        let root_tags = crate::db::tags::resolve_ancestor_tags(&conn, root).unwrap();
+        assert!(
+            root_tags.is_empty(),
+            "the root folder should contribute no tags of its own — DESIGN.md's \
+             'Navigation roots' says it is not a folder in the interface"
+        );
+
+        // A real folder still gets its title tag as normal.
+        let ana_tags = crate::db::tags::resolve_ancestor_tags(&conn, ana).unwrap();
+        let tag_values: Vec<String> = ana_tags
+            .iter()
+            .map(|&(tag_id, _)| {
+                conn.query_row("SELECT value FROM tag WHERE id = ?1", params![tag_id], |r| {
+                    r.get(0)
+                })
+                .unwrap()
+            })
+            .collect();
+        assert!(tag_values.contains(&"Ana".to_string()));
     }
 
     #[test]

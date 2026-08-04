@@ -251,13 +251,13 @@ export function ArchetypesSection({ onChanged }: ArchetypesSectionProps) {
               <div className="flex items-center gap-2">
                 <Input
                   value={newFieldKey}
-                  aria-label="New field key"
+                  aria-label="New label key"
                   onChange={(event) => setNewFieldKey(event.target.value)}
                   onKeyDown={(event) => event.key === "Enter" && askAddField()}
-                  placeholder="field key"
+                  placeholder="label key"
                   className="flex-1"
                 />
-                <Button onClick={askAddField}>Add field</Button>
+                <Button onClick={askAddField}>Add label</Button>
               </div>
             </div>
           )}
@@ -281,7 +281,7 @@ export function ArchetypesSection({ onChanged }: ArchetypesSectionProps) {
         >
           <p className="text-fg-mid">
             {addingField.count === 1 ? "1 folder uses" : `${addingField.count} folders use`}{" "}
-            this archetype. The field can be created empty on all of them now, or
+            this archetype. The label can be created empty on all of them now, or
             only apply to folders given the archetype later.
           </p>
         </Dialog>
