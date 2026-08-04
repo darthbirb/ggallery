@@ -17,7 +17,13 @@ use crate::error::{AppError, Result};
 
 /// Get or create the shared `tag` row for `(key, value)`. `key` is `None`
 /// for a flag. `IS` rather than `=` so `NULL` compares correctly.
+///
+/// Case-folded on the way in (PLAN.md decision 31) — every tag/label/flag
+/// creation funnels through here, which is what makes this the one place
+/// that needs to fold rather than each of its callers.
 pub fn get_or_create_tag(conn: &Connection, key: Option<&str>, value: &str) -> Result<i64> {
+    let key = key.map(crate::db::fold);
+    let value = crate::db::fold(value);
     if let Some(id) = conn
         .query_row(
             "SELECT id FROM tag WHERE key IS ?1 AND value = ?2",
@@ -379,6 +385,10 @@ pub fn list_tags(conn: &Connection, filter: Option<&str>) -> Result<Vec<TagSumma
 /// `folder_tag`/`item_tag` all reference `tag_id`, not a copy of the text,
 /// so every place the tag renders picks the new value up through the join.
 pub fn rename_tag(conn: &Connection, tag_id: i64, new_value: &str) -> Result<()> {
+    // Folded on the way in, same as `get_or_create_tag` — this is the one
+    // other place a tag's text is written (PLAN.md decision 31).
+    let new_value = crate::db::fold(new_value);
+
     let (key, old_value): (Option<String>, String) = conn
         .query_row(
             "SELECT key, value FROM tag WHERE id = ?1",
@@ -401,7 +411,7 @@ pub fn rename_tag(conn: &Connection, tag_id: i64, new_value: &str) -> Result<()>
         "UPDATE tag SET value = ?1 WHERE id = ?2",
         params![new_value, tag_id],
     )?;
-    crate::db::journal::record_tag_rename(conn, tag_id, &old_value, new_value)?;
+    crate::db::journal::record_tag_rename(conn, tag_id, &old_value, &new_value)?;
     Ok(())
 }
 
@@ -519,7 +529,8 @@ mod tests {
             .unwrap()
             .collect::<rusqlite::Result<_>>()
             .unwrap();
-        assert_eq!(tags, vec!["Ana".to_string()]);
+        // Folded on the way in — PLAN.md decision 31.
+        assert_eq!(tags, vec!["ana".to_string()]);
     }
 
     #[test]
@@ -535,7 +546,7 @@ mod tests {
             .unwrap()
             .collect::<rusqlite::Result<_>>()
             .unwrap();
-        assert_eq!(tags, vec!["Anastasia".to_string()]);
+        assert_eq!(tags, vec!["anastasia".to_string()]);
     }
 
     #[test]
@@ -555,8 +566,9 @@ mod tests {
             .map(|t| t.value)
             .collect();
         values.sort();
-        // People, Ana (titles), family, beach (flags).
-        assert_eq!(values, vec!["Ana", "People", "beach", "family"]);
+        // people, ana (titles), family, beach (flags) — folded on the way in
+        // (PLAN.md decision 31), alphabetical once sorted.
+        assert_eq!(values, vec!["ana", "beach", "family", "people"]);
     }
 
     #[test]
@@ -573,17 +585,18 @@ mod tests {
         // Ana's own "beach" flag is not inherited from itself.
         assert!(!inherited.iter().any(|t| t.value == "beach"));
         // People's title, its manual flag and its label all come through,
-        // each carrying People's id as the origin.
+        // each carrying People's id as the origin — folded on the way in
+        // (PLAN.md decision 31).
         assert!(inherited
             .iter()
-            .any(|t| t.key.is_none() && t.value == "People" && t.origin_id == Some(people)));
+            .any(|t| t.key.is_none() && t.value == "people" && t.origin_id == Some(people)));
         assert!(inherited
             .iter()
             .any(|t| t.key.is_none() && t.value == "family" && t.origin_id == Some(people)));
         assert!(inherited
             .iter()
             .any(|t| t.key.as_deref() == Some("country")
-                && t.value == "Portugal"
+                && t.value == "portugal"
                 && t.origin_id == Some(people)));
     }
 

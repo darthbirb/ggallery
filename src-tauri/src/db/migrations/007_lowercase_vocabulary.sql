@@ -1,0 +1,17 @@
+-- PLAN.md decision 31: folder titles, tag/label keys, tag/label values and
+-- flags are lowercase, folded on the way in. Every write path was updated to
+-- fold new text from here on (db::tags::get_or_create_tag,
+-- db::folders::{upsert,create_record,set_title_unjournalled}).
+--
+-- Folding what already existed is deliberately NOT done here. A collision
+-- created by folding — "Beach" and "beach" both already present, or two
+-- sibling folders "Ana" and "ana" — needs real application logic to merge:
+-- deciding which row wins, repointing three tables' worth of foreign keys
+-- around composite primary keys, and, for a folder collision, physically
+-- moving files between two real directories on disk. None of that is safely
+-- expressible as a batch of SQL statements run once inside a transaction.
+--
+-- That work is `fs::lowercase_migration::run`, called once from
+-- `Library::open` right after `db::migrate`, gated by its own `setting`
+-- marker rather than `schema_version`. This file exists so the migration
+-- numbering still has an entry for decision 31 — nothing left to do in SQL.

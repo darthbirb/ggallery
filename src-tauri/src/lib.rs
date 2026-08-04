@@ -43,6 +43,11 @@ pub struct Library {
     /// directly so `close(&self)` — called through a shared `Arc<Library>` —
     /// can take ownership of it and call its `&mut self` `stop`.
     watch: Mutex<Option<Watch>>,
+    /// What `fs::lowercase_migration::run` merged on the way in, if this
+    /// `open` is the one that ran it — `describe` (`commands/library.rs`)
+    /// takes it exactly once, so it is shown once, the same as `verifyIssue`
+    /// (docs/DESIGN.md §M2.5d).
+    lowercase_report: Mutex<Option<fs::lowercase_migration::LowercaseMergeReport>>,
     _lock: LockFile,
 }
 
@@ -66,6 +71,12 @@ impl Library {
         db::migrate(&mut conn)?;
         // Jobs abandoned by a crash go back in the queue.
         db::jobs::requeue_running(&conn)?;
+
+        // PLAN.md decision 31 — folds what this library already had before
+        // every write path started folding on its own, merging whatever
+        // that fold collides with. Before the watcher starts, so nothing it
+        // moves gets fed back to itself.
+        let lowercase_report = fs::lowercase_migration::run(&paths, &conn)?;
 
         // Only worth reading while a library is still mid-first-import: once
         // `imported_at` is set, every row the walker can still create fresh
@@ -112,6 +123,7 @@ impl Library {
             conn: Mutex::new(conn),
             queue,
             watch: Mutex::new(Some(watch)),
+            lowercase_report: Mutex::new(Some(lowercase_report)),
             _lock: lock,
         })
     }
@@ -120,6 +132,13 @@ impl Library {
         self.conn
             .lock()
             .map_err(|_| AppError::invalid("database connection is poisoned"))
+    }
+
+    /// Consumes the report from this `open` — `None` on every call after the
+    /// first, and always `None` for a library that was already open and is
+    /// merely being `describe`d again.
+    pub fn take_lowercase_report(&self) -> Option<fs::lowercase_migration::LowercaseMergeReport> {
+        self.lowercase_report.lock().ok().and_then(|mut guard| guard.take())
     }
 
     pub fn queue(&self) -> &JobQueue {

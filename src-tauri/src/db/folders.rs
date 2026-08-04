@@ -54,13 +54,15 @@ pub fn rel_for(conn: &Connection, id: i64) -> Result<Option<String>> {
         .optional()?)
 }
 
-/// Insert the folder if it is new, returning its id either way. `title` is the
-/// on-disk directory name with its original casing — `rel_path` is normalised,
-/// so this is the only place the display name survives.
+/// Insert the folder if it is new, returning its id either way. `title` is
+/// case-folded on the way in (PLAN.md decision 31) — this is the walker's
+/// entry point, so a directory named `Beach` on disk still ends up titled
+/// `beach`, the same as any other write path.
 pub fn upsert(conn: &Connection, rel_path: &str, title: &str) -> Result<i64> {
     if let Some(id) = id_for_rel(conn, rel_path)? {
         return Ok(id);
     }
+    let title = crate::db::fold(title);
 
     let parent_id = match parent_rel(rel_path) {
         Some(parent) => id_for_rel(conn, &parent)?,
@@ -85,7 +87,7 @@ pub fn upsert(conn: &Connection, rel_path: &str, title: &str) -> Result<i64> {
     // visited before their contents), so there is nothing yet for a
     // rebuild to do.
     if !rel_path.is_empty() {
-        crate::db::tags::sync_title_tag(conn, id, title)?;
+        crate::db::tags::sync_title_tag(conn, id, &title)?;
     }
     Ok(id)
 }
@@ -448,14 +450,18 @@ fn subtree_totals(conn: &Connection, rel_path: &str) -> Result<(i64, i64, i64)> 
 /// the directory name into one thing) calls this first and only then decides
 /// whether the sanitised result means the directory needs to follow.
 pub fn set_title(conn: &Connection, id: i64, title: &str, batch_id: &str) -> Result<()> {
+    // Folded before comparing, not just before storing — otherwise retyping
+    // "Ana" over an already-folded "ana" reads as a real change and journals
+    // a rename that did nothing (PLAN.md decision 31).
+    let title = crate::db::fold(title);
     let previous: String = conn.query_row(
         "SELECT title FROM folder WHERE id = ?1",
         params![id],
         |r| r.get(0),
     )?;
-    set_title_unjournalled(conn, id, title)?;
+    set_title_unjournalled(conn, id, &title)?;
     if previous != title {
-        crate::db::journal::record_folder_rename_title(conn, batch_id, id, &previous, title)?;
+        crate::db::journal::record_folder_rename_title(conn, batch_id, id, &previous, &title)?;
     }
     Ok(())
 }
@@ -463,11 +469,12 @@ pub fn set_title(conn: &Connection, id: i64, title: &str, batch_id: &str) -> Res
 /// The title change alone — no journal entry. `fs::undo` uses this to put a
 /// title back; a reversal is not itself an operation to reverse.
 pub fn set_title_unjournalled(conn: &Connection, id: i64, title: &str) -> Result<()> {
+    let title = crate::db::fold(title);
     conn.execute(
         "UPDATE folder SET title = ?1 WHERE id = ?2",
         params![title, id],
     )?;
-    crate::db::tags::sync_title_tag(conn, id, title)?;
+    crate::db::tags::sync_title_tag(conn, id, &title)?;
     enqueue_retag(conn, id)
 }
 
@@ -979,12 +986,13 @@ pub fn create_record(
             "a folder already exists at '{rel_path}'"
         )));
     }
+    let title = crate::db::fold(title);
     conn.execute(
         "INSERT INTO folder (rel_path, title, parent_id, created_at) VALUES (?1, ?2, ?3, ?4)",
         params![rel_path, title, parent_id, now()],
     )?;
     let id = conn.last_insert_rowid();
-    crate::db::tags::sync_title_tag(conn, id, title)?;
+    crate::db::tags::sync_title_tag(conn, id, &title)?;
     Ok(id)
 }
 
@@ -1142,7 +1150,7 @@ mod folder_metadata_tests {
                 .unwrap()
             })
             .collect();
-        assert!(tag_values.contains(&"Ana".to_string()));
+        assert!(tag_values.contains(&"ana".to_string()));
     }
 
     #[test]
@@ -1242,7 +1250,8 @@ mod folder_metadata_tests {
         set_label(&conn, ana, "city", "Lisbon").unwrap();
         let detail = get_detail(&conn, ana).unwrap().unwrap();
         let city = detail.fields.iter().find(|f| f.key == "city").unwrap();
-        assert_eq!(city.value, "Lisbon");
+        // Folded on the way in — PLAN.md decision 31.
+        assert_eq!(city.value, "lisbon");
 
         // With an archetype applied too, the one-off field still shows up
         // alongside the archetype's own fields rather than being crowded out.
@@ -1252,7 +1261,7 @@ mod folder_metadata_tests {
         assert!(detail.fields.iter().any(|f| f.key == "instagram"));
         assert!(detail.fields.iter().any(|f| f.key == "tiktok"));
         let city = detail.fields.iter().find(|f| f.key == "city").unwrap();
-        assert_eq!(city.value, "Lisbon");
+        assert_eq!(city.value, "lisbon");
     }
 
     #[test]
@@ -1273,7 +1282,7 @@ mod folder_metadata_tests {
         assert!(!detail.fields.iter().any(|f| f.key == "instagram"));
         assert!(!detail.fields.iter().any(|f| f.key == "tiktok"));
         let city = detail.fields.iter().find(|f| f.key == "city").unwrap();
-        assert_eq!(city.value, "Lisbon");
+        assert_eq!(city.value, "lisbon");
 
         let orphaned: i64 = conn
             .query_row(

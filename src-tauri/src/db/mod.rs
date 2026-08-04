@@ -23,6 +23,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (4, include_str!("migrations/004_folder_soft_delete.sql")),
     (5, include_str!("migrations/005_drop_archetype_field_type.sql")),
     (6, include_str!("migrations/006_drop_root_title_tag.sql")),
+    (7, include_str!("migrations/007_lowercase_vocabulary.sql")),
 ];
 
 /// Open a connection with the pragmas the whole app assumes. Every thread that
@@ -88,6 +89,16 @@ pub fn commit_batch(conn: &Connection) -> Result<()> {
 
 pub fn rollback_batch(conn: &Connection) {
     let _ = conn.execute_batch("ROLLBACK");
+}
+
+/// Case-folded on the way in — PLAN.md decision 31. One implementation,
+/// called from every place a folder title, a tag key, a tag value or a flag
+/// is written (`db::folders::{upsert,create_record,set_title_unjournalled}`,
+/// `db::tags::{get_or_create_tag,rename_tag}`), so what ends up stored is
+/// exactly what search and display both compare against. Notes, original
+/// filenames and every other free-text field never call this.
+pub fn fold(text: &str) -> String {
+    text.to_lowercase()
 }
 
 pub fn now() -> i64 {

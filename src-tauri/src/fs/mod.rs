@@ -1,5 +1,6 @@
 pub mod clipboard;
 pub mod import;
+pub mod lowercase_migration;
 pub mod paths;
 pub mod relocate;
 pub mod trash;

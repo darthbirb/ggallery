@@ -35,6 +35,25 @@ pub fn mark_imported(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+/// The generic get/set pair `imported_at`/`mark_imported` could have been
+/// written against, for anything that just needs a marker or a small stored
+/// value — `fs::lowercase_migration`'s "has this library already been
+/// folded" gate, for one.
+pub fn get(conn: &Connection, key: &str) -> Result<Option<String>> {
+    Ok(conn
+        .query_row("SELECT value FROM setting WHERE key = ?1", params![key], |r| r.get(0))
+        .optional()?)
+}
+
+pub fn set(conn: &Connection, key: &str, value: &str) -> Result<()> {
+    conn.execute(
+        "INSERT INTO setting (key, value) VALUES (?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        params![key, value],
+    )?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

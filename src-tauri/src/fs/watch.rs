@@ -418,9 +418,12 @@ fn handle_dir_renamed(paths: &LibraryPaths, conn: &Connection, old_abs: &Path, n
         .to_string();
 
     // One rename in Explorer is one undoable step, so the title change and
-    // the path change share a batch.
+    // the path change share a batch. Compared folded on both sides — titles
+    // are always lowercase now (PLAN.md decision 31), so a case-only rename
+    // in Explorer (`ana-trip` → `ANA-TRIP`) must not read as a structural
+    // difference and spuriously rewrite an already-correct title.
     let batch = db::journal::new_batch();
-    if crate::fs::relocate::sanitise_folder_name(&current_title) != new_name {
+    if db::fold(&crate::fs::relocate::sanitise_folder_name(&current_title)) != db::fold(&new_name) {
         db::folders::set_title(conn, folder_id, &new_name, &batch)?;
     }
 
@@ -993,7 +996,8 @@ mod tests {
         assert!(pending_rename_from.is_none());
 
         let detail = db::folders::get_detail(&conn, ana).unwrap().unwrap();
-        assert_eq!(detail.title, "Anastasia", "the title follows the external rename");
+        // Folded on the way in — PLAN.md decision 31.
+        assert_eq!(detail.title, "anastasia", "the title follows the external rename");
         assert_eq!(detail.rel_path, "anastasia");
     }
 
@@ -1032,8 +1036,13 @@ mod tests {
         );
 
         let detail = db::folders::get_detail(&conn, folder).unwrap().unwrap();
+        // Folded on the way in (PLAN.md decision 31) — and the comparison
+        // that decides whether the title needs to follow the rename is
+        // folded on both sides too, so a case-only difference between the
+        // sanitised title and the literal on-disk name ("ana-trip" vs.
+        // "Ana-Trip") does not read as a real one.
         assert_eq!(
-            detail.title, "Ana/Trip",
+            detail.title, "ana/trip",
             "only the derived name changed — the title already explains it"
         );
         assert_eq!(detail.rel_path, "ana-trip");

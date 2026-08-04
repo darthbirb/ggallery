@@ -15,7 +15,7 @@
 //! synchronously here — see docs/STRUCTURE.md and PLAN.md §M2.1, "Subtree
 //! path rewrites are jobs, not synchronous commands."
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use rusqlite::Connection;
 use serde::Serialize;
@@ -145,8 +145,10 @@ fn rename_case_safe(
 
 /// Create a folder: the directory on disk, the record, and — if given — an
 /// applied archetype. `parent_id` of `None` means directly under the
-/// library root. `title` is stored verbatim — never sanitised itself, only
-/// the directory name derived from it is.
+/// library root. `title` is case-folded on the way in (PLAN.md decision 31)
+/// before anything derives from it, so the directory name — sanitised for
+/// Windows, never otherwise — comes from the same folded text the record
+/// ends up storing.
 pub fn create_folder(
     paths: &LibraryPaths,
     conn: &Connection,
@@ -155,14 +157,18 @@ pub fn create_folder(
     archetype_id: Option<i64>,
     batch_id: &str,
 ) -> Result<i64> {
+    let title = db::fold(title);
     let parent_path = match parent_id {
         Some(id) => db::folders::rel_for(conn, id)?
             .ok_or_else(|| AppError::invalid("parent folder not found"))?,
         None => String::new(),
     };
-    let parent_abs = paths.to_abs(&parent_path)?;
+    let parent_abs = match parent_id {
+        Some(id) => require_dir(paths, conn, id, &parent_path)?,
+        None => paths.to_abs(&parent_path)?,
+    };
 
-    let sanitised = sanitise_folder_name(title);
+    let sanitised = sanitise_folder_name(&title);
     // A freshly created folder has no "previous name" to fall back on the
     // way a retitle does when the new title sanitises to nothing — it needs
     // *some* name to exist on disk at all.
@@ -173,7 +179,7 @@ pub fn create_folder(
     std::fs::create_dir(&abs)?;
 
     let rel = join_rel(&parent_path, &dir_name);
-    let id = match db::folders::create_record(conn, parent_id, &rel, title) {
+    let id = match db::folders::create_record(conn, parent_id, &rel, &title) {
         Ok(id) => id,
         Err(err) => {
             // Roll the disk operation back — a DB error here (e.g. a race
@@ -205,17 +211,30 @@ pub fn retitle_folder(
     new_title: &str,
     batch_id: &str,
 ) -> Result<()> {
+    // Folded before anything downstream derives from it (PLAN.md decision
+    // 31) — the directory name comes from this same folded text, via
+    // `sanitise_folder_name` below, so the two can never disagree in case.
+    let new_title = db::fold(new_title);
     let (old_rel, parent_id, old_title) = folder_location(conn, folder_id)?;
 
+    // Checked before anything is written. A retitle that updates the title
+    // and only then finds the directory it needs to rename is gone would
+    // leave the exact drift this fix exists to make recoverable from,
+    // rather than add another instance of it — the root has no directory of
+    // its own, so it is exempt.
+    if parent_id.is_some() {
+        require_dir(paths, conn, folder_id, &old_rel)?;
+    }
+
     if old_title != new_title {
-        db::folders::set_title(conn, folder_id, new_title, batch_id)?;
+        db::folders::set_title(conn, folder_id, &new_title, batch_id)?;
     }
 
     if parent_id.is_none() {
         return Ok(()); // the library root has no directory of its own
     }
 
-    let sanitised = sanitise_folder_name(new_title);
+    let sanitised = sanitise_folder_name(&new_title);
     if sanitised.is_empty() {
         // "the directory keeps its previous name and the title still
         // changes" — docs/DESIGN.md §1 "Folder names".
@@ -224,7 +243,7 @@ pub fn retitle_folder(
 
     let parent_path = parent_rel(&old_rel).unwrap_or_default();
     let parent_abs = paths.to_abs(&parent_path)?;
-    let old_abs = paths.to_abs(&old_rel)?;
+    let old_abs = paths.to_abs(&old_rel)?; // already confirmed to exist, above
 
     // `rel_path` is normalised (lower-cased), so it can't tell a
     // collision-suffixed or case-preserved name from the plain sanitised
@@ -303,7 +322,7 @@ fn move_folder_inner(
         return Ok(()); // already there
     }
 
-    let old_abs = paths.to_abs(&old_rel)?;
+    let old_abs = require_dir(paths, conn, folder_id, &old_rel)?;
     // The name on disk is derived from the title (M2.2), not read back from
     // the lower-cased `rel_path` — recovering it that way would silently
     // lower-case the directory on every move. Falls back to whatever is
@@ -437,6 +456,33 @@ fn folder_location(conn: &Connection, folder_id: i64) -> Result<(String, Option<
     .map_err(|_| AppError::invalid("folder not found"))
 }
 
+/// `rel_path`'s absolute directory, or `AppError::FolderMissing` naming
+/// `folder_id` if nothing is actually there. Create, retitle and move all
+/// start from a directory that has to exist — without this check, a record
+/// left pointing at a vanished path (moving a folder can leave one behind)
+/// fails deep inside `std::fs::rename`/`canonicalize` with a raw OS "the
+/// system cannot find the path specified" and nothing to say which folder or
+/// what to do about it. A real fix removes the directory from the model
+/// entirely (PLAN.md §M2.6, "folders as data"); this is the interim one
+/// (docs/DESIGN.md §M2.5d) — reactive, not a filesystem reconciler: nothing
+/// here scans for or repairs a mismatch, it only names one at the moment an
+/// operation would otherwise trip over it.
+fn require_dir(
+    paths: &LibraryPaths,
+    conn: &Connection,
+    folder_id: i64,
+    rel_path: &str,
+) -> Result<PathBuf> {
+    let abs = paths.to_abs(rel_path)?;
+    if abs.is_dir() {
+        return Ok(abs);
+    }
+    let title = folder_location(conn, folder_id)
+        .map(|(_, _, title)| title)
+        .unwrap_or_else(|_| rel_path.to_string());
+    Err(AppError::FolderMissing { id: folder_id, title })
+}
+
 fn join_rel(parent_rel: &str, name: &str) -> String {
     let joined = if parent_rel.is_empty() {
         name.to_string()
@@ -556,7 +602,7 @@ mod tests {
         assert!(!root.join("Ana").exists());
 
         let detail = db::folders::get_detail(&conn, ana).unwrap().unwrap();
-        assert_eq!(detail.title, "Anastasia");
+        assert_eq!(detail.title, "anastasia");
         assert_eq!(detail.rel_path, "anastasia");
 
         // The descendant's own row is not rewritten synchronously — that is
@@ -618,7 +664,7 @@ mod tests {
 
         assert!(root.join("Ana-Trip").is_dir());
         let detail = db::folders::get_detail(&conn, ana).unwrap().unwrap();
-        assert_eq!(detail.title, "Ana:Trip");
+        assert_eq!(detail.title, "ana:trip");
         assert_eq!(detail.rel_path, "ana-trip", "directory was not touched");
     }
 
@@ -648,29 +694,40 @@ mod tests {
 
         retitle_folder(&paths, &conn, &Suppressor::default(), bob, "Ana", &db::journal::new_batch()).unwrap();
 
-        assert!(root.join("Ana (2)").is_dir());
+        assert!(root.join("ana (2)").is_dir());
         let detail = db::folders::get_detail(&conn, bob).unwrap().unwrap();
-        assert_eq!(detail.title, "Ana", "the title is untouched by the suffix");
+        // Folded on the way in (PLAN.md decision 31) — the counter is what
+        // avoids the collision; the title itself is untouched by it.
+        assert_eq!(detail.title, "ana", "the title is untouched by the suffix");
         assert_eq!(detail.rel_path, "ana (2)");
     }
 
     #[test]
-    fn a_case_only_retitle_actually_changes_the_case_on_disk() {
+    fn retitling_to_a_different_case_of_the_same_title_is_a_no_op() {
+        // Titles fold on the way in (PLAN.md decision 31), so "Ana" and "ANA"
+        // are the same title — this replaces the pre-decision-31 test that
+        // asserted a case-only retitle *did* change the directory's case;
+        // now there is no case left in the title to change it with.
         let root = scratch("retitle-case-only");
-        std::fs::create_dir_all(root.join("Ana")).unwrap();
+        std::fs::create_dir_all(root.join("ana")).unwrap();
         let (paths, conn) = open_db(&root);
         let ana = db::folders::upsert(&conn, "ana", "Ana").unwrap();
 
         retitle_folder(&paths, &conn, &Suppressor::default(), ana, "ANA", &db::journal::new_batch()).unwrap();
 
         let on_disk = std::fs::canonicalize(root.join("ana")).unwrap();
-        assert_eq!(
-            on_disk.file_name().and_then(|n| n.to_str()),
-            Some("ANA"),
-            "a same-case-insensitive rename must not silently no-op on Windows"
-        );
+        assert_eq!(on_disk.file_name().and_then(|n| n.to_str()), Some("ana"));
         let detail = db::folders::get_detail(&conn, ana).unwrap().unwrap();
-        assert_eq!(detail.title, "ANA");
+        assert_eq!(detail.title, "ana");
+
+        let renames: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM journal WHERE op = 'folder_rename_title'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(renames, 0, "nothing actually changed, so nothing is journalled");
     }
 
     #[test]
@@ -705,6 +762,71 @@ mod tests {
         assert!(root.join("People/Ana").is_dir());
         let detail = db::folders::get_detail(&conn, ana).unwrap().unwrap();
         assert_eq!(detail.rel_path, "people/ana");
+    }
+
+    // --- a folder record whose directory has gone missing (docs/DESIGN.md
+    //     §M2.5d) — every action on it must name the folder rather than
+    //     surface a raw OS "cannot find the path".
+
+    #[test]
+    fn retitling_a_folder_whose_directory_is_gone_names_it_instead_of_a_raw_os_error() {
+        let root = scratch("retitle-missing-dir");
+        std::fs::create_dir_all(root.join("Ana")).unwrap();
+        let (paths, conn) = open_db(&root);
+        let ana = db::folders::upsert(&conn, "ana", "Ana").unwrap();
+        std::fs::remove_dir_all(root.join("Ana")).unwrap();
+
+        let err = retitle_folder(&paths, &conn, &Suppressor::default(), ana, "Anastasia", &db::journal::new_batch())
+            .unwrap_err();
+
+        match err {
+            AppError::FolderMissing { id, title } => {
+                assert_eq!(id, ana);
+                assert_eq!(title, "ana");
+            }
+            other => panic!("expected FolderMissing, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn moving_a_folder_whose_directory_is_gone_names_it_instead_of_a_raw_os_error() {
+        let root = scratch("move-missing-dir");
+        std::fs::create_dir_all(root.join("Ana")).unwrap();
+        std::fs::create_dir_all(root.join("People")).unwrap();
+        let (paths, conn) = open_db(&root);
+        let ana = db::folders::upsert(&conn, "ana", "Ana").unwrap();
+        let people = db::folders::upsert(&conn, "people", "People").unwrap();
+        std::fs::remove_dir_all(root.join("Ana")).unwrap();
+
+        let err = move_folder(&paths, &conn, ana, Some(people), &db::journal::new_batch()).unwrap_err();
+
+        match err {
+            AppError::FolderMissing { id, title } => {
+                assert_eq!(id, ana);
+                assert_eq!(title, "ana");
+            }
+            other => panic!("expected FolderMissing, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn creating_a_folder_inside_one_whose_directory_is_gone_names_the_parent() {
+        let root = scratch("create-missing-parent-dir");
+        std::fs::create_dir_all(root.join("Ana")).unwrap();
+        let (paths, conn) = open_db(&root);
+        let ana = db::folders::upsert(&conn, "ana", "Ana").unwrap();
+        std::fs::remove_dir_all(root.join("Ana")).unwrap();
+
+        let err = create_folder(&paths, &conn, Some(ana), "2024 Trip", None, &db::journal::new_batch())
+            .unwrap_err();
+
+        match err {
+            AppError::FolderMissing { id, title } => {
+                assert_eq!(id, ana);
+                assert_eq!(title, "ana");
+            }
+            other => panic!("expected FolderMissing, got {other:?}"),
+        }
     }
 
     fn scratch(name: &str) -> std::path::PathBuf {

@@ -9,6 +9,7 @@ use crate::config::Config;
 use crate::db;
 use crate::db::folders::FolderNode;
 use crate::error::{AppError, Result};
+use crate::fs::lowercase_migration::LowercaseMergeReport;
 use crate::fs::paths::same_dir;
 use crate::{AppState, Library};
 
@@ -28,6 +29,10 @@ pub struct LibraryInfo {
     /// Which ffmpeg is in use, if any. Without one, videos are indexed but get
     /// no poster frame and no scrub strip.
     pub ffmpeg: Option<String>,
+    /// Set only on the `open` that actually ran the lowercase fold-and-merge
+    /// (PLAN.md decision 31) and only if it merged something — surfaced
+    /// once, silently absent otherwise, same as `verifyIssue`.
+    pub lowercase_merge_report: Option<LowercaseMergeReport>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -148,6 +153,10 @@ fn describe(library: &Library) -> Result<LibraryInfo> {
     let conn = library.conn()?;
     let paths = &library.paths;
 
+    let lowercase_merge_report = library.take_lowercase_report().filter(|report| {
+        !report.tags_merged.is_empty() || !report.folders_merged.is_empty()
+    });
+
     Ok(LibraryInfo {
         root: paths.root().to_string_lossy().to_string(),
         name: paths
@@ -160,5 +169,6 @@ fn describe(library: &Library) -> Result<LibraryInfo> {
         item_count: db::items::count(&conn)?,
         folder_count: db::folders::count(&conn)?,
         ffmpeg: library.tools.describe(),
+        lowercase_merge_report,
     })
 }
