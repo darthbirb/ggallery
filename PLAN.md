@@ -747,6 +747,32 @@ Separated from M2 deliberately. Folded together, the data work eats the schedule
 interface arrives as an afterthought. Given its own milestone, it also establishes the
 component vocabulary every later milestone builds from.
 
+### M2.9 — The nitpick pass
+
+**The user goes over the whole interface and complains about everything.** Then it gets
+fixed. Placed here because this is the first point at which the interface is finished —
+M2.5b adds the last two pane modes, so anything noticed before it would be noticed again
+after.
+
+Its list lives in [docs/NITPICKS.md](docs/NITPICKS.md), which is open from now on: an
+annoyance noticed during M2.6 or M2.5b goes in the file rather than into whatever session
+is running. That is the point of naming the milestone — it gives small complaints a
+destination that is not an interruption.
+
+**Every item gets asked whether it is an instance or a class**, because that is what has
+produced every locked decision so far. *"The fill icon points nowhere"* was one control;
+*"an icon should name the action, not the state"* is the rule underneath it, and the rule
+is what stops the next one. Items that turn out to be classes are written into
+[docs/DESIGN.md](docs/DESIGN.md) or the decisions list, not just fixed.
+
+Three outcomes per item, all legitimate: **fix**, **change the spec** (the build was
+right and the specification was wrong), or **won't do, and here is why** — recorded, so
+it is not re-raised in six months.
+
+**Not a polish phase.** Decision 18 still holds: every milestone ships finished. This is
+the user reviewing an interface they have now used for real, which is a different thing
+from deferring work and calling it polish.
+
 ### M3 — Search
 
 Query parser, unified search bar, sectioned results (folders then media), saved

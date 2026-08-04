@@ -24,6 +24,9 @@ root from config, and never commit anything that references a specific machine's
   boundaries that are not negotiable
 - [docs/ENGINEERING-NOTES.md](docs/ENGINEERING-NOTES.md) — Tauri/Windows gotchas that
   already cost time once, and the validated grid architecture
+- [docs/NITPICKS.md](docs/NITPICKS.md) — where interface complaints are collected until
+  M2.9 clears them. A small annoyance noticed mid-milestone goes in the file, not into
+  the milestone.
 
 `docs/mockup.html` is an early drawing, superseded by the built interface. Ignore it.
 

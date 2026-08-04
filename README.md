@@ -193,6 +193,7 @@ docs/
 | M2.5d | Follow-ups — lowercase, cursor zoom, footer count, folder breadcrumb | Next |
 | M2.6 | Folders as data — flat sharded storage, DB hierarchy, inbox | |
 | M2.5b | The sorting surfaces — pane grid and folder modes, drops | |
+| M2.9 | The nitpick pass — the whole interface reviewed in use, then fixed | |
 | M3 | Search — query parser, sectioned results | |
 | M4 | Sorting Box and triage — hotkey culling, undo, trash | |
 | M5 | Downloads — yt-dlp and gallery-dl integration | |
