@@ -23,28 +23,15 @@
 import { ChevronRight, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { Breadcrumb } from "../../components/Breadcrumb";
 import { Chip } from "../../components/Chip";
 import { PillInput } from "../../components/ui/input";
 import { formatBytes, formatDateTime, formatDuration } from "../../lib/format";
+import { ancestorTitles } from "../../lib/folders";
 import * as ipc from "../../lib/ipc";
 import type { EffectiveTag, FolderNode, ItemDetail } from "../../lib/types";
 import { cn } from "../../lib/utils";
 import { useOperations } from "../menus/operations";
-
-/** The item's folder and every ancestor above it, root-excluded, root-first —
- *  by title, not `folderRel`: `rel_path` is normalised for the filesystem
- *  (case-folded, slug-safe) and does not carry the casing a breadcrumb, or a
- *  dedupe against a real tag's text, needs to match on. */
-function ancestorTitles(folders: FolderNode[], folderId: number): string[] {
-  const byId = new Map(folders.map((node) => [node.id, node]));
-  const titles: string[] = [];
-  let current = byId.get(folderId);
-  while (current && current.parentId !== null) {
-    titles.unshift(current.title);
-    current = byId.get(current.parentId);
-  }
-  return titles;
-}
 
 /** Inherited (uneditable here) before manual, each group alphabetical —
  *  never one flat alphabetical list, or a folder's own tags scatter among
@@ -192,7 +179,7 @@ export function DetailsBody({
         {item.sourceUrl && <Row label="Source" value={item.sourceUrl} mono />}
       </dl>
 
-      <FolderBreadcrumb titles={crumbs} />
+      <ItemFolderBreadcrumb titles={crumbs} />
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {fields.map((field) => (
@@ -236,17 +223,13 @@ export function DetailsBody({
 /** The item's ancestor folders, root-first — what the "Folder: X" row used to
  *  say, without also repeating the immediate folder a second time as a
  *  tag-shaped chip below (its title is auto-tagged onto every item inside
- *  it; see the dedupe above `ancestorTitles` feeds). The library root itself
- *  is excluded, so an item with no crumbs is one sitting loose at the top
- *  level — flagged in red as "Unsorted" rather than left blank, since a
- *  quiet gap here used to read as a missing value rather than a real state
- *  worth noticing.
- *
- *  Small mono segments joined by a slash, deliberately neither `Chip`'s pill
- *  nor `ItemFieldChip`'s two-tone rectangle — a folder reads as neither a tag
- *  nor a field, and looking like either would be the same confusion this
- *  replaced. */
-function FolderBreadcrumb({ titles }: { titles: string[] }) {
+ *  it; see the dedupe above `ancestorTitles` feeds). An item with no crumbs
+ *  is one sitting loose at the top level — flagged in red as "Unsorted"
+ *  rather than left blank, since a quiet gap here used to read as a missing
+ *  value rather than a real state worth noticing. `FolderBand` renders the
+ *  same `Breadcrumb` for a folder's own ancestry, where there is always at
+ *  least the folder itself and this case does not arise. */
+function ItemFolderBreadcrumb({ titles }: { titles: string[] }) {
   if (titles.length === 0) {
     return (
       <div className="mt-2 flex items-center font-mono text-[12px]">
@@ -258,13 +241,8 @@ function FolderBreadcrumb({ titles }: { titles: string[] }) {
   }
 
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-1 font-mono text-[12px] text-fg-dim">
-      {titles.map((title, index) => (
-        <span key={index} className="flex items-center gap-1">
-          {index > 0 && <span aria-hidden>/</span>}
-          <span className="truncate rounded-[3px] bg-raised px-1.5 py-0.5">{title}</span>
-        </span>
-      ))}
+    <div className="mt-2">
+      <Breadcrumb titles={titles} />
     </div>
   );
 }

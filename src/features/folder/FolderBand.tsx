@@ -34,8 +34,9 @@
  */
 
 import { ChevronRight, Image as ImageIcon, LayoutGrid, Square, Star, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { Breadcrumb } from "../../components/Breadcrumb";
 import { Chip } from "../../components/Chip";
 import { ContextMenu, DropdownMenu, MenuItem, MenuLabel } from "../../components/Menu";
 import { Tooltip } from "../../components/Tooltip";
@@ -43,6 +44,7 @@ import { Button, IconButton } from "../../components/ui/button";
 import { fieldClassName, Input } from "../../components/ui/input";
 import { Separator } from "../../components/ui/separator";
 import { Slider } from "../../components/ui/slider";
+import { ancestorTitles } from "../../lib/folders";
 import { formatCount, formatTimeAgo } from "../../lib/format";
 import * as ipc from "../../lib/ipc";
 import type {
@@ -61,6 +63,8 @@ export interface FolderBandProps {
   /** `null` for Everything, the Sorting Box and Favourites — scopes with no
    *  folder identity to expand into. */
   folder: FolderNode | null;
+  /** The whole tree, for `folder`'s own ancestry breadcrumb. */
+  folders: FolderNode[];
   /** What a non-folder scope prints in the title slot. */
   scopeLabel: string;
   /** The grid's current row count — the count a non-folder scope shows. */
@@ -83,6 +87,7 @@ export interface FolderBandProps {
 
 export function FolderBand({
   folder,
+  folders,
   scopeLabel,
   itemCount,
   statuses,
@@ -100,6 +105,15 @@ export function FolderBand({
   const ops = useOperations();
   const [detail, setDetail] = useState<FolderDetail | null>(null);
   const [inherited, setInherited] = useState<EffectiveTag[]>([]);
+
+  // The same breadcrumb the item details panel renders, the folder itself
+  // as the last crumb (docs/DESIGN.md §2). Only a real subfolder has
+  // ancestry above itself to show — a top-level folder's crumb would just
+  // repeat the title already set large in the header.
+  const crumbs = useMemo(
+    () => (folder ? ancestorTitles(folders, folder.id) : []),
+    [folders, folder],
+  );
 
   const refresh = useCallback(async () => {
     if (!folder) {
@@ -262,6 +276,17 @@ export function FolderBand({
           />
 
           <div className="min-w-0 flex-1">
+            {/* Where this folder sits — and, since inherited labels below
+                come from these same ancestors, where they come from too.
+                A top-level folder has nothing above itself, so there is
+                nothing here to show beyond its own title, already large in
+                the header. */}
+            {crumbs.length > 1 && (
+              <div className="mb-1.5">
+                <Breadcrumb titles={crumbs} />
+              </div>
+            )}
+
             <ChipRow
               detail={detail}
               inherited={inherited}

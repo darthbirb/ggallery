@@ -24,7 +24,7 @@ import { ProgressScreen } from "./features/import/ProgressScreen";
 import { ReviewScreen } from "./features/import/ReviewScreen";
 import { DialogsProvider, useDialogs } from "./features/menus/Dialogs";
 import { EmptyMenu, ItemMenu } from "./features/menus/ItemMenu";
-import { OperationsProvider, useOperations } from "./features/menus/operations";
+import { OperationsProvider, useOperations, type Operations } from "./features/menus/operations";
 import { Nav } from "./features/nav/Nav";
 import { Pane, PaneStrip } from "./features/pane/Pane";
 import type { PreviewSlot } from "./features/pane/PreviewMode";
@@ -263,6 +263,28 @@ function Gallery({
     [selection, ui],
   );
 
+  // A plain click already previews live once the pane is open — `slots`
+  // below reads `selection.current`, so nothing further has to happen. But
+  // with the pane folded that update lands nowhere visible, and the only
+  // thing that opened it was `onActivate`'s double-click. Folded, a single
+  // click needs to do both: `selection.click` decides what got selected
+  // (plain, ctrl or shift), and opening the pane rides alongside it rather
+  // than replacing it with `showInPane`'s `focus`, which would collapse a
+  // ctrl/shift selection back down to one item.
+  const gridSelection: SelectionController = useMemo(
+    () => ({
+      ...selection,
+      click: (id, modifiers) => {
+        selection.click(id, modifiers);
+        if (!ui.paneOpen) {
+          ui.set("paneMode", "preview");
+          ui.set("paneOpen", true);
+        }
+      },
+    }),
+    [selection, ui],
+  );
+
   // One slot today. M6 and M7 pass two, M10 up to twelve — the pane's Preview
   // mode already lays out any number of them.
   const slots: PreviewSlot[] = useMemo(
@@ -429,6 +451,7 @@ function Gallery({
           <main className="flex min-h-0 min-w-0 flex-1 flex-col">
             <FolderBand
               folder={folder}
+              folders={library.folders}
               scopeLabel={scopeLabel}
               itemCount={library.items.length}
               statuses={statuses}
@@ -450,6 +473,7 @@ function Gallery({
 
             <Banners
               library={library}
+              ops={ops}
               showFailures={showFailures}
               onCloseFailures={() => setShowFailures(false)}
             />
@@ -459,7 +483,7 @@ function Gallery({
               thumbsDir={info.thumbsDir}
               spritesDir={info.spritesDir}
               tileHeight={ui.tileHeight}
-              selection={selection}
+              selection={gridSelection}
               refreshToken={library.refreshToken}
               onActivate={showInPane}
               empty={emptyLabel(scope)}
@@ -507,10 +531,6 @@ function Gallery({
             {selection.count > 0 && (
               <div className="flex h-11 shrink-0 border-t border-line bg-panel">
                 <footer className="flex h-full min-w-0 flex-1 items-center gap-2 px-3">
-                  <span className="font-mono tabular-nums text-fg">
-                    {formatCount(selection.count)} selected
-                  </span>
-                  <Separator />
                   <Button size="sm" onClick={selection.selectAll}>
                     Select all
                   </Button>
@@ -531,8 +551,11 @@ function Gallery({
                   >
                     Delete
                   </Button>
-                  <span className="ml-auto truncate pl-2 text-fg-dim">
-                    Right-click for more
+                  {/* Status, not instruction — the one place a live count
+                      could be, previously spent on "Right-click for more",
+                      a tutorial you read once (DESIGN.md §2, decision 28). */}
+                  <span className="ml-auto truncate pl-2 font-mono tabular-nums text-fg">
+                    {formatCount(selection.count)} selected
                   </span>
                 </footer>
                 {/* The scrubber's channel, continued to the window edge, so
@@ -655,10 +678,12 @@ function emptyLabel(scope: Scope): string {
 /** Index errors, verification problems and the missing-ffmpeg notice. */
 function Banners({
   library,
+  ops,
   showFailures,
   onCloseFailures,
 }: {
   library: LibraryController;
+  ops: Operations;
   showFailures: boolean;
   onCloseFailures: () => void;
 }) {
@@ -669,6 +694,36 @@ function Banners({
         <div className="flex items-center gap-3 border-b border-line bg-raised px-3 py-2 text-danger">
           {library.error}
           <Button size="sm" className="ml-auto" onClick={library.dismissError}>
+            Dismiss
+          </Button>
+        </div>
+      )}
+
+      {/* A folder record whose directory has gone missing from disk — moved
+          or deleted outside the app (docs/DESIGN.md §M2.5d). Named rather
+          than left as the raw "cannot find the path" every action on it used
+          to report, with a real way out: removing the broken record, since
+          M2.6 is what actually removes the cause. Reactive only — this
+          appears because an operation just failed, never from a scan. */}
+      {library.folderMissing && (
+        <div className="flex items-center gap-3 border-b border-line bg-raised px-3 py-2 text-danger">
+          <span className="min-w-0 truncate">
+            &ldquo;{library.folderMissing.title}&rdquo; is missing from disk — it may
+            have been moved or deleted outside the app.
+          </span>
+          <Button
+            size="sm"
+            className="ml-auto shrink-0"
+            onClick={async () => {
+              const folder = library.folderMissing;
+              if (!folder) return;
+              await ops.deleteFolder(folder);
+              library.dismissFolderMissing();
+            }}
+          >
+            Remove this folder
+          </Button>
+          <Button size="sm" className="shrink-0" onClick={library.dismissFolderMissing}>
             Dismiss
           </Button>
         </div>
@@ -695,6 +750,42 @@ function Banners({
           )}
           .
           <Button size="sm" className="ml-auto" onClick={library.dismissVerifyIssue}>
+            Dismiss
+          </Button>
+        </div>
+      )}
+
+      {/* Decision 31's one-time fold — surfaced once, on the open that ran
+          it, exactly like verifyIssue above. Reported rather than done
+          silently: every entry names what collapsed into what. */}
+      {library.lowercaseMergeReport && (
+        <div className="flex items-start gap-3 border-b border-line bg-raised px-3 py-2 text-fg-mid">
+          <div className="min-w-0">
+            <span className="text-fg">
+              Folded existing text to lowercase and merged what that collided with.
+            </span>
+            {library.lowercaseMergeReport.tagsMerged.length > 0 && (
+              <p className="mt-1">
+                Tags:{" "}
+                {library.lowercaseMergeReport.tagsMerged
+                  .map((merge) => `${merge.originals.join(" + ")} → ${merge.folded}`)
+                  .join(", ")}
+              </p>
+            )}
+            {library.lowercaseMergeReport.foldersMerged.length > 0 && (
+              <p className="mt-1">
+                Folders:{" "}
+                {library.lowercaseMergeReport.foldersMerged
+                  .map((merge) => `${merge.originals.join(" + ")} → ${merge.folded}`)
+                  .join(", ")}
+              </p>
+            )}
+          </div>
+          <Button
+            size="sm"
+            className="ml-auto shrink-0"
+            onClick={library.dismissLowercaseMergeReport}
+          >
             Dismiss
           </Button>
         </div>

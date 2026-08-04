@@ -100,16 +100,29 @@ function ImageView({ item, source }: { item: ItemDetail; source: string }) {
       className="relative h-full min-h-0 overflow-hidden"
       onWheel={(event) => {
         // Scroll to zoom, drag to pan — DESIGN.md §2 "Preview mode". A point
-        // at image-space p lands at p·zoom + pan, so the viewport centre
-        // sits at -pan/zoom; rescaling pan by the same ratio as zoom holds
-        // that point fixed instead of letting the image slide out from
-        // under wherever was actually being looked at.
+        // at image-space p lands at screen offset p·zoom + pan (offset from
+        // the container's centre), so p = (cursor - pan) / zoom for whatever
+        // sits under the pointer right now. Solving the same equation for
+        // the new zoom with p held fixed gives the pan that keeps that exact
+        // point under the cursor: pan' = cursor - p·zoom'. Substituting
+        // cursor = 0 (the container's centre) is what the old fixed-centre
+        // version amounted to; the cursor's own offset is what the wheel has
+        // already told us to look at instead.
+        const box = containerRef.current;
+        const rect = box?.getBoundingClientRect();
+        const cursor = rect
+          ? {
+              x: event.clientX - rect.left - rect.width / 2,
+              y: event.clientY - rect.top - rect.height / 2,
+            }
+          : { x: 0, y: 0 };
         const current = zoom ?? fitScale();
         const next = Math.min(
           Math.max(current * (event.deltaY < 0 ? 1.12 : 0.89), 0.1),
           12,
         );
-        setPan((prev) => ({ x: (prev.x * next) / current, y: (prev.y * next) / current }));
+        const imagePoint = { x: (cursor.x - pan.x) / current, y: (cursor.y - pan.y) / current };
+        setPan({ x: cursor.x - imagePoint.x * next, y: cursor.y - imagePoint.y * next });
         setZoom(next);
       }}
       onMouseDown={(event) => {

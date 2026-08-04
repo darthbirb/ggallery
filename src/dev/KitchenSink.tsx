@@ -11,9 +11,22 @@
  * re-checked against them, the same as any other consumer.
  */
 
-import { ChevronRight, Image as ImageIcon, LayoutGrid, Minus, Square, Star, X } from "lucide-react";
+import {
+  ArrowLeftToLine,
+  ChevronRight,
+  FolderTree,
+  Image as ImageIcon,
+  LayoutGrid,
+  Minus,
+  PanelRightClose,
+  PanelRightOpen,
+  Square,
+  Star,
+  X,
+} from "lucide-react";
 import type { ReactNode } from "react";
 
+import { Breadcrumb } from "../components/Breadcrumb";
 import { Chip } from "../components/Chip";
 import { Mark } from "../components/Mark";
 import { WindowBar } from "../components/WindowBar";
@@ -237,6 +250,7 @@ export function KitchenSink() {
                 favourite
               />
               <BandExpanded
+                crumbs={["people", "Ana"]}
                 fields={[
                   ["instagram", "@ana"],
                   ["tiktok", "@ana.trips"],
@@ -248,6 +262,56 @@ export function KitchenSink() {
                 note="Shoots best in the morning light — check the harbour folder for the boat trip set before deleting anything."
               />
             </div>
+          </div>
+        </Section>
+
+        <Section title="Pane header, and its folded strip">
+          <p className="text-fg-dim">
+            The fill-window arrow sits at the left of the header, beside
+            Details — the other control that changes how much of the pane
+            you see — rather than with maximise and close, which change
+            whether the pane is there at all. Folded, the pane collapses to a
+            strip of its three mode icons, mirroring the navigation panel's
+            own fold — reproduced here beside a stand-in for the grid's own
+            scrubber, so the two edges can be checked for daylight between
+            them at a glance.
+          </p>
+          <div className="flex items-start gap-3">
+            <div className="w-[380px] shrink-0 overflow-hidden rounded-[6px] border border-line">
+              <PaneHeaderRow />
+            </div>
+
+            <div className="flex h-11 shrink-0 overflow-hidden rounded-[6px] border border-line">
+              {/* A stand-in for the grid's own scrollbar channel, run right
+                  up against the strip exactly as the two sit in the shell —
+                  nothing here should overlap. */}
+              <div style={{ width: 16 }} className="scrubber" />
+              <PaneStripRow />
+            </div>
+          </div>
+        </Section>
+
+        <Section title="Grid footer — the selection bar">
+          <p className="text-fg-dim">
+            Status, not instruction: the live count is right-aligned, the
+            edge it belongs on, where "Right-click for more" used to sit —
+            a tutorial read once and then occupying the one place a count
+            could be.
+          </p>
+          <div className="flex h-11 max-w-[720px] overflow-hidden rounded-[6px] border border-line bg-panel">
+            <footer className="flex h-full min-w-0 flex-1 items-center gap-2 px-3">
+              <Button size="sm">Select all</Button>
+              <Button size="sm">Clear</Button>
+              <Separator />
+              <Button size="sm">Move to…</Button>
+              <Button size="sm" variant="danger">
+                Delete
+              </Button>
+              <span className="ml-auto truncate pl-2 font-mono tabular-nums text-fg">
+                12 selected
+              </span>
+            </footer>
+            <div aria-hidden style={{ width: 16 }} className="scrubber shrink-0" />
           </div>
         </Section>
 
@@ -508,10 +572,15 @@ function BandRow({
  *  and notes as a single growing line. Empty when `fields`/`tags`/`note`
  *  are omitted, which is the default and commonest state. */
 function BandExpanded({
+  crumbs = [],
   fields = [],
   tags = [],
   note,
 }: {
+  /** A subfolder's ancestry — the same `Breadcrumb` the item details panel
+   *  renders, this folder itself as the last crumb. Empty for a top-level
+   *  folder, which has nothing above itself to show. */
+  crumbs?: string[];
   fields?: [string, string][];
   tags?: string[];
   note?: string;
@@ -523,6 +592,12 @@ function BandExpanded({
       </div>
 
       <div className="min-w-0 flex-1">
+        {crumbs.length > 1 && (
+          <div className="mb-1.5">
+            <Breadcrumb titles={crumbs} />
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-1.5">
           {fields.map(([key, value]) => (
             <span
@@ -555,5 +630,99 @@ function BandExpanded({
         </div>
       </div>
     </div>
+  );
+}
+
+/** The exact row shape `PaneFrame.tsx` renders — the fill-window arrow at
+ *  the left, the mode-specific header content, the three mode buttons, and
+ *  the fold control rightmost. Icons duplicated from `features/pane/
+ *  modeIcons.ts` rather than imported, the same call every other reproduction
+ *  on this page makes for a `features/`-owned surface. */
+function PaneHeaderRow() {
+  return (
+    <div className="flex h-11 items-center gap-1 border-b border-line bg-panel px-2">
+      <ToolIconButton label="Fill the window">
+        <ArrowLeftToLine />
+      </ToolIconButton>
+
+      <button
+        type="button"
+        className="flex h-8 flex-1 items-center gap-2 rounded-[4px] px-1.5 text-left"
+      >
+        <ChevronRight className="size-[18px] shrink-0 text-fg-dim" />
+        <span className="shrink-0 font-mono tabular-nums text-fg-dim">
+          1200×800 · 2.4 MB
+        </span>
+      </button>
+
+      <span className="flex shrink-0 items-center gap-1">
+        <ToolIconButton label="Preview" active>
+          <ImageIcon />
+        </ToolIconButton>
+        <ToolIconButton label="Grid">
+          <LayoutGrid />
+        </ToolIconButton>
+        <ToolIconButton label="Folders">
+          <FolderTree />
+        </ToolIconButton>
+      </span>
+
+      <ToolIconButton label="Hide the pane">
+        <PanelRightClose />
+      </ToolIconButton>
+    </div>
+  );
+}
+
+/** `Pane.tsx`'s `PaneStrip` — the closed pane's 44px icon rail, folded
+ *  exactly as the navigation panel's own rail is. */
+function PaneStripRow() {
+  return (
+    <div className="flex h-full w-11 shrink-0 flex-col border-l border-line bg-panel">
+      <div className="flex h-11 shrink-0 items-center justify-center border-b border-line-soft">
+        <ToolIconButton label="Show the pane">
+          <PanelRightOpen />
+        </ToolIconButton>
+      </div>
+      <div className="flex flex-col items-center gap-2 pt-2">
+        <ToolIconButton label="Preview" active>
+          <ImageIcon />
+        </ToolIconButton>
+        <ToolIconButton label="Grid">
+          <LayoutGrid />
+        </ToolIconButton>
+        <ToolIconButton label="Folders">
+          <FolderTree />
+        </ToolIconButton>
+      </div>
+    </div>
+  );
+}
+
+/** A non-interactive twin of `IconButton` — active/rest only, no hover or
+ *  focus state to force, matching every other control reproduced statically
+ *  on this page. */
+function ToolIconButton({
+  label,
+  active,
+  children,
+}: {
+  label: string;
+  active?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <span
+      aria-label={label}
+      title={label}
+      className={cn(
+        "grid size-8 shrink-0 place-items-center rounded-[4px] border [&_svg]:size-[18px]",
+        active
+          ? "border-accent-d bg-accent/15 text-accent"
+          : "border-transparent text-fg-mid",
+      )}
+    >
+      {children}
+    </span>
   );
 }

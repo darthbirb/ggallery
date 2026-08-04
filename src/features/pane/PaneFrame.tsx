@@ -1,6 +1,7 @@
 /**
- * The part of the pane every mode shares: one header row ending in maximise,
- * the mode switcher and the fold-to-strip toggle, and the body beneath it.
+ * The part of the pane every mode shares: one header row starting with the
+ * fill-window arrow, the mode switcher and the fold-to-strip toggle at its
+ * right end, and the body beneath it.
  *
  * The mode fills the rest of the header with whatever names what it is
  * showing — for Preview that is dimensions and file size, which is why there
@@ -19,7 +20,7 @@
  * mode icons live in `modeIcons.ts` for the same reason.
  */
 
-import { Maximize2, Minimize2, PanelRightClose } from "lucide-react";
+import { ArrowLeftToLine, ArrowRightToLine, PanelRightClose } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Tooltip } from "../../components/Tooltip";
@@ -28,7 +29,8 @@ import { AVAILABLE_PANE_MODES, PANE_MODES, type PaneMode } from "../../state/ui"
 import { PANE_MODE_ICONS } from "./modeIcons";
 
 export interface PaneFrameProps {
-  /** What this mode puts in the header, left of the window controls. */
+  /** What this mode puts in the header, between the fill-window arrow and
+   *  the mode switcher. */
   header?: ReactNode;
   mode: PaneMode;
   onModeChange: (mode: PaneMode) => void;
@@ -53,20 +55,25 @@ export function PaneFrame({
       className="flex min-h-0 min-w-0 flex-1 flex-col border-l border-line bg-panel"
     >
       <header className="flex h-11 shrink-0 items-center gap-1 border-b border-line px-2">
-        {header ?? <span className="flex-1" />}
-
         {/* The one control today that a mode needs beyond the frame's own —
             Preview's fullscreen. Generic to the frame rather than passed in
-            per mode, since it acts on the pane as a whole either way. */}
+            per mode, since it acts on the pane as a whole either way. Left
+            of the header, beside Details — the other control that changes
+            how much of the pane you see — rather than with maximise and
+            close, which change whether the pane is there at all. The arrow
+            points the direction the pane will actually travel, which only
+            reads from the edge it grows from. */}
         <Tooltip side="bottom" label={maximised ? "Back to the split" : "Fill the window"}>
           <IconButton
             aria-label={maximised ? "Back to the split" : "Fill the window"}
             active={maximised}
             onClick={() => onMaximisedChange(!maximised)}
           >
-            {maximised ? <Minimize2 /> : <Maximize2 />}
+            {maximised ? <ArrowRightToLine /> : <ArrowLeftToLine />}
           </IconButton>
         </Tooltip>
+
+        {header ?? <span className="flex-1" />}
 
         <span className="flex shrink-0 items-center gap-1">
           {PANE_MODES.map((candidate) => {

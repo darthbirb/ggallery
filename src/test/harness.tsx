@@ -109,6 +109,7 @@ export function libraryInfo(): LibraryInfo {
     itemCount: 12,
     folderCount: 2,
     ffmpeg: "ffmpeg",
+    lowercaseMergeReport: null,
   };
 }
 
@@ -129,11 +130,16 @@ export function fakeLibrary(over: Partial<LibraryController> = {}): LibraryContr
     flowPhase: "idle",
     renameProgress: null,
     verifyIssue: null,
+    folderMissing: null,
+    lowercaseMergeReport: null,
     choose: vi.fn(),
     open: vi.fn(),
     confirmImport: vi.fn(),
     cancelImport: vi.fn(),
     dismissVerifyIssue: vi.fn(),
+    reportFolderMissing: vi.fn(),
+    dismissFolderMissing: vi.fn(),
+    dismissLowercaseMergeReport: vi.fn(),
     retry: vi.fn(),
     setScope: vi.fn(),
     reload: vi.fn(),

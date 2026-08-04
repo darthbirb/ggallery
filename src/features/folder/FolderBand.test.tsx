@@ -9,7 +9,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fakeLibrary, folderNode, renderWithProviders } from "../../test/harness";
+import { fakeLibrary, folderNode, renderWithProviders, rootNode } from "../../test/harness";
 import type { FolderDetail } from "../../lib/types";
 import { FolderBand } from "./FolderBand";
 
@@ -62,6 +62,7 @@ function renderBand(over: Partial<React.ComponentProps<typeof FolderBand>> = {})
   const result = renderWithProviders(
     <FolderBand
       folder={folder}
+      folders={[rootNode(), folder]}
       scopeLabel="Everything"
       itemCount={0}
       statuses={[
@@ -232,6 +233,24 @@ describe("expanded, with no archetype", () => {
     await waitFor(() =>
       expect(mocked.setFolderNotes).toHaveBeenCalledWith(1, "a real note"),
     );
+  });
+});
+
+describe("ancestry", () => {
+  it("shows the same breadcrumb the item details panel uses, folder itself last", async () => {
+    const people = folderNode({ id: 2, relPath: "people", title: "People", parentId: 100 });
+    const trip = folderNode({ id: 1, relPath: "people/trips", title: "Trips", parentId: 2 });
+    renderBand({ folder: trip, folders: [rootNode(), people, trip], expanded: true });
+
+    expect(await screen.findByText("People")).toBeInTheDocument();
+    // "Trips" is both the header title and the breadcrumb's last crumb.
+    expect(screen.getAllByText("Trips")).toHaveLength(2);
+  });
+
+  it("shows no breadcrumb for a top-level folder — nothing sits above itself", async () => {
+    renderBand({ expanded: true });
+    await screen.findByText(/add label/);
+    expect(screen.getAllByText("Trips")).toHaveLength(1);
   });
 });
 
