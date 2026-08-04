@@ -294,6 +294,7 @@ pub fn run() {
             commands::items::copy_item_file,
             commands::items::copy_item_path,
             commands::tags::item_effective_tags,
+            commands::tags::folder_inherited_tags,
             commands::tags::add_item_tag,
             commands::tags::remove_item_tag,
             commands::tags::list_tags,
@@ -320,18 +321,51 @@ pub fn run() {
     });
 }
 
+const MIN_WINDOW_WIDTH: f64 = 960.0;
+const MIN_WINDOW_HEIGHT: f64 = 600.0;
+
+/// 70% of the primary monitor's work area, centred within it. `None` when no
+/// monitor can be identified — `build_window` falls back to a fixed size.
+///
+/// Monitor geometry comes back in physical pixels; the builder's
+/// `inner_size`/`position` take logical ones, so everything here is divided
+/// by the scale factor before use, matching `save_window_state`'s conversion
+/// the other way.
+fn default_window_geometry(app: &AppHandle) -> Option<(f64, f64, f64, f64)> {
+    let monitor = app.primary_monitor().ok().flatten()?;
+    let scale = monitor.scale_factor();
+    let work_area = monitor.work_area();
+
+    let area_width = work_area.size.width as f64 / scale;
+    let area_height = work_area.size.height as f64 / scale;
+    let area_x = work_area.position.x as f64 / scale;
+    let area_y = work_area.position.y as f64 / scale;
+
+    let width = (area_width * 0.7).max(MIN_WINDOW_WIDTH);
+    let height = (area_height * 0.7).max(MIN_WINDOW_HEIGHT);
+    let x = area_x + (area_width - width) / 2.0;
+    let y = area_y + (area_height - height) / 2.0;
+
+    Some((width, height, x, y))
+}
+
 /// The window is built here rather than declared in `tauri.conf.json` because
 /// `data_directory` — the WebView2 redirect — has no configuration-file
 /// equivalent.
 fn build_window(app: &AppHandle) -> Result<()> {
     let config = Config::load();
 
+    // `bundle.icon` (tauri.conf.json) embeds this into the exe's own Windows
+    // resource at build time, via `tauri-build`; that covers Explorer's file
+    // icon. It says nothing about the icon a *running* window carries — that
+    // has to be set on the builder, or the window falls back to a default
+    // and the taskbar shows an upscaled version of it.
+    let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png"))?;
+
     let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
         .title("GGallery")
-        // Conservative: a logical size that still fits a 1080p screen once
-        // Windows applies display scaling.
-        .inner_size(1280.0, 820.0)
-        .min_inner_size(960.0, 600.0)
+        .icon(icon)?
+        .min_inner_size(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
         // Decision 28: the window bar is ours, not Windows'. Snap Layouts'
         // flyout is knowingly given up — it only appears over a native
         // maximise button — but edge-drag resizing and edge-snap are
@@ -361,6 +395,12 @@ fn build_window(app: &AppHandle) -> Result<()> {
         builder = builder
             .inner_size(state.width as f64, state.height as f64)
             .position(state.x as f64, state.y as f64);
+    } else if let Some((width, height, x, y)) = default_window_geometry(app) {
+        builder = builder.inner_size(width, height).position(x, y);
+    } else {
+        // No monitor info available — fall back to a conservative logical
+        // size that still fits a 1080p screen once Windows applies scaling.
+        builder = builder.inner_size(1280.0, 820.0);
     }
 
     let window = builder.build()?;
