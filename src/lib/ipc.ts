@@ -206,6 +206,12 @@ export function applyFolderArchetype(id: number, archetypeId: number): Promise<v
   return invoke<void>("apply_folder_archetype", { id, archetypeId });
 }
 
+/** Un-applies the current archetype and drops the field values it owned —
+ *  a one-off field added independently is untouched. */
+export function removeFolderArchetype(id: number): Promise<void> {
+  return invoke<void>("remove_folder_archetype", { id });
+}
+
 export function setFolderLabel(
   id: number,
   key: string,

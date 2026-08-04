@@ -73,6 +73,10 @@ export function FolderMenu({
           </MenuItem>
         ))}
       </MenuSub>
+      {/* `FolderNode` doesn't carry which archetype (if any) this folder is
+          on, so this is always offered rather than conditionally hidden —
+          it is a harmless no-op on a folder with nothing to remove. */}
+      <MenuItem onSelect={() => ops.removeArchetype(folder.id)}>Remove archetype</MenuItem>
 
       <MenuItem
         onSelect={() => ops.setFolderFavorite(folder.id, folder.title, !folder.favorite)}

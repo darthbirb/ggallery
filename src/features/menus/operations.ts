@@ -54,6 +54,7 @@ export interface Operations {
   addFolderFlag: (folderId: number, value: string) => Promise<void>;
   removeFolderTag: (folderId: number, tagId: number) => Promise<void>;
   applyArchetype: (folderId: number, archetypeId: number, name: string) => Promise<void>;
+  removeArchetype: (folderId: number) => Promise<void>;
   revealFolder: (folderId: number) => Promise<void>;
 }
 
@@ -330,6 +331,16 @@ export function buildOperations(deps: Deps): Operations {
         toasts.push({ message: `Applied ${name}` });
       } catch (err) {
         fail(toasts, "Could not apply the archetype", err);
+      }
+    },
+
+    async removeArchetype(folderId) {
+      try {
+        await ipc.removeFolderArchetype(folderId);
+        library.refreshFolders();
+        toasts.push({ message: "Removed the archetype" });
+      } catch (err) {
+        fail(toasts, "Could not remove the archetype", err);
       }
     },
 

@@ -116,6 +116,16 @@ pub async fn apply_folder_archetype(
 }
 
 #[tauri::command]
+pub async fn remove_folder_archetype(state: State<'_, AppState>, id: i64) -> Result<()> {
+    let library = state.library()?;
+    blocking(move || {
+        let conn = library.conn()?;
+        db::folders::clear_archetype(&conn, id)
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn set_folder_label(
     state: State<'_, AppState>,
     id: i64,

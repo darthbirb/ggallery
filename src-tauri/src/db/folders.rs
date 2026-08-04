@@ -235,7 +235,16 @@ pub fn get_detail(conn: &Connection, id: i64) -> Result<Option<FolderDetail>> {
 
     let (direct_count, total_count, subfolder_count) = subtree_totals(conn, &rel_path)?;
 
-    let fields = if let Some(aid) = archetype_id {
+    // Archetype fields first, in their defined order — then any other
+    // labelled tag on this folder that isn't one of them. That second half
+    // used to be missing entirely: a folder with no archetype rendered no
+    // fields at all, and a folder *with* one only ever showed the fields
+    // the archetype defined, so a one-off field added straight from the
+    // band's "＋ add field" control wrote to `folder_tag` correctly but
+    // never appeared anywhere — the bug reported after M2.5c shipped it.
+    let mut archetype_keys: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut fields: Vec<ArchetypeFieldValue> = Vec::new();
+    if let Some(aid) = archetype_id {
         let mut stmt = conn.prepare(
             "SELECT af.key, af.ordinal,
                     COALESCE(
@@ -246,7 +255,7 @@ pub fn get_detail(conn: &Connection, id: i64) -> Result<Option<FolderDetail>> {
               WHERE af.archetype_id = ?2
               ORDER BY af.ordinal",
         )?;
-        let rows = stmt
+        fields = stmt
             .query_map(params![id, aid], |r| {
                 Ok(ArchetypeFieldValue {
                     key: r.get(0)?,
@@ -255,10 +264,29 @@ pub fn get_detail(conn: &Connection, id: i64) -> Result<Option<FolderDetail>> {
                 })
             })?
             .collect::<rusqlite::Result<_>>()?;
-        rows
-    } else {
-        Vec::new()
-    };
+        archetype_keys.extend(fields.iter().map(|f| f.key.clone()));
+    }
+
+    let mut one_off_stmt = conn.prepare(
+        "SELECT t.key, t.value FROM folder_tag ft JOIN tag t ON t.id = ft.tag_id
+          WHERE ft.folder_id = ?1 AND t.key IS NOT NULL
+          ORDER BY t.key COLLATE NOCASE",
+    )?;
+    let one_off_rows: Vec<(String, String)> = one_off_stmt
+        .query_map(params![id], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    let mut next_ordinal = fields.len() as i64;
+    for (key, value) in one_off_rows {
+        if archetype_keys.contains(&key) {
+            continue;
+        }
+        fields.push(ArchetypeFieldValue {
+            key,
+            ordinal: next_ordinal,
+            value,
+        });
+        next_ordinal += 1;
+    }
 
     let mut flag_stmt = conn.prepare(
         "SELECT t.id, t.value FROM folder_tag ft JOIN tag t ON t.id = ft.tag_id
@@ -508,6 +536,28 @@ pub fn apply_archetype(conn: &Connection, folder_id: i64, archetype_id: i64) -> 
         ensure_empty_label(conn, folder_id, &key)?;
     }
 
+    enqueue_retag(conn, folder_id)
+}
+
+/// The other half of `apply_archetype`: un-applies the archetype from one
+/// folder and drops the field values it owned (`source = 'archetype'`) —
+/// "and its tags go with it too". A one-off field added independently
+/// through "＋ add field" is `source = 'manual'` and is untouched. Distinct
+/// from `delete_archetype`, which removes the archetype definition itself
+/// for every folder using it and, deliberately, leaves their values as
+/// orphaned data rather than deleting them (see
+/// `delete_archetype_leaves_folder_labels_in_place`) — this is the
+/// per-folder "I don't want this archetype here any more" action, which
+/// has no reason to be that conservative.
+pub fn clear_archetype(conn: &Connection, folder_id: i64) -> Result<()> {
+    conn.execute(
+        "DELETE FROM folder_tag WHERE folder_id = ?1 AND source = 'archetype'",
+        params![folder_id],
+    )?;
+    conn.execute(
+        "UPDATE folder SET archetype_id = NULL WHERE id = ?1",
+        params![folder_id],
+    )?;
     enqueue_retag(conn, folder_id)
 }
 
@@ -1126,10 +1176,13 @@ mod folder_metadata_tests {
 
         let detail = get_detail(&conn, ana).unwrap().unwrap();
         assert!(detail.archetype_id.is_none());
-        assert!(
-            detail.fields.is_empty(),
-            "no archetype means no fields to render, even though the value is still there"
-        );
+        // The value survives as data either way (this is `delete_archetype`,
+        // the Settings-level "gone for every folder using it" operation —
+        // `clear_archetype` below is the per-folder one that actually drops
+        // it). With no archetype left to own the key, it now renders as a
+        // one-off field rather than disappearing from view entirely.
+        let instagram = detail.fields.iter().find(|f| f.key == "instagram").unwrap();
+        assert_eq!(instagram.value, "@ana");
         let still_there: String = conn
             .query_row(
                 "SELECT t.value FROM folder_tag ft JOIN tag t ON t.id = ft.tag_id
@@ -1139,6 +1192,60 @@ mod folder_metadata_tests {
             )
             .unwrap();
         assert_eq!(still_there, "@ana");
+    }
+
+    #[test]
+    fn one_off_fields_render_with_or_without_an_archetype() {
+        let conn = memory_conn();
+        let ana = upsert(&conn, "people/ana", "Ana").unwrap();
+
+        // No archetype at all — a one-off field added straight from the
+        // band still has to show up.
+        set_label(&conn, ana, "city", "Lisbon").unwrap();
+        let detail = get_detail(&conn, ana).unwrap().unwrap();
+        let city = detail.fields.iter().find(|f| f.key == "city").unwrap();
+        assert_eq!(city.value, "Lisbon");
+
+        // With an archetype applied too, the one-off field still shows up
+        // alongside the archetype's own fields rather than being crowded out.
+        let person = person_archetype(&conn);
+        apply_archetype(&conn, ana, person).unwrap();
+        let detail = get_detail(&conn, ana).unwrap().unwrap();
+        assert!(detail.fields.iter().any(|f| f.key == "instagram"));
+        assert!(detail.fields.iter().any(|f| f.key == "tiktok"));
+        let city = detail.fields.iter().find(|f| f.key == "city").unwrap();
+        assert_eq!(city.value, "Lisbon");
+    }
+
+    #[test]
+    fn clear_archetype_drops_the_folder_and_its_field_values() {
+        let conn = memory_conn();
+        let person = person_archetype(&conn);
+        let ana = upsert(&conn, "people/ana", "Ana").unwrap();
+        apply_archetype(&conn, ana, person).unwrap();
+        set_label(&conn, ana, "instagram", "@ana").unwrap();
+        // A one-off field, added independently of the archetype — clearing
+        // the archetype must not take this one down with it.
+        set_label(&conn, ana, "city", "Lisbon").unwrap();
+
+        clear_archetype(&conn, ana).unwrap();
+
+        let detail = get_detail(&conn, ana).unwrap().unwrap();
+        assert!(detail.archetype_id.is_none());
+        assert!(!detail.fields.iter().any(|f| f.key == "instagram"));
+        assert!(!detail.fields.iter().any(|f| f.key == "tiktok"));
+        let city = detail.fields.iter().find(|f| f.key == "city").unwrap();
+        assert_eq!(city.value, "Lisbon");
+
+        let orphaned: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM folder_tag ft JOIN tag t ON t.id = ft.tag_id
+                  WHERE ft.folder_id = ?1 AND t.key = 'instagram'",
+                params![ana],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(orphaned, 0, "the archetype's own field values are gone, not just hidden");
     }
 
     #[test]
