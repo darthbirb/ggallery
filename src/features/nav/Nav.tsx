@@ -55,8 +55,10 @@ import type {
   Progress,
 } from "../../lib/types";
 import { cn } from "../../lib/utils";
+import { dropIsValid, onFolderDragStart, resolveDrop, useDnd, useSpringLoad } from "../../state/dnd";
 import type { Scope } from "../../state/library";
 import { FolderMenu, FolderTreeBackgroundMenu } from "../menus/FolderMenu";
+import { useOperations } from "../menus/operations";
 
 /** The one status that gets a mark in the tree. One mark, not four:
  *  docs/DESIGN.md §1 "Folders" — absence means nothing to say. */
@@ -550,6 +552,11 @@ function FolderRow({
   onOpen: (folder: FolderNode) => void;
   onEditDetails: (folder: FolderNode) => void;
 }) {
+  const { dragging, startDrag } = useDnd();
+  const ops = useOperations();
+  const accepting = dragging !== null && dropIsValid(dragging, folder.id);
+  const springLoad = useSpringLoad(() => onOpen(folder));
+
   return (
     <ContextMenu
       menu={
@@ -564,8 +571,32 @@ function FolderRow({
     >
       {/* `mb-0.5` is the tree's own tighter rhythm — a visible gap between a
           folder and its subfolders, and between siblings, without stretching
-          to the roots list's `gap-2`. */}
-      <div className={cn(ROW, "mb-0.5 pl-0 pr-0", selected ? ROW_ACTIVE : ROW_IDLE)}>
+          to the roots list's `gap-2`. One of the app's three drop targets
+          (DESIGN.md §*Drops*) — draggable itself (a folder can be dragged
+          onto another) and a target for both an item drag and a folder
+          drag, resolved identically by `resolveDrop`. Spring-loads open on
+          hover during a drag so a nested destination never has to be set up
+          first. */}
+      <div
+        draggable
+        onDragStart={(event) => onFolderDragStart(event, folder, startDrag)}
+        onDragOver={(event) => {
+          if (accepting) event.preventDefault();
+        }}
+        onDragEnter={springLoad.onDragEnter}
+        onDragLeave={springLoad.onDragLeave}
+        onDrop={(event) => {
+          event.preventDefault();
+          springLoad.onDrop();
+          if (dragging && accepting) resolveDrop(dragging, folder, ops);
+        }}
+        className={cn(
+          ROW,
+          "mb-0.5 pl-0 pr-0",
+          selected ? ROW_ACTIVE : ROW_IDLE,
+          accepting && "outline outline-2 -outline-offset-2 outline-accent",
+        )}
+      >
         <button
           type="button"
           aria-label={expandable ? (expanded ? "Collapse" : "Expand") : undefined}

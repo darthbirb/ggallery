@@ -54,6 +54,9 @@ export interface TilePoolOptions {
   onContext: (id: number, x: number, y: number) => void;
   /** Double-click — show this item in the pane. */
   onActivate: (id: number) => void;
+  /** Drag start — whichever items end up dragged, resolved against
+   *  `setSelected`'s current set (see the `dragstart` listener below). */
+  onDragStart: (event: DragEvent, itemIds: number[]) => void;
 }
 
 export class TilePool {
@@ -61,6 +64,7 @@ export class TilePool {
   private readonly onSelect: (id: number, modifiers: ClickModifiers) => void;
   private readonly onContext: (id: number, x: number, y: number) => void;
   private readonly onActivate: (id: number) => void;
+  private readonly onDragStart: (event: DragEvent, itemIds: number[]) => void;
   private readonly nodes: TileNode[] = [];
   private readonly free: TileNode[] = [];
   private readonly active = new Map<number, TileNode>();
@@ -76,6 +80,7 @@ export class TilePool {
     this.onSelect = options.onSelect;
     this.onContext = options.onContext;
     this.onActivate = options.onActivate;
+    this.onDragStart = options.onDragStart;
   }
 
   setItems(items: GridItem[], thumbsDir: string, spritesDir: string): void {
@@ -200,6 +205,7 @@ export class TilePool {
   private create(): TileNode {
     const root = document.createElement("div");
     root.className = "tile";
+    root.draggable = true;
 
     const img = document.createElement("img");
     img.className = "tile-img is-empty";
@@ -259,6 +265,20 @@ export class TilePool {
     });
     root.addEventListener("dblclick", () => {
       if (node.itemId >= 0) this.onActivate(node.itemId);
+    });
+    root.addEventListener("dragstart", (event) => {
+      if (node.itemId < 0) {
+        event.preventDefault();
+        return;
+      }
+      // Dragging a tile that is part of the current selection carries the
+      // whole selection along, the same rule Explorer uses — read from
+      // `this.selected` itself, not the visible pool, since a selection can
+      // reach well past what is currently mounted on screen. Dragging a
+      // tile that is not selected carries only itself, without disturbing
+      // the selection.
+      const ids = this.selected.has(node.itemId) ? [...this.selected] : [node.itemId];
+      this.onDragStart(event, ids);
     });
     root.addEventListener("mouseenter", () => {
       if (node.kind !== "video") return;

@@ -45,16 +45,12 @@ export const PANE_MODES: { key: PaneMode; label: string }[] = [
 ];
 
 /**
- * What the pane's mode control actually offers today.
- *
- * Only Preview is built; Grid and Folders are M2.5b's. They are **not** shown
- * as disabled tabs — two dead controls read as unfinished, which is exactly
- * the complaint M2.5a.1 exists to answer. Adding them back is adding their
- * keys to this list.
+ * What the pane's mode control actually offers. All three modes are built
+ * as of M2.5b — this list exists so a preferences file naming a mode that
+ * is not (yet, or any more) built can never leave the pane rendering
+ * nothing at all; see `reconcile`, below.
  */
-export const AVAILABLE_PANE_MODES = PANE_MODES.filter(
-  (mode) => mode.key === "preview",
-);
+export const AVAILABLE_PANE_MODES = PANE_MODES;
 
 /** Below this a panel is not usable; the drag stops rather than collapsing. */
 export const NAV_MIN = 150;

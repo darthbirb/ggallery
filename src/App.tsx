@@ -33,6 +33,7 @@ import { formatCount } from "./lib/format";
 import * as ipc from "./lib/ipc";
 import type { ArchetypeInfo, FolderNode, FolderStatusDef } from "./lib/types";
 import { cn } from "./lib/utils";
+import { DndProvider } from "./state/dnd";
 import { useLibrary, type LibraryController, type Scope } from "./state/library";
 import { useSelection, type SelectionController } from "./state/selection";
 import { ToastProvider, useToasts } from "./state/toasts";
@@ -156,7 +157,9 @@ function Shell() {
     content = (
       <OperationsProvider library={library} selection={selection}>
         <DialogsProvider folders={library.folders}>
-          <Gallery library={library} selection={selection} />
+          <DndProvider>
+            <Gallery library={library} selection={selection} />
+          </DndProvider>
         </DialogsProvider>
       </OperationsProvider>
     );
@@ -374,6 +377,7 @@ function Gallery({
       slots={slots}
       items={library.items}
       thumbsDir={info.thumbsDir}
+      spritesDir={info.spritesDir}
       onStep={(delta) => selection.step(delta)}
       onPick={(itemId) => selection.focus(itemId)}
       detailsExpanded={ui.detailsExpanded}
@@ -382,6 +386,8 @@ function Gallery({
       onFilmstripHeightChange={(height) => ui.set("filmstripHeight", height)}
       onResetFilmstripHeight={ui.resetFilmstripHeight}
       refreshToken={library.refreshToken}
+      folders={library.folders}
+      onOpenInMain={openFolder}
     />
   );
 
@@ -749,7 +755,7 @@ function Welcome({ library }: { library: LibraryController }) {
       <h1 className="text-[24px] font-semibold tracking-tight">GGallery</h1>
       <p className="max-w-[46ch] leading-relaxed text-fg-mid">
         Choose the folder that holds your media. Everything the app writes goes into a{" "}
-        <span className="font-mono text-fg">.gallery</span> folder inside it.
+        <span className="font-mono text-fg">.ggallery</span> folder inside it.
       </p>
 
       <Button

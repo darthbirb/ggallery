@@ -38,6 +38,21 @@ if (!("ResizeObserver" in globalThis)) {
   } as unknown as typeof ResizeObserver;
 }
 
+// jsdom implements no Worker at all, and `Grid` (used directly by M2.5b's
+// GridMode) creates one lazily on mount for its justified-layout math. The
+// interaction tests here never assert on pixel layout, only on what renders
+// regardless of it (an empty state, a tile count) — so a Worker that never
+// actually posts a message back is enough to let `Grid` mount without
+// throwing, same reasoning as every other shim in this file.
+if (!("Worker" in globalThis)) {
+  globalThis.Worker = class {
+    addEventListener() {}
+    removeEventListener() {}
+    postMessage() {}
+    terminate() {}
+  } as unknown as typeof Worker;
+}
+
 if (!("DOMRect" in globalThis)) {
   globalThis.DOMRect = class {
     constructor(

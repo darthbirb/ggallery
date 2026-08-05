@@ -5,7 +5,7 @@
  * tree never reorders.
  */
 
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,6 +16,8 @@ import {
   renderWithProviders,
   topLevelNode,
 } from "../../test/harness";
+import type { DragPayload } from "../../state/dnd";
+import { useDnd } from "../../state/dnd";
 import { Nav } from "./Nav";
 
 vi.mock("../../lib/ipc");
@@ -149,6 +151,130 @@ describe("the tree", () => {
       folderId: 1,
       recursive: true,
     });
+  });
+});
+
+/** A drag is normally started by the browser's own gesture on a draggable
+ *  source; these tests only need a drag to already be *in progress* when a
+ *  drop lands on a target, so this stands one up directly through the
+ *  shared `useDnd()` context instead of simulating a real `dragstart`. */
+function DragStarter({ payload }: { payload: DragPayload }) {
+  const { startDrag } = useDnd();
+  return (
+    <button type="button" onClick={() => startDrag(payload)}>
+      start drag
+    </button>
+  );
+}
+
+function fireDrop(target: HTMLElement) {
+  fireEvent.dragEnter(target);
+  fireEvent.dragOver(target);
+  fireEvent.drop(target);
+}
+
+describe("tree rows as drop targets", () => {
+  it("moves items dropped onto a folder row", async () => {
+    const folders = [topLevelNode(), folderNode({ id: 1, title: "Alps" })];
+    const { library } = renderWithProviders(
+      <>
+        <Nav
+          folders={folders}
+          scope={EVERYTHING_SCOPE}
+          onScope={vi.fn()}
+          statuses={[]}
+          archetypes={[]}
+          folded={false}
+          onFoldedChange={vi.fn()}
+          onEditDetails={vi.fn()}
+          favouriteCount={0}
+          sortingCount={0}
+          progress={null}
+          failureCount={0}
+          showingFailures={false}
+          onToggleFailures={vi.fn()}
+          onOpenSettings={vi.fn()}
+        />
+        <DragStarter payload={{ kind: "items", itemIds: [7, 8] }} />
+      </>,
+      { library: fakeLibrary({ folders }) },
+    );
+    mocked.moveItems.mockResolvedValue({ moved: 2, batchId: "b1", errors: [] });
+
+    await userEvent.click(screen.getByRole("button", { name: "start drag" }));
+    fireDrop(screen.getByRole("button", { name: /Alps/ }));
+
+    expect(mocked.moveItems).toHaveBeenCalledWith([7, 8], 1);
+    await waitFor(() => expect(library.reload).toHaveBeenCalled());
+  });
+
+  it("nests a dragged folder onto another row", async () => {
+    const folders = [
+      topLevelNode(),
+      folderNode({ id: 1, title: "Alps" }),
+      folderNode({ id: 2, title: "Borneo", parentId: null, depth: 0 }),
+    ];
+    renderWithProviders(
+      <>
+        <Nav
+          folders={folders}
+          scope={EVERYTHING_SCOPE}
+          onScope={vi.fn()}
+          statuses={[]}
+          archetypes={[]}
+          folded={false}
+          onFoldedChange={vi.fn()}
+          onEditDetails={vi.fn()}
+          favouriteCount={0}
+          sortingCount={0}
+          progress={null}
+          failureCount={0}
+          showingFailures={false}
+          onToggleFailures={vi.fn()}
+          onOpenSettings={vi.fn()}
+        />
+        <DragStarter payload={{ kind: "folder", folder: folders[2] }} />
+      </>,
+      { library: fakeLibrary({ folders }) },
+    );
+    mocked.moveFolder.mockResolvedValue("batch-1");
+
+    await userEvent.click(screen.getByRole("button", { name: "start drag" }));
+    fireDrop(screen.getByRole("button", { name: /Alps/ }));
+
+    await waitFor(() => expect(mocked.moveFolder).toHaveBeenCalledWith(2, 1));
+  });
+
+  it("refuses a folder dropped onto itself before ever asking the backend", async () => {
+    const folders = [topLevelNode(), folderNode({ id: 1, title: "Alps" })];
+    renderWithProviders(
+      <>
+        <Nav
+          folders={folders}
+          scope={EVERYTHING_SCOPE}
+          onScope={vi.fn()}
+          statuses={[]}
+          archetypes={[]}
+          folded={false}
+          onFoldedChange={vi.fn()}
+          onEditDetails={vi.fn()}
+          favouriteCount={0}
+          sortingCount={0}
+          progress={null}
+          failureCount={0}
+          showingFailures={false}
+          onToggleFailures={vi.fn()}
+          onOpenSettings={vi.fn()}
+        />
+        <DragStarter payload={{ kind: "folder", folder: folders[1] }} />
+      </>,
+      { library: fakeLibrary({ folders }) },
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "start drag" }));
+    fireDrop(screen.getByRole("button", { name: /Alps/ }));
+
+    expect(mocked.moveFolder).not.toHaveBeenCalled();
   });
 });
 

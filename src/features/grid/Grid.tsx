@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { PointMenu } from "../../components/Menu";
 import type { GridItem } from "../../lib/types";
+import { startItemDrag, useDnd } from "../../state/dnd";
 import type { SelectionController } from "../../state/selection";
 import type { LayoutResult } from "./layoutWorker";
 import { Scrubber, type ScrubberHandle } from "./Scrubber";
@@ -58,6 +59,7 @@ export function Grid({
   const frameRef = useRef(0);
 
   const [menu, setMenu] = useState<GridMenuTarget | null>(null);
+  const { startDrag } = useDnd();
 
   // `selection.click` changes identity whenever `items` or the shift-click
   // anchor changes — e.g. on every reload while indexing. The tile pool must
@@ -65,8 +67,8 @@ export function Grid({
   // every items reload would reintroduce the GC-churn fling regression), so
   // the pool's stable callbacks read through refs to whatever the latest
   // handlers are, rather than closing over them directly.
-  const handlers = useRef({ click: selection.click, activate: onActivate });
-  handlers.current = { click: selection.click, activate: onActivate };
+  const handlers = useRef({ click: selection.click, activate: onActivate, startDrag });
+  handlers.current = { click: selection.click, activate: onActivate, startDrag };
 
   const [width, setWidth] = useState(0);
   const layout = useJustifiedLayout(
@@ -125,6 +127,8 @@ export function Grid({
         setMenu({ x, y, itemId: id });
       },
       onActivate: (id) => handlers.current.activate(id),
+      onDragStart: (event, itemIds) =>
+        startItemDrag(event, itemIds, handlers.current.startDrag),
     });
     poolRef.current = pool;
     return () => {
