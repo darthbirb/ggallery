@@ -37,15 +37,14 @@ pub enum AppError {
     #[error("filesystem watcher: {0}")]
     Watch(String),
 
-    /// A folder record whose directory has gone missing from disk — moved or
-    /// deleted outside the app. Every raw filesystem error this could
-    /// otherwise surface as ("the system cannot find the path specified")
-    /// gets caught at the point it would happen and turned into this
-    /// instead, naming the folder so the frontend has something to act on.
-    /// A real fix removes the directory from the model entirely (PLAN.md
-    /// §M2.6); this is the interim one (docs/DESIGN.md §M2.5d).
-    #[error("\"{title}\" is missing from disk — it may have been moved or deleted outside the app")]
-    FolderMissing { id: i64, title: String },
+    /// This library predates PLAN.md decision 30 (folders as data) and has
+    /// not yet run the `fs::shard` storage migration. `Library::open` refuses
+    /// to apply schema migration 008 until that migration has physically
+    /// moved every file and verified clean — see `db::needs_storage_migration`.
+    /// The frontend catches this `kind` and switches to the migration wizard
+    /// instead of opening the gallery.
+    #[error("this library needs to be migrated to the new storage layout before it can be opened")]
+    NeedsStorageMigration,
 }
 
 impl AppError {
@@ -61,28 +60,7 @@ impl AppError {
             AppError::ToolMissing(_) => "tool-missing",
             AppError::Invalid(_) => "invalid",
             AppError::Watch(_) => "watch",
-            AppError::FolderMissing { .. } => "folder-missing",
-        }
-    }
-
-    /// The folder this error names, when it names one — `folder-missing` is
-    /// the only case today, but reading it through one method rather than
-    /// matching the variant directly keeps the frontend-facing shape
-    /// (`folderId`) independent of how many variants end up carrying one.
-    pub fn folder_id(&self) -> Option<i64> {
-        match self {
-            AppError::FolderMissing { id, .. } => Some(*id),
-            _ => None,
-        }
-    }
-
-    /// The folder's own title, sent alongside `folderId` so the frontend
-    /// never has to re-derive "which folder" from local state that might not
-    /// (yet) agree with what the backend just looked up.
-    pub fn folder_title(&self) -> Option<&str> {
-        match self {
-            AppError::FolderMissing { title, .. } => Some(title),
-            _ => None,
+            AppError::NeedsStorageMigration => "needs-storage-migration",
         }
     }
 
@@ -98,11 +76,9 @@ impl AppError {
 impl serde::Serialize for AppError {
     fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
-        let mut st = s.serialize_struct("AppError", 4)?;
+        let mut st = s.serialize_struct("AppError", 2)?;
         st.serialize_field("kind", self.kind())?;
         st.serialize_field("message", &self.to_string())?;
-        st.serialize_field("folderId", &self.folder_id())?;
-        st.serialize_field("folderTitle", &self.folder_title())?;
         st.end()
     }
 }

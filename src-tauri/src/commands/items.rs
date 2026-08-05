@@ -4,7 +4,6 @@ use crate::commands::blocking;
 use crate::db;
 use crate::db::items::{GridItem, Scope};
 use crate::error::{AppError, Result};
-use crate::fs::paths::normalise_rel;
 use crate::fs::relocate::MoveItemsReport;
 use crate::fs::trash::TrashItemsReport;
 use crate::AppState;
@@ -15,16 +14,23 @@ use crate::AppState;
 /// lays out in under 20ms, so the grid does not page: it takes the whole list,
 /// hands it to the layout worker, and virtualises from there. Paging would buy
 /// nothing and cost the scrubber its knowledge of the full date range.
+///
+/// `folderId` and `unsorted` together pick the scope (PLAN.md decision 30 —
+/// there is no "root folder" any more): `unsorted: true` is the Sorting Box,
+/// `folderId: Some(id)` is that folder (optionally recursive), and neither
+/// set is Everything.
 #[tauri::command]
 pub async fn list_items(
     state: State<'_, AppState>,
-    folder: Option<String>,
+    folder_id: Option<i64>,
+    unsorted: bool,
     recursive: bool,
 ) -> Result<Vec<GridItem>> {
     let library = state.library()?;
-    let scope = Scope {
-        folder: folder.map(|rel| normalise_rel(&rel)),
-        recursive,
+    let scope = match (unsorted, folder_id) {
+        (true, _) => Scope::Unsorted,
+        (false, Some(id)) => Scope::Folder { id, recursive },
+        (false, None) => Scope::Everything,
     };
 
     blocking(move || {
@@ -36,7 +42,8 @@ pub async fn list_items(
 
 /// One item, in full — the pane's Preview mode. `path` is filled in here
 /// rather than in `db/`, because resolving library-relative to absolute is
-/// `fs::paths`'s job and nothing else's.
+/// `fs::paths`'s job and nothing else's; `folderBreadcrumb` similarly, since
+/// it is a second query `db::items::detail` deliberately doesn't fold in.
 #[tauri::command]
 pub async fn get_item(state: State<'_, AppState>, item_id: i64) -> Result<db::items::ItemDetail> {
     let library = state.library()?;
@@ -44,12 +51,26 @@ pub async fn get_item(state: State<'_, AppState>, item_id: i64) -> Result<db::it
         let conn = library.conn()?;
         let mut detail = db::items::detail(&conn, item_id)?
             .ok_or_else(|| AppError::invalid("item no longer exists"))?;
-        detail.path = library
-            .paths
-            .item_path(&detail.folder_rel, &detail.disk_name)?
-            .to_string_lossy()
-            .to_string();
+        let loc = db::items::location(&conn, item_id)?
+            .ok_or_else(|| AppError::invalid("item no longer exists"))?;
+        detail.path = library.paths.item_path(&loc.uuid, &loc.ext).to_string_lossy().to_string();
+        if let Some(folder_id) = detail.folder_id {
+            detail.folder_breadcrumb = db::folders::breadcrumb(&conn, folder_id)?;
+        }
         Ok(detail)
+    })
+    .await
+}
+
+/// Items in the Sorting Box — the sidebar badge's count. There is no folder
+/// row to read this off any more (PLAN.md decision 30), so it is its own
+/// small query rather than a field on `FolderNode`.
+#[tauri::command]
+pub async fn unsorted_count(state: State<'_, AppState>) -> Result<i64> {
+    let library = state.library()?;
+    blocking(move || {
+        let conn = library.conn()?;
+        db::items::unsorted_count(&conn)
     })
     .await
 }
@@ -84,7 +105,7 @@ pub async fn move_items(
     blocking(move || {
         let conn = library.conn()?;
         let batch = db::journal::new_batch();
-        crate::fs::relocate::move_items(&library.paths, &conn, &item_ids, dest_folder_id, &batch)
+        crate::fs::relocate::move_items(&conn, &item_ids, dest_folder_id, &batch)
     })
     .await
 }
@@ -105,9 +126,9 @@ pub async fn delete_items(
 
 fn item_abs_path(library: &crate::Library, item_id: i64) -> Result<std::path::PathBuf> {
     let conn = library.conn()?;
-    let item = db::items::rename_target(&conn, item_id)?
+    let loc = db::items::location(&conn, item_id)?
         .ok_or_else(|| AppError::invalid("item no longer exists"))?;
-    library.paths.item_path(&item.folder_rel, &item.disk_name)
+    Ok(library.paths.item_path(&loc.uuid, &loc.ext))
 }
 
 #[tauri::command]

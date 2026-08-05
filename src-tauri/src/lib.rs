@@ -17,7 +17,7 @@ use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use crate::config::{Config, WindowState};
 use crate::error::{AppError, Result};
 use crate::fs::paths::LibraryPaths;
-use crate::fs::watch::{Suppressor, Watch};
+use crate::fs::watch::Watch;
 use crate::jobs::JobQueue;
 use crate::sidecar::Tools;
 
@@ -43,6 +43,8 @@ pub struct Library {
     /// directly so `close(&self)` — called through a shared `Arc<Library>` —
     /// can take ownership of it and call its `&mut self` `stop`.
     watch: Mutex<Option<Watch>>,
+    /// Same shape as `watch` — the standing `library.jsonl` writer.
+    standing_jsonl: Mutex<Option<fs::jsonl::StandingWriter>>,
     /// What `fs::lowercase_migration::run` merged on the way in, if this
     /// `open` is the one that ran it — `describe` (`commands/library.rs`)
     /// takes it exactly once, so it is shown once, the same as `verifyIssue`
@@ -68,6 +70,16 @@ impl Library {
         let lock = LockFile::acquire(&paths.lock_path())?;
 
         let mut conn = db::open(&paths.db_path())?;
+        // `fs::shard`'s physical storage migration must have already moved
+        // every file and verified clean before schema migration 008 ever
+        // runs — dropping `folder.rel_path` first would strand any file not
+        // yet moved. The wizard runs against this same v7 connection,
+        // opened directly rather than through `Library::open` (see
+        // `commands::storage_migration`), and marks itself verified when
+        // done; only then does this gate let `db::migrate` proceed.
+        if db::needs_storage_migration(&conn)? {
+            return Err(AppError::NeedsStorageMigration);
+        }
         db::migrate(&mut conn)?;
         // Jobs abandoned by a crash go back in the queue.
         db::jobs::requeue_running(&conn)?;
@@ -75,16 +87,13 @@ impl Library {
         // PLAN.md decision 31 — folds what this library already had before
         // every write path started folding on its own, merging whatever
         // that fold collides with. Before the watcher starts, so nothing it
-        // moves gets fed back to itself.
-        let lowercase_report = fs::lowercase_migration::run(&paths, &conn)?;
-
-        // Only worth reading while a library is still mid-first-import: once
-        // `imported_at` is set, every row the walker can still create fresh
-        // already carries its real name, so the lookup would only ever miss.
-        let rename_lookup = if db::settings::imported_at(&conn)?.is_none() {
-            fs::import::load_rename_lookup(&paths)
-        } else {
-            Default::default()
+        // moves gets fed back to itself. Folder-directory collisions are a
+        // separate, pre-migration-only repair — see
+        // `commands::storage_migration` and `fs::lowercase_migration`'s
+        // module docs.
+        let lowercase_report = fs::lowercase_migration::LowercaseMergeReport {
+            tags_merged: fs::lowercase_migration::merge_tags(&conn)?,
+            folders_merged: Vec::new(),
         };
 
         // Thumbnails and sprites for the grid, and — from M2.5a, which builds
@@ -100,22 +109,18 @@ impl Library {
 
         let tools = Tools::discover();
         // Shared between the job queue and the filesystem watcher: the
-        // watcher sets `rescanning` before queuing a reconcile walk and
-        // suppresses its own renames, the queue's `Progress` reads the
-        // former back and its hash job consults the latter. See
-        // `fs::watch`.
-        let suppressor = Suppressor::default();
+        // watcher sets this before queuing a reconcile, the queue's
+        // `Progress` reads it back. See `fs::watch`.
         let rescanning: fs::watch::Rescanning = Arc::new(AtomicBool::new(false));
         let queue = JobQueue::start(
             app,
             paths.clone(),
             tools.clone(),
             paths.db_path(),
-            rename_lookup,
-            suppressor.clone(),
             Arc::clone(&rescanning),
         )?;
-        let watch = fs::watch::start(paths.clone(), paths.db_path(), suppressor, rescanning)?;
+        let watch = fs::watch::start(paths.clone(), paths.db_path(), rescanning)?;
+        let standing_jsonl = fs::jsonl::start(paths.clone(), paths.db_path(), Arc::clone(queue.inner()));
 
         Ok(Library {
             paths,
@@ -123,6 +128,7 @@ impl Library {
             conn: Mutex::new(conn),
             queue,
             watch: Mutex::new(Some(watch)),
+            standing_jsonl: Mutex::new(Some(standing_jsonl)),
             lowercase_report: Mutex::new(Some(lowercase_report)),
             _lock: lock,
         })
@@ -145,17 +151,27 @@ impl Library {
         &self.queue
     }
 
-    /// Stop the watcher and the workers and collapse the WAL, so a closed
-    /// library is a single `.db` file that can simply be copied.
+    /// Stop the watcher, the standing jsonl writer and the workers, collapse
+    /// the WAL so a closed library is a single `.db` file, write one final
+    /// `library.jsonl` (whatever the standing writer's last tick may have
+    /// missed), then roll a backup — all of it while nothing else can be
+    /// mutating the database out from under any of these.
     pub fn close(&self) {
         if let Ok(mut guard) = self.watch.lock() {
             if let Some(mut watch) = guard.take() {
                 watch.stop();
             }
         }
+        if let Ok(mut guard) = self.standing_jsonl.lock() {
+            if let Some(mut writer) = guard.take() {
+                writer.stop();
+            }
+        }
         self.queue.stop();
         if let Ok(conn) = self.conn() {
+            let _ = fs::jsonl::write_full(&self.paths, &conn);
             let _ = db::checkpoint(&conn);
+            let _ = db::backup::rotate(&self.paths);
         }
     }
 }
@@ -261,27 +277,27 @@ pub fn run() {
             commands::library::ui_prefs,
             commands::library::set_ui_prefs,
             commands::items::list_items,
+            commands::items::unsorted_count,
             commands::items::get_item,
             commands::items::set_items_favorite,
             commands::jobs::start_index,
             commands::jobs::index_progress,
             commands::jobs::index_failures,
             commands::jobs::retry_failed_jobs,
-            commands::import::scan_import,
-            commands::import::dry_run_import,
-            commands::import::execute_import,
-            commands::import::verify_import,
-            commands::import::mark_imported,
             commands::import::prepare_import,
             commands::import::execute_prepared_import,
             commands::import::cancel_prepared_import,
+            commands::storage_migration::needs_storage_migration,
+            commands::storage_migration::prepare_storage_migration,
+            commands::storage_migration::execute_storage_migration,
+            commands::storage_migration::verify_storage_migration,
+            commands::storage_migration::count_empty_directories,
             commands::folders::get_folder,
             commands::folders::set_folder_title,
             commands::folders::set_folder_status,
             commands::folders::set_folder_favorite,
             commands::folders::set_folder_notes,
             commands::folders::set_folder_cover,
-            commands::folders::reveal_folder,
             commands::folders::apply_folder_archetype,
             commands::folders::remove_folder_archetype,
             commands::folders::set_folder_label,

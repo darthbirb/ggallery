@@ -3,13 +3,11 @@ use serde::Serialize;
 
 use crate::db::now;
 use crate::error::{AppError, Result};
-use crate::fs::paths::parent_rel;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FolderNode {
     pub id: i64,
-    pub rel_path: String,
     pub title: String,
     pub parent_id: Option<i64>,
     pub depth: u32,
@@ -21,21 +19,6 @@ pub struct FolderNode {
     pub favorite: bool,
 }
 
-/// Excludes a trashed folder — a walk or a fresh `create` must never resolve
-/// to (and thereby resurrect) a row `trash` has already retired. `trash`
-/// rewrites `rel_path` to `.trashed/<id>` on the way out, which frees the
-/// original string for reuse; this filter is what makes that safe even in
-/// the instant before that rewrite is visible to a caller relying on it.
-pub fn id_for_rel(conn: &Connection, rel_path: &str) -> Result<Option<i64>> {
-    Ok(conn
-        .query_row(
-            "SELECT id FROM folder WHERE rel_path = ?1 AND deleted_at IS NULL",
-            params![rel_path],
-            |r| r.get(0),
-        )
-        .optional()?)
-}
-
 pub fn count(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row(
         "SELECT COUNT(*) FROM folder WHERE deleted_at IS NULL",
@@ -44,95 +27,79 @@ pub fn count(conn: &Connection) -> Result<i64> {
     )?)
 }
 
-pub fn rel_for(conn: &Connection, id: i64) -> Result<Option<String>> {
+/// The live sibling at `(parent_id, title)`, if any — the one lookup
+/// `UNIQUE(parent_id, title) WHERE deleted_at IS NULL` makes meaningful.
+/// `title` is folded by the caller already in every real call site; this
+/// does not fold it again so a caller checking an *already-folded* value
+/// against itself never double-folds by accident.
+pub fn id_for(conn: &Connection, parent_id: Option<i64>, title: &str) -> Result<Option<i64>> {
     Ok(conn
         .query_row(
-            "SELECT rel_path FROM folder WHERE id = ?1",
-            params![id],
+            "SELECT id FROM folder WHERE parent_id IS ?1 AND title = ?2 AND deleted_at IS NULL",
+            params![parent_id, title],
             |r| r.get(0),
         )
         .optional()?)
 }
 
-/// Insert the folder if it is new, returning its id either way. `title` is
-/// case-folded on the way in (PLAN.md decision 31) — this is the walker's
-/// entry point, so a directory named `Beach` on disk still ends up titled
-/// `beach`, the same as any other write path.
-pub fn upsert(conn: &Connection, rel_path: &str, title: &str) -> Result<i64> {
-    if let Some(id) = id_for_rel(conn, rel_path)? {
-        return Ok(id);
-    }
-    let title = crate::db::fold(title);
-
-    let parent_id = match parent_rel(rel_path) {
-        Some(parent) => id_for_rel(conn, &parent)?,
-        None => None,
-    };
-
-    conn.execute(
-        "INSERT INTO folder (rel_path, title, parent_id, created_at) VALUES (?1, ?2, ?3, ?4)",
-        params![rel_path, title, parent_id, now()],
-    )?;
-    let id = conn.last_insert_rowid();
-    // Every folder's title is a tag from the moment it exists — see
-    // `db::tags::sync_title_tag` — except the root (`rel_path` empty, per
-    // `fs::paths::parent_rel`'s own doc comment: "`None` for the root folder
-    // itself"). DESIGN.md's "Navigation roots" is explicit that the root is
-    // not a folder in the interface, so auto-tagging it would put the
-    // library directory's own name on every single item. `parent_id` is not
-    // the right signal here — it can legitimately be `None` for a real
-    // folder upserted before its own ancestors exist. No retag job is
-    // enqueued for the non-root case either: a folder the walker just
-    // created has zero items under it at this instant (directories are
-    // visited before their contents), so there is nothing yet for a
-    // rebuild to do.
-    if !rel_path.is_empty() {
-        crate::db::tags::sync_title_tag(conn, id, &title)?;
-    }
-    Ok(id)
-}
-
-/// The whole tree, in `rel_path` order, with direct and recursive counts.
-/// Folder counts are in the thousands at most, so this is one query plus an
+/// The whole tree, parent-first, with direct and recursive counts. Folder
+/// counts are in the thousands at most, so this is one query plus an
 /// in-memory roll-up rather than a recursive CTE per node.
 pub fn tree(conn: &Connection) -> Result<Vec<FolderNode>> {
     let mut stmt = conn.prepare(
-        "SELECT f.id, f.rel_path, f.title, f.parent_id,
+        "SELECT f.id, f.title, f.parent_id,
                 (SELECT COUNT(*) FROM item i
                   WHERE i.folder_id = f.id AND i.deleted_at IS NULL) AS direct,
                 f.status, f.favorite
            FROM folder f
           WHERE f.deleted_at IS NULL
-          ORDER BY f.rel_path",
+          ORDER BY f.id",
     )?;
 
     let mut nodes: Vec<FolderNode> = stmt
         .query_map([], |r| {
-            let rel_path: String = r.get(1)?;
-            let depth = if rel_path.is_empty() {
-                0
-            } else {
-                rel_path.matches('/').count() as u32 + 1
-            };
-            let direct: i64 = r.get(4)?;
+            let direct: i64 = r.get(3)?;
             Ok(FolderNode {
                 id: r.get(0)?,
-                rel_path,
-                title: r.get(2)?,
-                parent_id: r.get(3)?,
-                depth,
+                title: r.get(1)?,
+                parent_id: r.get(2)?,
+                depth: 0, // filled in below, once every node's parent is known
                 direct_count: direct,
                 total_count: direct,
-                status: r.get(5)?,
-                favorite: r.get::<_, i64>(6)? != 0,
+                status: r.get(4)?,
+                favorite: r.get::<_, i64>(5)? != 0,
             })
         })?
         .collect::<std::result::Result<_, _>>()?;
 
-    // Roll counts up. Deepest first, so every child has already contributed
-    // by the time its parent is visited.
     let index: std::collections::HashMap<i64, usize> =
         nodes.iter().enumerate().map(|(i, n)| (n.id, i)).collect();
+
+    // Depth: a root-level folder is 0, everything else is its parent's depth
+    // plus one. `id` order is not guaranteed to be parent-before-child (a
+    // folder can be created and then have children created under an
+    // unrelated later id), so this resolves each node's depth by walking its
+    // own parent chain rather than assuming a single forward pass suffices.
+    fn depth_of(nodes: &[FolderNode], index: &std::collections::HashMap<i64, usize>, id: i64) -> u32 {
+        let mut depth = 0;
+        let mut current = id;
+        // Bounded by the tree's real depth; a cycle should be structurally
+        // impossible (parent_id only ever set through this module), but an
+        // upper bound keeps a corrupted database from looping forever.
+        for _ in 0..10_000 {
+            let Some(&i) = index.get(&current) else { break };
+            let Some(parent) = nodes[i].parent_id else { break };
+            depth += 1;
+            current = parent;
+        }
+        depth
+    }
+    for i in 0..nodes.len() {
+        nodes[i].depth = depth_of(&nodes, &index, nodes[i].id);
+    }
+
+    // Roll counts up. Deepest first, so every child has already contributed
+    // by the time its parent is visited.
     let mut order: Vec<usize> = (0..nodes.len()).collect();
     order.sort_by_key(|&i| std::cmp::Reverse(nodes[i].depth));
     for i in order {
@@ -143,6 +110,33 @@ pub fn tree(conn: &Connection) -> Result<Vec<FolderNode>> {
     }
 
     Ok(nodes)
+}
+
+/// Root-first ancestry, not including `folder_id` itself — what the folder
+/// band and `ItemDetail`'s breadcrumb both render. Bounded by tree depth via
+/// the primary-key join on `folder.id`, same shape as
+/// `db::tags::resolve_ancestor_tags`.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BreadcrumbCrumb {
+    pub id: i64,
+    pub title: String,
+}
+
+pub fn breadcrumb(conn: &Connection, folder_id: i64) -> Result<Vec<BreadcrumbCrumb>> {
+    let mut stmt = conn.prepare(
+        "WITH RECURSIVE ancestry(id, title, parent_id, depth) AS (
+             SELECT id, title, parent_id, 0 FROM folder WHERE id = ?1
+           UNION ALL
+             SELECT f.id, f.title, f.parent_id, a.depth + 1
+               FROM folder f JOIN ancestry a ON f.id = a.parent_id
+         )
+         SELECT id, title FROM ancestry WHERE id != ?1 ORDER BY depth DESC",
+    )?;
+    let rows = stmt
+        .query_map(params![folder_id], |r| Ok(BreadcrumbCrumb { id: r.get(0)?, title: r.get(1)? }))?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(rows)
 }
 
 // --- M2: folder detail, editing, archetypes -------------------------------
@@ -166,7 +160,6 @@ pub struct FolderFlag {
 #[serde(rename_all = "camelCase")]
 pub struct FolderDetail {
     pub id: i64,
-    pub rel_path: String,
     pub title: String,
     pub parent_id: Option<i64>,
     pub status: String,
@@ -189,13 +182,10 @@ pub struct FolderDetail {
     pub cover_item_id: Option<i64>,
 }
 
-/// The folder header's whole content in one call. `rel_path` empty means the
-/// library root — `subtree_totals` handles that the same way
-/// `db::items::list` and `db::tags::rebuild_subtree` already do.
+/// The folder header's whole content in one call.
 pub fn get_detail(conn: &Connection, id: i64) -> Result<Option<FolderDetail>> {
     #[allow(clippy::type_complexity)]
     let base: Option<(
-        String,
         String,
         Option<i64>,
         String,
@@ -207,7 +197,7 @@ pub fn get_detail(conn: &Connection, id: i64) -> Result<Option<FolderDetail>> {
         Option<i64>,
     )> = conn
         .query_row(
-            "SELECT f.rel_path, f.title, f.parent_id, f.status, f.favorite, f.notes,
+            "SELECT f.title, f.parent_id, f.status, f.favorite, f.notes,
                     f.last_added_at, f.archetype_id, a.name, f.cover_item_id
                FROM folder f LEFT JOIN archetype a ON a.id = f.archetype_id
               WHERE f.id = ?1 AND f.deleted_at IS NULL",
@@ -223,28 +213,17 @@ pub fn get_detail(conn: &Connection, id: i64) -> Result<Option<FolderDetail>> {
                     r.get(6)?,
                     r.get(7)?,
                     r.get(8)?,
-                    r.get(9)?,
                 ))
             },
         )
         .optional()?;
-    let Some((
-        rel_path,
-        title,
-        parent_id,
-        status,
-        favorite,
-        notes,
-        last_added_at,
-        archetype_id,
-        archetype_name,
-        cover_item_id,
-    )) = base
+    let Some((title, parent_id, status, favorite, notes, last_added_at, archetype_id, archetype_name, cover_item_id)) =
+        base
     else {
         return Ok(None);
     };
 
-    let (direct_count, total_count, subfolder_count) = subtree_totals(conn, &rel_path)?;
+    let (direct_count, total_count, subfolder_count) = subtree_totals(conn, id)?;
 
     // Archetype fields first, in their defined order — then any other
     // labelled tag on this folder that isn't one of them. That second half
@@ -313,12 +292,10 @@ pub fn get_detail(conn: &Connection, id: i64) -> Result<Option<FolderDetail>> {
         })?
         .collect::<rusqlite::Result<_>>()?;
 
-    let cover_thumb = cover_uuid(conn, id, cover_item_id, &rel_path)?
-        .map(|uuid| crate::fs::paths::shard(&uuid));
+    let cover_thumb = cover_uuid(conn, id, cover_item_id)?.map(|uuid| crate::fs::paths::shard(&uuid));
 
     Ok(Some(FolderDetail {
         id,
-        rel_path,
         title,
         parent_id,
         status,
@@ -341,12 +318,7 @@ pub fn get_detail(conn: &Connection, id: i64) -> Result<Option<FolderDetail>> {
 /// one and it still exists, the newest item anywhere beneath the folder
 /// otherwise. A folder with no cover set is never coverless in the interface —
 /// "picked automatically" is one of the two options locked decision 1 names.
-fn cover_uuid(
-    conn: &Connection,
-    folder_id: i64,
-    cover_item_id: Option<i64>,
-    rel_path: &str,
-) -> Result<Option<String>> {
+fn cover_uuid(conn: &Connection, folder_id: i64, cover_item_id: Option<i64>) -> Result<Option<String>> {
     if let Some(item_id) = cover_item_id {
         let chosen: Option<String> = conn
             .query_row(
@@ -360,28 +332,18 @@ fn cover_uuid(
         }
     }
 
-    // The root's subtree is the whole library, and `'' || '/%'` matches
-    // nothing — same special case as `subtree_totals`.
-    if rel_path.is_empty() {
-        return Ok(conn
-            .query_row(
-                "SELECT uuid FROM item WHERE deleted_at IS NULL
-                  ORDER BY COALESCE(captured_at, mtime) DESC, id DESC LIMIT 1",
-                [],
-                |r| r.get(0),
-            )
-            .optional()?);
-    }
-
-    let _ = folder_id;
     Ok(conn
         .query_row(
-            "SELECT i.uuid FROM item i
-              WHERE i.deleted_at IS NULL
-                AND i.folder_id IN (SELECT id FROM folder
-                                     WHERE rel_path = ?1 OR rel_path LIKE ?1 || '/%')
+            "WITH RECURSIVE subtree(id) AS (
+                 SELECT ?1
+               UNION ALL
+                 SELECT f.id FROM folder f JOIN subtree s ON f.parent_id = s.id
+                 WHERE f.deleted_at IS NULL
+             )
+             SELECT i.uuid FROM item i
+              WHERE i.deleted_at IS NULL AND i.folder_id IN (SELECT id FROM subtree)
               ORDER BY COALESCE(i.captured_at, i.mtime) DESC, i.id DESC LIMIT 1",
-            params![rel_path],
+            params![folder_id],
             |r| r.get(0),
         )
         .optional()?)
@@ -398,57 +360,32 @@ pub fn set_cover(conn: &Connection, folder_id: i64, item_id: Option<i64>) -> Res
 }
 
 /// `(direct items, total items, subfolders)` for a folder and its subtree.
-/// Root (`rel_path == ""`) needs no `WHERE` at all — `'' || '/%'` is `'/%'`,
-/// which matches nothing, since no `rel_path` ever carries a leading slash.
-fn subtree_totals(conn: &Connection, rel_path: &str) -> Result<(i64, i64, i64)> {
-    let id: i64 = conn.query_row(
-        "SELECT id FROM folder WHERE rel_path = ?1 AND deleted_at IS NULL",
-        params![rel_path],
-        |r| r.get(0),
-    )?;
+fn subtree_totals(conn: &Connection, folder_id: i64) -> Result<(i64, i64, i64)> {
     let direct: i64 = conn.query_row(
         "SELECT COUNT(*) FROM item WHERE folder_id = ?1 AND deleted_at IS NULL",
-        params![id],
+        params![folder_id],
         |r| r.get(0),
     )?;
-    let (total, subfolders) = if rel_path.is_empty() {
-        let total: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM item WHERE deleted_at IS NULL",
-            [],
-            |r| r.get(0),
-        )?;
-        let subfolders: i64 = conn.query_row(
-            "SELECT COUNT(*) - 1 FROM folder WHERE deleted_at IS NULL",
-            [],
-            |r| r.get(0),
-        )?;
-        (total, subfolders)
-    } else {
-        let total: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM item
-              WHERE deleted_at IS NULL
-                AND folder_id IN (SELECT id FROM folder
-                                   WHERE deleted_at IS NULL
-                                     AND (rel_path = ?1 OR rel_path LIKE ?1 || '/%'))",
-            params![rel_path],
-            |r| r.get(0),
-        )?;
-        let subfolders: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM folder
-              WHERE deleted_at IS NULL AND rel_path LIKE ?1 || '/%'",
-            params![rel_path],
-            |r| r.get(0),
-        )?;
-        (total, subfolders)
-    };
+    let (total, subfolders): (i64, i64) = conn.query_row(
+        "WITH RECURSIVE subtree(id) AS (
+             SELECT ?1
+           UNION ALL
+             SELECT f.id FROM folder f JOIN subtree s ON f.parent_id = s.id
+             WHERE f.deleted_at IS NULL
+         )
+         SELECT
+           (SELECT COUNT(*) FROM item WHERE deleted_at IS NULL AND folder_id IN (SELECT id FROM subtree)),
+           (SELECT COUNT(*) - 1 FROM subtree)",
+        params![folder_id],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
     Ok((direct, total, subfolders.max(0)))
 }
 
 /// The record's half of a retitle — title, its tag, and the journal entry.
-/// Pure DB, no filesystem access, which is exactly why `fs::relocate::
-/// retitle_folder` (the only real caller since M2.2 collapsed the title and
-/// the directory name into one thing) calls this first and only then decides
-/// whether the sanitised result means the directory needs to follow.
+/// Pure DB, no filesystem access — since PLAN.md decision 30 that is now the
+/// *whole* of a retitle, not just the half `fs::relocate::retitle_folder`
+/// used to call before deciding whether a directory needed to follow.
 pub fn set_title(conn: &Connection, id: i64, title: &str, batch_id: &str) -> Result<()> {
     // Folded before comparing, not just before storing — otherwise retyping
     // "Ana" over an already-folded "ana" reads as a real change and journals
@@ -475,7 +412,10 @@ pub fn set_title_unjournalled(conn: &Connection, id: i64, title: &str) -> Result
         params![title, id],
     )?;
     crate::db::tags::sync_title_tag(conn, id, &title)?;
-    enqueue_retag(conn, id)
+    // A rename never changes `parent_id`, so no item's ancestry changed —
+    // only the title tag's text did, which `sync_title_tag` above already
+    // handled directly. Nothing to fan out.
+    Ok(())
 }
 
 pub fn set_status(conn: &Connection, id: i64, status: &str) -> Result<()> {
@@ -558,13 +498,7 @@ pub fn apply_archetype(conn: &Connection, folder_id: i64, archetype_id: i64) -> 
 /// The other half of `apply_archetype`: un-applies the archetype from one
 /// folder and drops the field values it owned (`source = 'archetype'`) —
 /// "and its tags go with it too". A one-off field added independently
-/// through "＋ add field" is `source = 'manual'` and is untouched. Distinct
-/// from `delete_archetype`, which removes the archetype definition itself
-/// for every folder using it and, deliberately, leaves their values as
-/// orphaned data rather than deleting them (see
-/// `delete_archetype_leaves_folder_labels_in_place`) — this is the
-/// per-folder "I don't want this archetype here any more" action, which
-/// has no reason to be that conservative.
+/// through "＋ add field" is `source = 'manual'` and is untouched.
 pub fn clear_archetype(conn: &Connection, folder_id: i64) -> Result<()> {
     conn.execute(
         "DELETE FROM folder_tag WHERE folder_id = ?1 AND source = 'archetype'",
@@ -640,8 +574,7 @@ pub fn remove_tag(conn: &Connection, folder_id: i64, tag_id: i64) -> Result<()> 
 }
 
 fn enqueue_retag(conn: &Connection, folder_id: i64) -> Result<()> {
-    let rel = rel_for(conn, folder_id)?.unwrap_or_default();
-    crate::jobs::enqueue_retag_folder(conn, &rel)
+    crate::jobs::enqueue_retag_folder(conn, Some(folder_id))
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -801,7 +734,6 @@ pub fn reorder_archetype_fields(conn: &Connection, archetype_id: i64, ordered_ke
 #[serde(rename_all = "camelCase")]
 pub struct ArchetypeFieldUsage {
     pub folder_id: i64,
-    pub rel_path: String,
     pub title: String,
     pub value: String,
 }
@@ -812,20 +744,19 @@ pub struct ArchetypeFieldUsage {
 /// values are excluded: there is nothing to lose for those folders.
 pub fn archetype_field_usage(conn: &Connection, archetype_id: i64, key: &str) -> Result<Vec<ArchetypeFieldUsage>> {
     let mut stmt = conn.prepare(
-        "SELECT f.id, f.rel_path, f.title, t.value
+        "SELECT f.id, f.title, t.value
            FROM folder f
            JOIN folder_tag ft ON ft.folder_id = f.id
            JOIN tag t ON t.id = ft.tag_id
           WHERE f.archetype_id = ?1 AND f.deleted_at IS NULL AND t.key = ?2 AND t.value != ''
-          ORDER BY f.rel_path",
+          ORDER BY f.title",
     )?;
     let rows = stmt
         .query_map(params![archetype_id, key], |r| {
             Ok(ArchetypeFieldUsage {
                 folder_id: r.get(0)?,
-                rel_path: r.get(1)?,
-                title: r.get(2)?,
-                value: r.get(3)?,
+                title: r.get(1)?,
+                value: r.get(2)?,
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
@@ -967,143 +898,129 @@ pub fn remove_folder_status(conn: &Connection, key: &str, reassign_to: Option<&s
     Ok(())
 }
 
-// --- create / rename-dir / move / trash (M2.1 — see fs::relocate and
-// fs::trash, which orchestrate these with the physical filesystem
-// operation and the journal write) -----------------------------------------
+// --- create / retitle / move / trash (M2.1, rebuilt for PLAN.md §M2.6 —
+// none of this touches a file any more; see fs::relocate and fs::trash for
+// the journal-writing orchestration around these) --------------------------
 
-/// Pure record insert — like `upsert` but errors if the path is already
-/// occupied by a live folder rather than silently reusing it. What a
-/// deliberate `create` needs that the walker's idempotent `upsert` must not
-/// have.
-pub fn create_record(
-    conn: &Connection,
-    parent_id: Option<i64>,
-    rel_path: &str,
-    title: &str,
-) -> Result<i64> {
-    if id_for_rel(conn, rel_path)?.is_some() {
-        return Err(AppError::invalid(format!(
-            "a folder already exists at '{rel_path}'"
-        )));
-    }
+/// Pure record insert — errors if a live sibling already has this
+/// `(parent_id, title)` rather than silently reusing it, so a deliberate
+/// `create` reports a clean error instead of the raw `UNIQUE constraint
+/// failed` the DB index would otherwise surface.
+pub fn create_record(conn: &Connection, parent_id: Option<i64>, title: &str) -> Result<i64> {
     let title = crate::db::fold(title);
+    if id_for(conn, parent_id, &title)?.is_some() {
+        return Err(AppError::invalid(format!("a folder named '{title}' already exists here")));
+    }
     conn.execute(
-        "INSERT INTO folder (rel_path, title, parent_id, created_at) VALUES (?1, ?2, ?3, ?4)",
-        params![rel_path, title, parent_id, now()],
+        "INSERT INTO folder (title, parent_id, created_at) VALUES (?1, ?2, ?3)",
+        params![title, parent_id, now()],
     )?;
     let id = conn.last_insert_rowid();
     crate::db::tags::sync_title_tag(conn, id, &title)?;
     Ok(id)
 }
 
-/// Sets only `rel_path` — the directory-rename case, where the parent does
-/// not change.
-pub fn set_rel_path(conn: &Connection, id: i64, new_rel: &str) -> Result<()> {
+/// The move operation's DB half — a pure `parent_id` write. Descendants need
+/// no rewrite at all (hierarchy is `parent_id`, not a path prefix); only the
+/// effective-tag cache does, because inherited tags are recomputed from the
+/// new ancestry — see `jobs::enqueue_retag_folder`, which the caller in
+/// `fs::relocate` enqueues alongside this.
+pub fn set_parent(conn: &Connection, id: i64, new_parent_id: Option<i64>) -> Result<()> {
     conn.execute(
-        "UPDATE folder SET rel_path = ?1 WHERE id = ?2",
-        params![new_rel, id],
+        "UPDATE folder SET parent_id = ?1 WHERE id = ?2",
+        params![new_parent_id, id],
     )?;
     Ok(())
 }
 
-/// Sets both — the move case.
-pub fn set_parent_and_rel_path(
-    conn: &Connection,
-    id: i64,
-    new_parent_id: Option<i64>,
-    new_rel: &str,
-) -> Result<()> {
-    conn.execute(
-        "UPDATE folder SET parent_id = ?1, rel_path = ?2 WHERE id = ?3",
-        params![new_parent_id, new_rel, id],
-    )?;
-    Ok(())
-}
-
-/// The `RENAME_FOLDER_SUBTREE`/`MOVE_FOLDER_SUBTREE` job body: rewrites
-/// every *descendant*'s `rel_path` prefix after the top folder has already
-/// moved on disk and been updated synchronously by the caller (`set_rel_path`
-/// / `set_parent_and_rel_path`) — this only ever touches rows still carrying
-/// the old prefix, so it is safe to run even if called twice.
-///
-/// `substr` counts Unicode characters, not bytes, when SQLite's text
-/// encoding is UTF-8 (the default) — `chars().count()`, not `len()`, is
-/// required here or a folder name with any multi-byte character would
-/// corrupt every rel_path rewritten beneath it.
-pub fn rewrite_subtree_paths(conn: &Connection, old_rel: &str, new_rel: &str) -> Result<()> {
-    let old_len = old_rel.chars().count() as i64;
-    conn.execute(
-        "UPDATE folder
-            SET rel_path = ?1 || substr(rel_path, ?3 + 1)
-          WHERE deleted_at IS NULL AND rel_path LIKE ?2 || '/%'",
-        params![new_rel, old_rel, old_len],
-    )?;
-    Ok(())
-}
-
-/// The trash operation's DB half: soft-delete every item in the subtree and
-/// the folder plus every descendant folder, rewriting each trashed folder's
-/// `rel_path` to `.trashed/<id>` so the original path space is immediately
-/// reusable. Both statements are single bulk `UPDATE`s — cheap even for a
-/// large subtree — which is why `trash` runs synchronously rather than as a
-/// job, unlike the tag-cache rebuild.
-pub fn trash_subtree_rows(conn: &Connection, rel_path: &str) -> Result<i64> {
+/// Soft-delete a folder and its whole subtree: every item in it, and every
+/// descendant folder. `parent_id`/`title` are left exactly as they are —
+/// `UNIQUE(parent_id, title)` is a partial index scoped `WHERE deleted_at IS
+/// NULL`, so a trashed folder never blocks a new one at the same spot, and
+/// there is nothing left to free by rewriting anything (PLAN.md §M2.6 — this
+/// used to rewrite `rel_path` to `.trashed/<id>` for exactly that purpose).
+/// Returns the timestamp stamped on every row, which `db::journal` records so
+/// undo can recognise exactly this batch's rows later.
+pub fn trash_subtree(conn: &Connection, folder_id: i64) -> Result<i64> {
     let ts = now();
     conn.execute(
-        "UPDATE item SET deleted_at = ?1
-          WHERE deleted_at IS NULL
-            AND folder_id IN (SELECT id FROM folder
-                               WHERE rel_path = ?2 OR rel_path LIKE ?2 || '/%')",
-        params![ts, rel_path],
+        "WITH RECURSIVE subtree(id) AS (
+             SELECT ?1
+           UNION ALL
+             SELECT f.id FROM folder f JOIN subtree s ON f.parent_id = s.id
+             WHERE f.deleted_at IS NULL
+         )
+         UPDATE item SET deleted_at = ?2
+          WHERE deleted_at IS NULL AND folder_id IN (SELECT id FROM subtree)",
+        params![folder_id, ts],
     )?;
     conn.execute(
-        "UPDATE folder SET deleted_at = ?1, rel_path = '.trashed/' || id
-          WHERE deleted_at IS NULL AND (rel_path = ?2 OR rel_path LIKE ?2 || '/%')",
-        params![ts, rel_path],
+        "WITH RECURSIVE subtree(id) AS (
+             SELECT ?1
+           UNION ALL
+             SELECT f.id FROM folder f JOIN subtree s ON f.parent_id = s.id
+             WHERE f.deleted_at IS NULL
+         )
+         UPDATE folder SET deleted_at = ?2 WHERE deleted_at IS NULL AND id IN (SELECT id FROM subtree)",
+        params![folder_id, ts],
     )?;
     Ok(ts)
 }
 
-/// Every live folder in `rel_path`'s subtree, as `(id, rel_path)`.
-///
-/// Captured *before* a trash, because `trash_subtree_rows` rewrites every
-/// `rel_path` it retires to `.trashed/<id>` to free the original string for
-/// reuse — which destroys the only record of where those rows belonged.
-/// Undo needs them verbatim, so the trash writes them into the journal.
-pub fn subtree_rows(conn: &Connection, rel_path: &str) -> Result<Vec<(i64, String)>> {
-    let mut stmt = conn.prepare(
-        "SELECT id, rel_path FROM folder
-          WHERE deleted_at IS NULL AND (rel_path = ?1 OR rel_path LIKE ?1 || '/%')
-          ORDER BY LENGTH(rel_path)",
+/// Undo's half of `trash_subtree`. Re-derives the subtree by walking
+/// `parent_id` from `folder_id` — safe even while every row in it is
+/// currently marked deleted, since trashing never touched the hierarchy
+/// itself — and clears `deleted_at` only on rows stamped exactly
+/// `trashed_at`, so a folder independently deleted (and not yet restored) in
+/// the meantime is left alone.
+pub fn restore_subtree(conn: &Connection, folder_id: i64, trashed_at: i64) -> Result<()> {
+    conn.execute(
+        "WITH RECURSIVE subtree(id) AS (
+             SELECT ?1
+           UNION ALL
+             SELECT f.id FROM folder f JOIN subtree s ON f.parent_id = s.id
+         )
+         UPDATE folder SET deleted_at = NULL
+          WHERE deleted_at = ?2 AND id IN (SELECT id FROM subtree)",
+        params![folder_id, trashed_at],
     )?;
-    let rows = stmt
-        .query_map(params![rel_path], |r| Ok((r.get(0)?, r.get(1)?)))?
-        .collect::<rusqlite::Result<_>>()?;
-    Ok(rows)
+    conn.execute(
+        "WITH RECURSIVE subtree(id) AS (
+             SELECT ?1
+           UNION ALL
+             SELECT f.id FROM folder f JOIN subtree s ON f.parent_id = s.id
+         )
+         UPDATE item SET deleted_at = NULL
+          WHERE deleted_at = ?2 AND folder_id IN (SELECT id FROM subtree)",
+        params![folder_id, trashed_at],
+    )?;
+    Ok(())
 }
 
-/// Put back exactly what `trash_subtree_rows` retired: each folder row to the
-/// `rel_path` it had, and every item that this trash — and only this trash,
-/// identified by its timestamp — soft-deleted.
-pub fn restore_subtree_rows(
-    conn: &Connection,
-    folders: &[(i64, String)],
-    trashed_at: i64,
-) -> Result<()> {
-    for (id, rel_path) in folders {
-        conn.execute(
-            "UPDATE folder SET deleted_at = NULL, rel_path = ?1 WHERE id = ?2",
-            params![rel_path, id],
-        )?;
+#[cfg(test)]
+/// Test-only convenience: get-or-create a chain of folders from a
+/// `/`-separated path of titles, auto-titling every intermediate ancestor
+/// from its own segment and giving the leaf `leaf_title` — replicates the
+/// pre-M2.6 walker's `upsert(rel_path, title)` ergonomics for the many tests
+/// across this crate that build a folder tree by path, without any
+/// production code depending on path-based lookup any more (PLAN.md decision
+/// 30 — folders are created explicitly, one at a time, by id).
+pub fn ensure_path(conn: &Connection, path: &str, leaf_title: &str) -> Result<i64> {
+    let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+    assert!(!segments.is_empty(), "ensure_path does not create a root — there is no root folder any more");
+
+    let mut parent_id: Option<i64> = None;
+    let mut id = 0i64;
+    let last = segments.len() - 1;
+    for (i, seg) in segments.iter().enumerate() {
+        let title = crate::db::fold(if i == last { leaf_title } else { seg });
+        id = match id_for(conn, parent_id, &title)? {
+            Some(existing) => existing,
+            None => create_record(conn, parent_id, &title)?,
+        };
+        parent_id = Some(id);
     }
-    for (id, _) in folders {
-        conn.execute(
-            "UPDATE item SET deleted_at = NULL
-              WHERE folder_id = ?1 AND deleted_at = ?2",
-            params![id, trashed_at],
-        )?;
-    }
-    Ok(())
+    Ok(id)
 }
 
 #[cfg(test)]
@@ -1125,38 +1042,9 @@ mod folder_metadata_tests {
     }
 
     #[test]
-    fn the_root_folder_gets_no_title_tag() {
-        let conn = memory_conn();
-        // rel_path "" with no parent segment is how the walker creates the
-        // library root — see `fs::walk::root_title`.
-        let root = upsert(&conn, "", "Pictures").unwrap();
-        let ana = upsert(&conn, "ana", "Ana").unwrap();
-
-        let root_tags = crate::db::tags::resolve_ancestor_tags(&conn, root).unwrap();
-        assert!(
-            root_tags.is_empty(),
-            "the root folder should contribute no tags of its own — DESIGN.md's \
-             'Navigation roots' says it is not a folder in the interface"
-        );
-
-        // A real folder still gets its title tag as normal.
-        let ana_tags = crate::db::tags::resolve_ancestor_tags(&conn, ana).unwrap();
-        let tag_values: Vec<String> = ana_tags
-            .iter()
-            .map(|&(tag_id, _)| {
-                conn.query_row("SELECT value FROM tag WHERE id = ?1", params![tag_id], |r| {
-                    r.get(0)
-                })
-                .unwrap()
-            })
-            .collect();
-        assert!(tag_values.contains(&"ana".to_string()));
-    }
-
-    #[test]
     fn apply_archetype_creates_empty_fields_without_clobbering_existing_values() {
         let conn = memory_conn();
-        let ana = upsert(&conn, "people/ana", "Ana").unwrap();
+        let ana = ensure_path(&conn, "people/ana", "Ana").unwrap();
         set_label(&conn, ana, "instagram", "@ana").unwrap();
         let person = person_archetype(&conn);
 
@@ -1183,7 +1071,7 @@ mod folder_metadata_tests {
     fn add_archetype_field_can_backfill_folders_already_on_the_archetype() {
         let conn = memory_conn();
         let person = person_archetype(&conn);
-        let ana = upsert(&conn, "people/ana", "Ana").unwrap();
+        let ana = ensure_path(&conn, "people/ana", "Ana").unwrap();
         apply_archetype(&conn, ana, person).unwrap();
 
         add_archetype_field(&conn, person, "youtube", true).unwrap();
@@ -1196,7 +1084,7 @@ mod folder_metadata_tests {
     fn remove_archetype_field_deletes_values_on_folders_using_it() {
         let conn = memory_conn();
         let person = person_archetype(&conn);
-        let ana = upsert(&conn, "people/ana", "Ana").unwrap();
+        let ana = ensure_path(&conn, "people/ana", "Ana").unwrap();
         apply_archetype(&conn, ana, person).unwrap();
         set_label(&conn, ana, "instagram", "@ana").unwrap();
 
@@ -1214,7 +1102,7 @@ mod folder_metadata_tests {
     fn delete_archetype_leaves_folder_labels_in_place() {
         let conn = memory_conn();
         let person = person_archetype(&conn);
-        let ana = upsert(&conn, "people/ana", "Ana").unwrap();
+        let ana = ensure_path(&conn, "people/ana", "Ana").unwrap();
         apply_archetype(&conn, ana, person).unwrap();
         set_label(&conn, ana, "instagram", "@ana").unwrap();
 
@@ -1222,11 +1110,6 @@ mod folder_metadata_tests {
 
         let detail = get_detail(&conn, ana).unwrap().unwrap();
         assert!(detail.archetype_id.is_none());
-        // The value survives as data either way (this is `delete_archetype`,
-        // the Settings-level "gone for every folder using it" operation —
-        // `clear_archetype` below is the per-folder one that actually drops
-        // it). With no archetype left to own the key, it now renders as a
-        // one-off field rather than disappearing from view entirely.
         let instagram = detail.fields.iter().find(|f| f.key == "instagram").unwrap();
         assert_eq!(instagram.value, "@ana");
         let still_there: String = conn
@@ -1243,18 +1126,13 @@ mod folder_metadata_tests {
     #[test]
     fn one_off_fields_render_with_or_without_an_archetype() {
         let conn = memory_conn();
-        let ana = upsert(&conn, "people/ana", "Ana").unwrap();
+        let ana = ensure_path(&conn, "people/ana", "Ana").unwrap();
 
-        // No archetype at all — a one-off field added straight from the
-        // band still has to show up.
         set_label(&conn, ana, "city", "Lisbon").unwrap();
         let detail = get_detail(&conn, ana).unwrap().unwrap();
         let city = detail.fields.iter().find(|f| f.key == "city").unwrap();
-        // Folded on the way in — PLAN.md decision 31.
         assert_eq!(city.value, "lisbon");
 
-        // With an archetype applied too, the one-off field still shows up
-        // alongside the archetype's own fields rather than being crowded out.
         let person = person_archetype(&conn);
         apply_archetype(&conn, ana, person).unwrap();
         let detail = get_detail(&conn, ana).unwrap().unwrap();
@@ -1268,11 +1146,9 @@ mod folder_metadata_tests {
     fn clear_archetype_drops_the_folder_and_its_field_values() {
         let conn = memory_conn();
         let person = person_archetype(&conn);
-        let ana = upsert(&conn, "people/ana", "Ana").unwrap();
+        let ana = ensure_path(&conn, "people/ana", "Ana").unwrap();
         apply_archetype(&conn, ana, person).unwrap();
         set_label(&conn, ana, "instagram", "@ana").unwrap();
-        // A one-off field, added independently of the archetype — clearing
-        // the archetype must not take this one down with it.
         set_label(&conn, ana, "city", "Lisbon").unwrap();
 
         clear_archetype(&conn, ana).unwrap();
@@ -1298,7 +1174,7 @@ mod folder_metadata_tests {
     #[test]
     fn remove_folder_status_requires_reassignment_when_in_use() {
         let conn = memory_conn();
-        let ana = upsert(&conn, "people/ana", "Ana").unwrap();
+        let ana = ensure_path(&conn, "people/ana", "Ana").unwrap();
         set_status(&conn, ana, "wip").unwrap();
 
         assert!(remove_folder_status(&conn, "wip", None).is_err());
@@ -1320,7 +1196,7 @@ mod folder_metadata_tests {
     #[test]
     fn the_title_tag_cannot_be_removed() {
         let conn = memory_conn();
-        let ana = upsert(&conn, "people/ana", "Ana").unwrap();
+        let ana = ensure_path(&conn, "people/ana", "Ana").unwrap();
         let title_tag_id: i64 = conn
             .query_row(
                 "SELECT tag_id FROM folder_tag WHERE folder_id = ?1 AND source = 'title'",
@@ -1332,16 +1208,15 @@ mod folder_metadata_tests {
     }
 
     #[test]
-    fn subtree_totals_at_the_root_cover_the_whole_library() {
+    fn subtree_totals_cover_the_whole_subtree_recursively() {
         let conn = memory_conn();
-        let root = upsert(&conn, "", "Library").unwrap();
-        upsert(&conn, "people", "People").unwrap();
-        let ana = upsert(&conn, "people/ana", "Ana").unwrap();
+        let people = ensure_path(&conn, "people", "People").unwrap();
+        let ana = ensure_path(&conn, "people/ana", "Ana").unwrap();
         db::items::upsert(
             &conn,
             &db::items::NewItem {
                 uuid: uuid::Uuid::new_v4().to_string(),
-                folder_id: ana,
+                folder_id: Some(ana),
                 disk_name: "a.jpg".to_string(),
                 ext: "jpg".to_string(),
                 orig_name: "a.jpg".to_string(),
@@ -1360,34 +1235,75 @@ mod folder_metadata_tests {
         )
         .unwrap();
 
-        let detail = get_detail(&conn, root).unwrap().unwrap();
+        let detail = get_detail(&conn, people).unwrap().unwrap();
         assert_eq!(detail.direct_count, 0);
         assert_eq!(detail.total_count, 1);
-        assert_eq!(detail.subfolder_count, 2, "people, people/ana");
+        assert_eq!(detail.subfolder_count, 1, "ana");
+    }
+
+    #[test]
+    fn creating_a_folder_at_an_occupied_spot_errors_cleanly() {
+        let conn = memory_conn();
+        create_record(&conn, None, "Ana").unwrap();
+        let err = create_record(&conn, None, "ana").unwrap_err();
+        assert!(err.to_string().contains("already exists"));
+    }
+
+    #[test]
+    fn a_new_folder_can_be_created_at_a_still_trashed_folders_old_spot() {
+        let conn = memory_conn();
+        let people = ensure_path(&conn, "people", "People").unwrap();
+        let ana = ensure_path(&conn, "people/ana", "Ana").unwrap();
+        let trip = ensure_path(&conn, "people/ana/trip", "Trip").unwrap();
+
+        trash_subtree(&conn, ana).unwrap();
+        assert!(get_detail(&conn, ana).unwrap().is_none(), "no longer live");
+        assert!(get_detail(&conn, trip).unwrap().is_none(), "descendant trashed too");
+
+        // A new folder can be created at the exact same (parent, title) spot
+        // while the old one is still trashed — the partial index is what
+        // makes this possible without any path-mangling.
+        let replacement = create_record(&conn, Some(people), "ana").unwrap();
+        assert_ne!(replacement, ana);
+    }
+
+    #[test]
+    fn restoring_a_trashed_folder_puts_back_exactly_its_own_parent_and_title() {
+        let conn = memory_conn();
+        let people = ensure_path(&conn, "people", "People").unwrap();
+        let ana = ensure_path(&conn, "people/ana", "Ana").unwrap();
+        let trip = ensure_path(&conn, "people/ana/trip", "Trip").unwrap();
+
+        // Its own row is never touched by the trash — parent_id and title
+        // are exactly what a restore, with nothing else contending for the
+        // spot, puts back.
+        let ts = trash_subtree(&conn, ana).unwrap();
+        restore_subtree(&conn, ana, ts).unwrap();
+
+        let restored = get_detail(&conn, ana).unwrap().unwrap();
+        assert_eq!(restored.parent_id, Some(people));
+        assert_eq!(restored.title, "ana");
+        assert!(get_detail(&conn, trip).unwrap().is_some(), "descendant restored too");
     }
 
     /// PLAN.md decision 20 / §M2.1: "verify subtree cases at scale with
-    /// synth_library, and add the companion #[ignore]d test" — this is that
-    /// test, sized like `fs::import::scale_check_100k_items`. §M2.2 adds the
-    /// `set_title` case: retitling now drives the same rewrite and the same
-    /// retag, since a folder has one name. DB-only, no files on disk: the
-    /// physical directory rename is a single O(1) OS call regardless of
-    /// subtree size, so it isn't what any of these job bodies spend their
-    /// time on. Run explicitly with `cargo test --release
-    /// scale_check_folder_relocate -- --ignored --nocapture`.
+    /// synth_library". §M2.6 replaces the rel_path-prefix rewrite this used
+    /// to time with the new `parent_id`-recursive queries — the fan-out a
+    /// folder-level tag edit still needs (`db::tags::rebuild_subtree`), and
+    /// the subtree totals/breadcrumb every folder detail fetch runs. Run
+    /// explicitly with `cargo test --release scale_check_folder_subtree --
+    /// --ignored --nocapture`.
     #[test]
     #[ignore]
-    fn scale_check_folder_relocate() {
+    fn scale_check_folder_subtree() {
         const LEAVES: usize = 2_000;
         let conn = memory_conn();
 
         db::begin_batch(&conn).unwrap();
-        upsert(&conn, "", "Library").unwrap();
-        let cat = upsert(&conn, "category", "Category").unwrap();
+        let cat = create_record(&conn, None, "category").unwrap();
         let mut leaf_ids = Vec::with_capacity(LEAVES);
         for i in 0..LEAVES {
-            let rel = format!("category/leaf-{i:04}");
-            leaf_ids.push(upsert(&conn, &rel, &format!("Leaf {i:04}")).unwrap());
+            leaf_ids.push(create_record(&conn, Some(cat), &format!("leaf-{i:04}")).unwrap());
         }
         db::commit_batch(&conn).unwrap();
 
@@ -1397,7 +1313,7 @@ mod folder_metadata_tests {
                 &conn,
                 &db::items::NewItem {
                     uuid: uuid::Uuid::new_v4().to_string(),
-                    folder_id: leaf_id,
+                    folder_id: Some(leaf_id),
                     disk_name: format!("{i}.jpg"),
                     ext: "jpg".to_string(),
                     orig_name: format!("{i}.jpg"),
@@ -1418,45 +1334,29 @@ mod folder_metadata_tests {
         }
         db::commit_batch(&conn).unwrap();
 
-        // RENAME_FOLDER_SUBTREE: the top folder's own row is already updated
-        // synchronously by the caller in production — mirrored here — then
-        // only the descendant rewrite is timed.
-        set_rel_path(&conn, cat, "category-renamed").unwrap();
-        let rename_start = std::time::Instant::now();
-        rewrite_subtree_paths(&conn, "category", "category-renamed").unwrap();
-        let rename_elapsed = rename_start.elapsed();
-        println!("rewrite_subtree_paths over {LEAVES} descendants: {rename_elapsed:?}");
-        assert!(
-            rename_elapsed < std::time::Duration::from_millis(500),
-            "rename subtree rewrite too slow: {rename_elapsed:?}"
-        );
+        let detail_start = std::time::Instant::now();
+        let detail = get_detail(&conn, cat).unwrap().unwrap();
+        let detail_elapsed = detail_start.elapsed();
+        assert_eq!(detail.total_count, LEAVES as i64);
+        println!("get_detail (subtree totals) over {LEAVES} descendants: {detail_elapsed:?}");
+        assert!(detail_elapsed < std::time::Duration::from_millis(500), "subtree totals too slow: {detail_elapsed:?}");
 
-        // MOVE_FOLDER_SUBTREE: rewrite, then rebuild the effective-tag cache
-        // for the subtree, in the same job execution — see jobs::worker.
-        set_rel_path(&conn, cat, "category-moved").unwrap();
+        // A folder-level tag edit's fan-out into item_effective_tag.
+        add_flag(&conn, cat, "tagged").unwrap();
+        let retag_start = std::time::Instant::now();
+        crate::db::tags::rebuild_subtree(&conn, Some(cat)).unwrap();
+        let retag_elapsed = retag_start.elapsed();
+        println!("rebuild_subtree over {LEAVES} descendants: {retag_elapsed:?}");
+        assert!(retag_elapsed < std::time::Duration::from_secs(3), "retag fan-out too slow: {retag_elapsed:?}");
+
+        // A move: parent_id write plus the same fan-out — no path rewrite
+        // left to time at all, unlike the pre-M2.6 version of this check.
+        let other = create_record(&conn, None, "other").unwrap();
         let move_start = std::time::Instant::now();
-        rewrite_subtree_paths(&conn, "category-renamed", "category-moved").unwrap();
-        crate::db::tags::rebuild_subtree(&conn, "category-moved").unwrap();
+        set_parent(&conn, cat, Some(other)).unwrap();
+        crate::db::tags::rebuild_subtree(&conn, Some(cat)).unwrap();
         let move_elapsed = move_start.elapsed();
-        println!("move_folder_subtree (rewrite+retag) over {LEAVES} descendants: {move_elapsed:?}");
-        assert!(
-            move_elapsed < std::time::Duration::from_secs(3),
-            "move subtree rewrite+retag too slow: {move_elapsed:?}"
-        );
-
-        // M2.2: a folder has one name — retitling drives `set_title`, whose
-        // `enqueue_retag` fans out into the same `rebuild_subtree` above,
-        // just triggered by a title edit instead of a folder-tag edit. The
-        // directory rename `retitle_folder` would also perform is a single
-        // O(1) OS call, not measured here — same reasoning as the rename
-        // and move checks above.
-        let retitle_start = std::time::Instant::now();
-        set_title(&conn, cat, "Category, Retitled", &crate::db::journal::new_batch()).unwrap();
-        let retitle_elapsed = retitle_start.elapsed();
-        println!("set_title fan-out over {LEAVES} descendants: {retitle_elapsed:?}");
-        assert!(
-            retitle_elapsed < std::time::Duration::from_secs(3),
-            "retitle's subtree fan-out too slow: {retitle_elapsed:?}"
-        );
+        println!("move (parent_id write + retag) over {LEAVES} descendants: {move_elapsed:?}");
+        assert!(move_elapsed < std::time::Duration::from_secs(3), "move too slow: {move_elapsed:?}");
     }
 }

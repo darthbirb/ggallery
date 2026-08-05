@@ -8,7 +8,6 @@
 pub mod kinds;
 pub mod worker;
 
-use std::collections::HashMap;
 use std::panic::AssertUnwindSafe;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -23,7 +22,6 @@ use tauri::{AppHandle, Emitter};
 use crate::db;
 use crate::error::Result;
 use crate::fs::paths::LibraryPaths;
-use crate::fs::watch::Suppressor;
 use crate::sidecar::Tools;
 
 /// Emitted to the frontend on a fixed tick while anything is happening, and
@@ -38,45 +36,38 @@ const IDLE_SLEEP: Duration = Duration::from_millis(150);
 pub struct Progress {
     /// idle | walking | working
     pub phase: &'static str,
-    pub folders: u64,
-    pub files_seen: u64,
+    /// Existing items whose shard file the current reconcile has confirmed
+    /// present, so far.
+    pub items_checked: u64,
+    /// Inbox arrivals the current reconcile has queued for hashing.
+    pub queued: u64,
     pub items: i64,
     pub pending: i64,
     pub running: i64,
     pub failed: i64,
     pub completed: u64,
     pub last_error: Option<String>,
-    /// True while a full reconcile walk is running because the filesystem
-    /// watcher overflowed or errored, rather than because of the ordinary
-    /// startup index. Distinguishes the two in the readout so a rescan says
-    /// so instead of looking like an ordinary first index — see
-    /// `fs::watch`.
+    /// True while a reconcile is running because the filesystem watcher
+    /// overflowed or errored, rather than because of the ordinary startup
+    /// pass. Distinguishes the two in the readout so a rescan says so
+    /// instead of looking like an ordinary first index — see `fs::watch`.
     pub rescanning: bool,
 }
 
 pub struct QueueInner {
     pub paths: LibraryPaths,
     pub tools: Tools,
-    /// `uuid -> orig_name` recovered from `library.jsonl`, consulted exactly
-    /// once per file: the first time the walker hashes something already
-    /// named `<uuid>.<ext>` because the M1.7 import rename ran before this
-    /// walk did. See `worker::run_hash` and `fs::import::load_rename_lookup`.
-    pub rename_lookup: HashMap<String, String>,
-    /// Shared with the filesystem watcher, which suppresses the paths its own
-    /// renames touch so its own writes are never reported back to it as
-    /// arrivals or deletions. See `fs::watch::Suppressor`.
-    pub suppressor: Suppressor,
     /// Shared with the filesystem watcher, which sets this before queuing a
-    /// full reconcile walk after an overflow or error. Cleared here, by
-    /// `worker::run_index`, once that walk (or the ordinary startup index)
-    /// actually finishes.
+    /// reconcile after an overflow or error. Cleared here, by
+    /// `worker::run_index`, once that reconcile (or the ordinary startup
+    /// pass) actually finishes.
     pub rescanning: Arc<AtomicBool>,
     app: AppHandle,
     db_path: PathBuf,
     stop: AtomicBool,
     walking: AtomicBool,
-    folders: AtomicU64,
-    files_seen: AtomicU64,
+    items_checked: AtomicU64,
+    queued: AtomicU64,
     completed: AtomicU64,
 }
 
@@ -89,9 +80,9 @@ impl QueueInner {
         self.walking.store(walking, Ordering::Relaxed);
     }
 
-    pub fn report_walk(&self, folders: u64, files: u64) {
-        self.folders.store(folders, Ordering::Relaxed);
-        self.files_seen.store(files, Ordering::Relaxed);
+    pub fn report_walk(&self, items_checked: u64, queued: u64) {
+        self.items_checked.store(items_checked, Ordering::Relaxed);
+        self.queued.store(queued, Ordering::Relaxed);
     }
 
     pub fn progress(&self, conn: &Connection) -> Result<Progress> {
@@ -107,8 +98,8 @@ impl QueueInner {
             } else {
                 "idle"
             },
-            folders: self.folders.load(Ordering::Relaxed),
-            files_seen: self.files_seen.load(Ordering::Relaxed),
+            items_checked: self.items_checked.load(Ordering::Relaxed),
+            queued: self.queued.load(Ordering::Relaxed),
             items: db::items::count(conn)?,
             pending: counts.pending,
             running: counts.running,
@@ -131,22 +122,18 @@ impl JobQueue {
         paths: LibraryPaths,
         tools: Tools,
         db_path: PathBuf,
-        rename_lookup: HashMap<String, String>,
-        suppressor: Suppressor,
         rescanning: Arc<AtomicBool>,
     ) -> Result<JobQueue> {
         let inner = Arc::new(QueueInner {
             paths,
             tools,
-            rename_lookup,
-            suppressor,
             rescanning,
             app,
             db_path,
             stop: AtomicBool::new(false),
             walking: AtomicBool::new(false),
-            folders: AtomicU64::new(0),
-            files_seen: AtomicU64::new(0),
+            items_checked: AtomicU64::new(0),
+            queued: AtomicU64::new(0),
             completed: AtomicU64::new(0),
         });
 
@@ -279,10 +266,9 @@ pub fn enqueue_index(conn: &Connection) -> Result<()> {
 // instead: only one index job can be queued at a time, and a walk enqueues
 // each file exactly once.
 
-pub fn enqueue_hash(conn: &Connection, folder_id: i64, disk_name: &str) -> Result<()> {
+pub fn enqueue_hash(conn: &Connection, inbox_rel: &str) -> Result<()> {
     let payload = serde_json::to_string(&kinds::HashPayload {
-        folder_id,
-        disk_name: disk_name.to_string(),
+        inbox_rel: inbox_rel.to_string(),
     })?;
     db::jobs::enqueue(conn, kinds::HASH, &payload, kinds::PRIORITY_HASH)?;
     Ok(())
@@ -301,12 +287,15 @@ pub fn enqueue_sprite(conn: &Connection, item_id: i64) -> Result<()> {
 }
 
 /// Fan out a folder-level tag edit into `item_effective_tag` across its
-/// subtree. `folder_rel` is already normalised — callers derive it from
-/// `db::folders::rel_for` rather than passing a raw path.
-pub fn enqueue_retag_folder(conn: &Connection, folder_rel: &str) -> Result<()> {
-    let payload = serde_json::to_string(&kinds::RetagFolderPayload {
-        folder_rel: folder_rel.to_string(),
-    })?;
+/// subtree — a folder's own tags changed, an archetype was applied, or (with
+/// `folder_id: None`) the whole library needs rebuilding. Also what a folder
+/// *move* enqueues: `parent_id` changed, so ancestry (and every descendant
+/// item's inherited tags) did too. A plain rename enqueues nothing — it
+/// never changes `parent_id`, so no descendant's ancestry changed, only the
+/// title tag's own text, which `db::folders::set_title_unjournalled` updates
+/// directly.
+pub fn enqueue_retag_folder(conn: &Connection, folder_id: Option<i64>) -> Result<()> {
+    let payload = serde_json::to_string(&kinds::RetagFolderPayload { folder_id })?;
     db::jobs::enqueue(conn, kinds::RETAG_FOLDER, &payload, kinds::PRIORITY_RETAG)?;
     Ok(())
 }
@@ -317,29 +306,5 @@ pub fn enqueue_retag_folder(conn: &Connection, folder_rel: &str) -> Result<()> {
 pub fn enqueue_retag_item(conn: &Connection, item_id: i64) -> Result<()> {
     let payload = serde_json::to_string(&kinds::ItemPayload { item_id })?;
     db::jobs::enqueue(conn, kinds::RETAG_ITEM, &payload, kinds::PRIORITY_RETAG)?;
-    Ok(())
-}
-
-/// Fan out a plain directory rename's descendant path rewrite. No tag
-/// rebuild — a rename never changes `parent_id`, so no item's ancestry (and
-/// therefore no item's effective tags) changed.
-pub fn enqueue_rename_folder_subtree(conn: &Connection, old_rel: &str, new_rel: &str) -> Result<()> {
-    let payload = serde_json::to_string(&kinds::SubtreePathRewritePayload {
-        old_rel: old_rel.to_string(),
-        new_rel: new_rel.to_string(),
-    })?;
-    db::jobs::enqueue(conn, kinds::RENAME_FOLDER_SUBTREE, &payload, kinds::PRIORITY_RETAG)?;
-    Ok(())
-}
-
-/// Fan out a folder move's descendant path rewrite, followed by an
-/// effective-tag rebuild for the subtree — `parent_id` changed, so ancestry
-/// (and every descendant item's inherited tags) did too.
-pub fn enqueue_move_folder_subtree(conn: &Connection, old_rel: &str, new_rel: &str) -> Result<()> {
-    let payload = serde_json::to_string(&kinds::SubtreePathRewritePayload {
-        old_rel: old_rel.to_string(),
-        new_rel: new_rel.to_string(),
-    })?;
-    db::jobs::enqueue(conn, kinds::MOVE_FOLDER_SUBTREE, &payload, kinds::PRIORITY_RETAG)?;
     Ok(())
 }

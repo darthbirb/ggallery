@@ -30,7 +30,7 @@ pub fn generate(paths: &LibraryPaths, item: &ItemFile, tools: &Tools) -> Result<
         .ok_or_else(|| AppError::media("video has no duration"))? as f64
         / 1000.0;
 
-    let src = paths.item_path(&item.folder_rel, &item.disk_name)?;
+    let src = paths.item_path(&item.uuid, &item.ext);
     let out = paths.sprite_path(&item.uuid);
 
     let frames: Vec<DynamicImage> = ffmpeg

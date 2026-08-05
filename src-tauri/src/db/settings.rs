@@ -9,6 +9,7 @@ use crate::db::now;
 use crate::error::Result;
 
 const IMPORTED_AT: &str = "imported_at";
+const STORAGE_MIGRATION_VERIFIED_AT: &str = "storage_migration_verified_at";
 
 /// `None` until the wizard (or the "Normalise filenames" repair action) has
 /// run to completion at least once. See `fs::import::execute`, which sets
@@ -33,6 +34,19 @@ pub fn mark_imported(conn: &Connection) -> Result<()> {
         params![IMPORTED_AT, now().to_string()],
     )?;
     Ok(())
+}
+
+/// `None` until `fs::shard`'s physical storage migration has moved every
+/// file and `verify` has confirmed it — set from the *pre-schema-migration*
+/// (v7) connection the wizard commands open directly, since `Library::open`
+/// refuses to apply migration 008 until this is set. See
+/// `db::needs_storage_migration` and PLAN.md §M2.6.
+pub fn storage_migration_verified_at(conn: &Connection) -> Result<Option<i64>> {
+    Ok(get(conn, STORAGE_MIGRATION_VERIFIED_AT)?.and_then(|v| v.parse().ok()))
+}
+
+pub fn mark_storage_migration_verified(conn: &Connection) -> Result<()> {
+    set(conn, STORAGE_MIGRATION_VERIFIED_AT, &now().to_string())
 }
 
 /// The generic get/set pair `imported_at`/`mark_imported` could have been

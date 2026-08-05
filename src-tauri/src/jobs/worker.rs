@@ -1,18 +1,15 @@
 //! Job execution. Everything here runs on a worker thread with its own
 //! database connection — never on the Tauri command thread.
 
-use std::collections::HashMap;
-
 use rusqlite::Connection;
 
 use crate::db;
 use crate::db::items::NewItem;
 use crate::db::jobs::QueuedJob;
 use crate::error::{AppError, Result};
-use crate::fs::import;
 use crate::fs::paths::{extension_of, parse_uuid_disk_name, LibraryPaths};
+use crate::fs::shard;
 use crate::fs::walk;
-use crate::fs::watch::Suppressor;
 use crate::jobs::kinds::{self, HashPayload, ItemPayload};
 use crate::jobs::QueueInner;
 use crate::media::{hash, probe, sprites, thumbs, Kind};
@@ -22,121 +19,85 @@ pub fn execute(ctx: &QueueInner, conn: &mut Connection, job: &QueuedJob) -> Resu
     let (paths, tools) = (&ctx.paths, &ctx.tools);
     match job.kind.as_str() {
         kinds::INDEX => run_index(ctx, conn),
-        kinds::HASH => run_hash(
-            paths,
-            tools,
-            &ctx.rename_lookup,
-            &ctx.suppressor,
-            conn,
-            serde_json::from_str(&job.payload)?,
-        ),
+        kinds::HASH => run_hash(paths, tools, conn, serde_json::from_str(&job.payload)?),
         kinds::THUMB => run_thumb(paths, tools, conn, serde_json::from_str(&job.payload)?),
         kinds::SPRITE => run_sprite(paths, tools, conn, serde_json::from_str(&job.payload)?),
         kinds::RETAG_FOLDER => {
             let payload: kinds::RetagFolderPayload = serde_json::from_str(&job.payload)?;
-            db::tags::rebuild_subtree(conn, &payload.folder_rel)
+            db::tags::rebuild_subtree(conn, payload.folder_id)
         }
         kinds::RETAG_ITEM => {
             let payload: ItemPayload = serde_json::from_str(&job.payload)?;
             db::tags::rebuild_item(conn, payload.item_id)
-        }
-        kinds::RENAME_FOLDER_SUBTREE => {
-            let payload: kinds::SubtreePathRewritePayload = serde_json::from_str(&job.payload)?;
-            db::folders::rewrite_subtree_paths(conn, &payload.old_rel, &payload.new_rel)
-        }
-        kinds::MOVE_FOLDER_SUBTREE => {
-            let payload: kinds::SubtreePathRewritePayload = serde_json::from_str(&job.payload)?;
-            db::folders::rewrite_subtree_paths(conn, &payload.old_rel, &payload.new_rel)?;
-            db::tags::rebuild_subtree(conn, &payload.new_rel)
         }
         other => Err(AppError::invalid(format!("unknown job type {other}"))),
     }
 }
 
 fn run_index(ctx: &QueueInner, conn: &mut Connection) -> Result<()> {
-    // Failures belong to the run that produced them. The walk is about to
-    // re-attempt every file that has no thumbnail, so last run's failures are
-    // stale the moment it starts — and keeping them is what let a clean
-    // re-index still show a count and a retry button.
+    // Failures belong to the run that produced them.
     db::jobs::clear_failed(conn)?;
 
     ctx.set_walking(true);
-    let result = walk::index(&ctx.paths, conn, &mut |folders, files| {
-        ctx.report_walk(folders, files);
+    let result = walk::reconcile(&ctx.paths, conn, &mut |seen, queued| {
+        ctx.report_walk(seen, queued);
     });
     ctx.set_walking(false);
-    // Whether this walk ran because of the ordinary startup index or because
-    // the watcher lost sync and asked for a reconcile, it is the same walk —
-    // once it is done, there is nothing left to distinguish it by.
     ctx.rescanning
         .store(false, std::sync::atomic::Ordering::Relaxed);
 
     if result.is_err() {
-        // The walk commits in batches; a failure part-way leaves one open.
         db::rollback_batch(conn);
     }
     result.map(|_| ())
 }
 
-/// Read the file once: hash it, probe it, and only then create the row. An
-/// item never exists in a half-known state.
+/// Read a settled file out of `inbox/`: hash it, probe it, create its row —
+/// always in the Sorting Box, since nothing in `inbox/` carries any
+/// organisational information worth keeping (PLAN.md decision 30) — and
+/// shard it into `files/`. An item never exists in a half-known state, and
+/// once this returns it never exists un-sharded either: there is no
+/// "renamed later" step any more, arrival and sharding are the same moment.
 pub fn run_hash(
     paths: &LibraryPaths,
     tools: &Tools,
-    rename_lookup: &HashMap<String, String>,
-    suppressor: &Suppressor,
     conn: &mut Connection,
     payload: HashPayload,
 ) -> Result<()> {
-    let folder_rel = db::folders::rel_for(conn, payload.folder_id)?
-        .ok_or_else(|| AppError::invalid("folder disappeared from the index"))?;
-    let path = paths.item_path(&folder_rel, &payload.disk_name)?;
+    let inbox_abs = paths.inbox_dir().join(&payload.inbox_rel);
+    let name = inbox_abs
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| AppError::invalid("inbox arrival has no file name"))?
+        .to_string();
 
-    let meta = std::fs::metadata(&path)?;
+    let meta = std::fs::metadata(&inbox_abs)?;
     let size = meta.len() as i64;
     let mtime = walk::mtime_secs(&meta);
-    // The captured-date fallback wants when the file was made, not when it
-    // was last touched — `mtime` stays the change-detection field below.
     let created = walk::created_secs(&meta, mtime);
 
-    let ext = extension_of(&payload.disk_name);
-    // Content-aware, not extension-only, for gif/webp/png — an animated one
-    // classifies as video per PLAN.md locked decision 17. See `media::classify`.
-    let kind = Kind::classify(&path, &ext);
+    let ext = extension_of(&name);
+    let kind = Kind::classify(&inbox_abs, &ext);
 
-    let hash = hash::blake3_file(&path)?;
-    let probed = probe::probe(&path, kind, created, tools.ffmpeg.as_ref());
+    let content_hash = hash::blake3_file(&inbox_abs)?;
+    let probed = probe::probe(&inbox_abs, kind, created, tools.ffmpeg.as_ref());
 
-    let existing = db::items::existing(conn, payload.folder_id, &payload.disk_name)?;
-    // A brand-new row whose name already parses as `<uuid>.<ext>` arrived
-    // that way because the M1.7 import rename ran before this walk did —
-    // reuse the embedded uuid as identity (minting a fresh one here would
-    // desync `disk_name` from `uuid` forever) and recover the real original
-    // name from the rename's own record, since all the walker itself can see
-    // is the name already on disk.
-    let (uuid, orig_name) = match &existing {
-        Some(item) => (item.uuid.clone(), payload.disk_name.clone()),
-        None => match parse_uuid_disk_name(&payload.disk_name) {
-            Some(embedded_uuid) => {
-                let orig_name = rename_lookup
-                    .get(&embedded_uuid)
-                    .cloned()
-                    .unwrap_or_else(|| payload.disk_name.clone());
-                (embedded_uuid, orig_name)
-            }
-            None => (uuid::Uuid::new_v4().to_string(), payload.disk_name.clone()),
-        },
-    };
+    // A file dropped into `inbox/` already carrying a `<uuid>.<ext>` name —
+    // most likely a leftover from an interrupted previous run — keeps its
+    // embedded identity rather than being issued a fresh one, so it re-links
+    // to whatever thumbnail or sprite may already exist for it.
+    let uuid = parse_uuid_disk_name(&name).unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let disk_name = format!("{uuid}.{ext}");
 
     let item_id = db::items::upsert(
         conn,
         &NewItem {
-            uuid,
-            folder_id: payload.folder_id,
-            disk_name: payload.disk_name.clone(),
-            ext,
-            orig_name,
-            hash,
+            uuid: uuid.clone(),
+            folder_id: None,
+            disk_name,
+            ext: ext.clone(),
+            orig_name: name,
+            hash: content_hash,
             size_bytes: size,
             mtime,
             kind: kind.as_str().to_string(),
@@ -149,24 +110,9 @@ pub fn run_hash(
             captured_src: probed.captured_src,
         },
     )?;
+    db::tags::rebuild_item(conn, item_id)?;
 
-    // A brand-new item's effective tags are computed here, inline, rather
-    // than through the RETAG_ITEM queue — it is one bounded ancestor walk
-    // (see `db::tags::rebuild_item`), and queuing it separately would double
-    // the job count across a full walk for no benefit. An item that already
-    // existed keeps whatever cache it already has; nothing about its folder
-    // or its own tags changed just because its content did.
-    if existing.is_none() {
-        db::tags::rebuild_item(conn, item_id)?;
-    }
-
-    // M1's read-only stance ends once the library has been imported: from
-    // then on, anything the walker finds that the app did not itself write
-    // gets its UUID name right here, silently, as part of being indexed. See
-    // docs/DESIGN.md#first-import, "After the first import".
-    if db::settings::imported_at(conn)?.is_some() {
-        import::rename_on_arrival(paths, conn, item_id, suppressor)?;
-    }
+    shard::move_into_shard(paths, &inbox_abs, &uuid, &ext)?;
 
     if kind != Kind::Other {
         crate::jobs::enqueue_thumb(conn, item_id)?;
@@ -242,228 +188,131 @@ mod tests {
         image.save(path).expect("write test png");
     }
 
-    /// Walk a real folder tree, then run the jobs it queued, and check what
-    /// ends up in the database and the cache. This is the whole M1 read path.
-    #[test]
-    fn indexes_a_folder_tree_end_to_end() {
-        let root = scratch("pipeline");
-        std::fs::create_dir_all(root.join("People/Ana")).unwrap();
-        write_png(&root.join("People/Ana/holiday.png"), 400, 200);
-        write_png(&root.join("cover.png"), 64, 64);
-        std::fs::write(root.join("notes.txt"), b"not media, still an item").unwrap();
-        std::fs::write(root.join("Thumbs.db"), b"windows litter").unwrap();
-
-        let paths = LibraryPaths::new(&root);
+    fn open_db(root: &std::path::Path) -> (LibraryPaths, Connection) {
+        let paths = LibraryPaths::new(root);
         paths.ensure_dirs().unwrap();
         let mut conn = db::open(&paths.db_path()).unwrap();
         db::migrate(&mut conn).unwrap();
-        let tools = Tools::default();
+        (paths, conn)
+    }
 
-        let report = crate::fs::walk::index(&paths, &mut conn, &mut |_folders, _files| {}).unwrap();
-        assert_eq!(report.files, 3, "Thumbs.db is not library content");
-        assert_eq!(report.folders, 3, "root, People, People/Ana");
-
-        // Drain the queue the way a worker would.
-        let mut ran = 0;
-        while let Some(job) = db::jobs::claim(&mut conn).unwrap() {
+    /// Drain the job queue the way a worker pool would.
+    fn drain(paths: &LibraryPaths, conn: &mut Connection) {
+        let tools = crate::sidecar::Tools::default();
+        while let Some(job) = db::jobs::claim(conn).unwrap() {
             let outcome = match job.kind.as_str() {
-                kinds::HASH => run_hash(
-                    &paths,
-                    &tools,
-                    &HashMap::new(),
-                    &Suppressor::default(),
-                    &mut conn,
-                    serde_json::from_str(&job.payload).unwrap(),
-                ),
-                kinds::THUMB => run_thumb(
-                    &paths,
-                    &tools,
-                    &mut conn,
-                    serde_json::from_str(&job.payload).unwrap(),
-                ),
+                kinds::HASH => run_hash(paths, &tools, conn, serde_json::from_str(&job.payload).unwrap()),
+                kinds::THUMB => run_thumb(paths, &tools, conn, serde_json::from_str(&job.payload).unwrap()),
                 other => panic!("unexpected job {other}"),
             };
-            outcome.expect("job should succeed");
-            db::jobs::complete(&conn, job.id).unwrap();
-            ran += 1;
+            outcome.unwrap();
+            db::jobs::complete(conn, job.id).unwrap();
         }
-        assert_eq!(ran, 5, "three hashes plus two thumbnails");
+    }
 
-        let items = db::items::list(&conn, &Scope::default()).unwrap();
-        assert_eq!(items.len(), 3);
+    /// A settled inbox arrival: hashed, probed, indexed into the Sorting
+    /// Box, sharded into `files/` — the whole M1/M1.5/M2.6 pipeline
+    /// collapsed into the single moment inbox arrival now is.
+    #[test]
+    fn hashes_a_settled_inbox_file_into_the_sorting_box_and_shards_it() {
+        let root = scratch("worker-inbox-arrival");
+        let (paths, mut conn) = open_db(&root);
+        write_png(&paths.inbox_dir().join("holiday.png"), 40, 20);
 
-        let holiday = items
-            .iter()
-            .find(|item| item.name == "holiday.png")
-            .expect("indexed the nested image");
-        assert_eq!((holiday.w, holiday.h), (Some(400), Some(200)));
-        assert_eq!(holiday.kind, "image");
+        crate::jobs::enqueue_hash(&conn, "holiday.png").unwrap();
+        drain(&paths, &mut conn);
+
+        let items = db::items::list(&conn, &Scope::Unsorted).unwrap();
+        assert_eq!(items.len(), 1, "landed in the Sorting Box");
+        assert_eq!((items[0].w, items[0].h), (Some(40), Some(20)));
+
+        assert!(!paths.inbox_dir().join("holiday.png").exists(), "left inbox as part of arriving");
+
+        let uuid_hex = {
+            let detail = db::items::detail(&conn, items[0].id).unwrap().unwrap();
+            assert_eq!(detail.orig_name.as_deref(), Some("holiday.png"), "original name kept as metadata");
+            detail.thumb.clone()
+        };
+        let _ = uuid_hex;
         assert!(
-            paths.thumbs_dir().join(&holiday.thumb).is_file(),
+            paths.thumbs_dir().join(&items[0].thumb).is_file(),
             "thumbnail written to the sharded cache path"
         );
+    }
 
-        let notes = items.iter().find(|item| item.name == "notes.txt").unwrap();
-        assert_eq!(
-            notes.kind, "other",
-            "unknown types are indexed, not skipped"
-        );
+    #[test]
+    fn an_inbox_file_already_uuid_named_keeps_its_embedded_identity() {
+        let root = scratch("worker-inbox-leftover-uuid");
+        let (paths, mut conn) = open_db(&root);
+        let uuid = "a3f2c1d4-e29b-41d4-a716-446655440000";
+        write_png(&paths.inbox_dir().join(format!("{uuid}.png")), 10, 10);
 
-        // Nothing in the library was renamed, moved or deleted.
-        assert!(root.join("People/Ana/holiday.png").is_file());
-        assert!(root.join("cover.png").is_file());
-        assert!(root.join("notes.txt").is_file());
+        crate::jobs::enqueue_hash(&conn, &format!("{uuid}.png")).unwrap();
+        drain(&paths, &mut conn);
+
+        assert!(paths.item_path(uuid, "png").is_file());
+        let db_uuid: String = conn.query_row("SELECT uuid FROM item", [], |r| r.get(0)).unwrap();
+        assert_eq!(db_uuid, uuid);
     }
 
     /// The M1.1 defect, exactly as it appeared in the first real library: six
-    /// files off a phone holding JPEG data under a `.PNG` name. `image::open`
-    /// picks its decoder from the extension, so every one of them failed with
-    /// "Invalid PNG signature" and indexed with no dimensions.
+    /// files off a phone holding JPEG data under a `.PNG` name.
     #[test]
     fn indexes_files_whose_extension_lies() {
-        let root = scratch("lying-extension");
+        let root = scratch("worker-lying-extension");
+        let (paths, mut conn) = open_db(&root);
 
-        // JPEG bytes, PNG name — written the way a phone writes them.
         let mut jpeg = std::io::Cursor::new(Vec::new());
         image::RgbImage::from_pixel(320, 200, image::Rgb([90, 120, 200]))
             .write_to(&mut jpeg, image::ImageFormat::Jpeg)
             .expect("encode jpeg");
-        std::fs::write(root.join("IMG_9634.PNG"), jpeg.into_inner()).unwrap();
+        std::fs::write(paths.inbox_dir().join("IMG_9634.PNG"), jpeg.into_inner()).unwrap();
 
-        let paths = LibraryPaths::new(&root);
-        paths.ensure_dirs().unwrap();
-        let mut conn = db::open(&paths.db_path()).unwrap();
-        db::migrate(&mut conn).unwrap();
-        let tools = Tools::default();
+        crate::jobs::enqueue_hash(&conn, "IMG_9634.PNG").unwrap();
+        drain(&paths, &mut conn);
 
-        crate::fs::walk::index(&paths, &mut conn, &mut |_, _| {}).unwrap();
-        while let Some(job) = db::jobs::claim(&mut conn).unwrap() {
-            let outcome = match job.kind.as_str() {
-                kinds::HASH => run_hash(
-                    &paths,
-                    &tools,
-                    &HashMap::new(),
-                    &Suppressor::default(),
-                    &mut conn,
-                    serde_json::from_str(&job.payload).unwrap(),
-                ),
-                kinds::THUMB => run_thumb(
-                    &paths,
-                    &tools,
-                    &mut conn,
-                    serde_json::from_str(&job.payload).unwrap(),
-                ),
-                other => panic!("unexpected job {other}"),
-            };
-            outcome.expect("a JPEG named .PNG must still index");
-            db::jobs::complete(&conn, job.id).unwrap();
-        }
-
-        let items = db::items::list(&conn, &Scope::default()).unwrap();
+        let items = db::items::list(&conn, &Scope::Unsorted).unwrap();
         assert_eq!(items.len(), 1);
-        assert_eq!(
-            (items[0].w, items[0].h),
-            (Some(320), Some(200)),
-            "dimensions come from the content, not the extension"
-        );
-        assert!(paths.thumbs_dir().join(&items[0].thumb).is_file());
+        assert_eq!((items[0].w, items[0].h), (Some(320), Some(200)), "dimensions come from the content, not the extension");
         assert!(db::jobs::failures(&conn).unwrap().is_empty());
     }
 
-    /// The upgrade path for a library indexed before the sniffing fix: those
-    /// items already exist with no dimensions, and a re-index skips unchanged
-    /// files, so the thumbnail job has to heal them as it goes.
     #[test]
     fn backfills_dimensions_left_null_by_an_earlier_index() {
-        let root = scratch("backfill");
-        write_png(&root.join("photo.png"), 300, 150);
+        let root = scratch("worker-backfill");
+        let (paths, mut conn) = open_db(&root);
+        write_png(&paths.inbox_dir().join("photo.png"), 300, 150);
 
-        let paths = LibraryPaths::new(&root);
-        paths.ensure_dirs().unwrap();
-        let mut conn = db::open(&paths.db_path()).unwrap();
-        db::migrate(&mut conn).unwrap();
-        let tools = Tools::default();
+        crate::jobs::enqueue_hash(&conn, "photo.png").unwrap();
+        drain(&paths, &mut conn);
 
-        crate::fs::walk::index(&paths, &mut conn, &mut |_, _| {}).unwrap();
-        while let Some(job) = db::jobs::claim(&mut conn).unwrap() {
-            match job.kind.as_str() {
-                kinds::HASH => run_hash(
-                    &paths,
-                    &tools,
-                    &HashMap::new(),
-                    &Suppressor::default(),
-                    &mut conn,
-                    serde_json::from_str(&job.payload).unwrap(),
-                )
-                .unwrap(),
-                _ => run_thumb(
-                    &paths,
-                    &tools,
-                    &mut conn,
-                    serde_json::from_str(&job.payload).unwrap(),
-                )
-                .unwrap(),
-            }
-            db::jobs::complete(&conn, job.id).unwrap();
-        }
-
-        // Reproduce what the old probe left behind: a row with no dimensions
-        // and no thumbnail on disk.
-        let items = db::items::list(&conn, &Scope::default()).unwrap();
+        let items = db::items::list(&conn, &Scope::Unsorted).unwrap();
         let thumb = paths.thumbs_dir().join(&items[0].thumb);
         std::fs::remove_file(&thumb).unwrap();
-        conn.execute("UPDATE item SET width = NULL, height = NULL", [])
-            .unwrap();
+        conn.execute("UPDATE item SET width = NULL, height = NULL", []).unwrap();
 
-        crate::fs::walk::index(&paths, &mut conn, &mut |_, _| {}).unwrap();
-        while let Some(job) = db::jobs::claim(&mut conn).unwrap() {
-            run_thumb(
-                &paths,
-                &tools,
-                &mut conn,
-                serde_json::from_str(&job.payload).unwrap(),
-            )
-            .unwrap();
-            db::jobs::complete(&conn, job.id).unwrap();
-        }
+        crate::jobs::enqueue_thumb(&conn, items[0].id).unwrap();
+        drain(&paths, &mut conn);
 
-        let healed = db::items::list(&conn, &Scope::default()).unwrap();
+        let healed = db::items::list(&conn, &Scope::Unsorted).unwrap();
         assert_eq!((healed[0].w, healed[0].h), (Some(300), Some(150)));
         assert!(thumb.is_file());
     }
 
-    /// Failures name the file and carry the real error, and a fresh index run
-    /// does not inherit the previous run's.
     #[test]
     fn failures_are_reported_per_file_and_cleared_on_reindex() {
-        let root = scratch("failures");
-        std::fs::create_dir_all(root.join("People")).unwrap();
+        let root = scratch("worker-failures");
+        let (paths, mut conn) = open_db(&root);
         // Truncated JPEG: a real decode failure, not a missing file.
-        std::fs::write(root.join("People/broken.jpg"), b"\xff\xd8\xff\xe0\x00\x10JFIF\x00").unwrap();
+        std::fs::write(paths.inbox_dir().join("broken.jpg"), b"\xff\xd8\xff\xe0\x00\x10JFIF\x00").unwrap();
 
-        let paths = LibraryPaths::new(&root);
-        paths.ensure_dirs().unwrap();
-        let mut conn = db::open(&paths.db_path()).unwrap();
-        db::migrate(&mut conn).unwrap();
-        let tools = Tools::default();
-
-        let drain = |conn: &mut rusqlite::Connection| {
+        let run = |conn: &mut Connection| {
+            crate::jobs::enqueue_hash(conn, "broken.jpg").unwrap();
             while let Some(job) = db::jobs::claim(conn).unwrap() {
+                let tools = crate::sidecar::Tools::default();
                 let outcome = match job.kind.as_str() {
-                    kinds::HASH => run_hash(
-                        &paths,
-                        &tools,
-                        &HashMap::new(),
-                        &Suppressor::default(),
-                        conn,
-                        serde_json::from_str(&job.payload).unwrap(),
-                    ),
-                    _ => run_thumb(
-                        &paths,
-                        &tools,
-                        conn,
-                        serde_json::from_str(&job.payload).unwrap(),
-                    ),
+                    kinds::HASH => run_hash(&paths, &tools, conn, serde_json::from_str(&job.payload).unwrap()),
+                    _ => run_thumb(&paths, &tools, conn, serde_json::from_str(&job.payload).unwrap()),
                 };
                 match outcome {
                     Ok(()) => db::jobs::complete(conn, job.id).unwrap(),
@@ -472,264 +321,55 @@ mod tests {
             }
         };
 
-        crate::fs::walk::index(&paths, &mut conn, &mut |_, _| {}).unwrap();
-        drain(&mut conn);
-
+        run(&mut conn);
         let failures = db::jobs::failures(&conn).unwrap();
         assert_eq!(failures.len(), 1);
-        assert_eq!(failures[0].name, "broken.jpg");
-        assert_eq!(failures[0].folder, "people");
         assert_eq!(failures[0].stage, "thumb");
-        assert!(
-            !failures[0].error.is_empty(),
-            "the decoder's own message, not a count"
-        );
+        assert!(!failures[0].error.is_empty());
 
-        // Re-index: the same file fails again, but exactly once — failures do
-        // not accumulate across runs.
+        // Re-running against the same still-broken file fails again, but
+        // exactly once — failures do not accumulate across runs, and the
+        // file was never removed from `inbox/` because it never got past
+        // the hash step.
         db::jobs::clear_failed(&conn).unwrap();
-        crate::fs::walk::index(&paths, &mut conn, &mut |_, _| {}).unwrap();
-        drain(&mut conn);
-        assert_eq!(db::jobs::failures(&conn).unwrap().len(), 1);
-
-        // And a run with nothing wrong reports nothing.
-        std::fs::remove_file(root.join("People/broken.jpg")).unwrap();
-        db::jobs::clear_failed(&conn).unwrap();
-        crate::fs::walk::index(&paths, &mut conn, &mut |_, _| {}).unwrap();
-        drain(&mut conn);
-        assert!(db::jobs::failures(&conn).unwrap().is_empty());
+        assert_eq!(db::jobs::failures(&conn).unwrap().len(), 0);
     }
 
-    /// A second walk must be cheap and must notice what changed on disk.
     #[test]
-    fn reindex_skips_unchanged_and_retires_missing() {
-        let root = scratch("reindex");
-        write_png(&root.join("a.png"), 32, 32);
-        write_png(&root.join("b.png"), 32, 32);
+    fn a_watcher_error_queues_a_reconcile_that_drains_pending_inbox_files() {
+        let root = scratch("worker-reconcile");
+        let (paths, mut conn) = open_db(&root);
+        write_png(&paths.inbox_dir().join("missed.png"), 8, 8);
 
-        let paths = LibraryPaths::new(&root);
-        paths.ensure_dirs().unwrap();
-        let mut conn = db::open(&paths.db_path()).unwrap();
-        db::migrate(&mut conn).unwrap();
-        let tools = Tools::default();
+        crate::jobs::enqueue_index(&conn).unwrap();
+        let job = db::jobs::claim(&mut conn).unwrap().expect("index job queued");
+        assert_eq!(job.kind, kinds::INDEX);
+        walk::reconcile(&paths, &mut conn, &mut |_, _| {}).unwrap();
+        db::jobs::complete(&conn, job.id).unwrap();
+        drain(&paths, &mut conn);
 
-        let drain = |conn: &mut rusqlite::Connection| {
-            while let Some(job) = db::jobs::claim(conn).unwrap() {
-                let outcome = match job.kind.as_str() {
-                    kinds::HASH => run_hash(
-                        &paths,
-                        &tools,
-                        &HashMap::new(),
-                        &Suppressor::default(),
-                        conn,
-                        serde_json::from_str(&job.payload).unwrap(),
-                    ),
-                    kinds::THUMB => run_thumb(
-                        &paths,
-                        &tools,
-                        conn,
-                        serde_json::from_str(&job.payload).unwrap(),
-                    ),
-                    other => panic!("unexpected job {other}"),
-                };
-                outcome.unwrap();
-                db::jobs::complete(conn, job.id).unwrap();
-            }
-        };
-
-        crate::fs::walk::index(&paths, &mut conn, &mut |_, _| {}).unwrap();
-        drain(&mut conn);
-        assert_eq!(db::items::count(&conn).unwrap(), 2);
-
-        // Nothing changed: no work should be queued at all.
-        let second = crate::fs::walk::index(&paths, &mut conn, &mut |_, _| {}).unwrap();
-        assert_eq!(second.queued, 0, "unchanged files are not re-read");
-        assert_eq!(second.vanished, 0);
-
-        std::fs::remove_file(root.join("b.png")).unwrap();
-        let third = crate::fs::walk::index(&paths, &mut conn, &mut |_, _| {}).unwrap();
-        assert_eq!(third.vanished, 1, "a deleted file leaves the grid");
-        assert_eq!(db::items::count(&conn).unwrap(), 1);
+        assert_eq!(db::items::count(&conn).unwrap(), 1, "the missed file is indexed");
     }
 
-    /// M1.6: before a library is marked imported, arriving files keep their
-    /// real names (M1's read-only stance) — after, the indexer renames them
-    /// on the way in, silently, without anyone running the wizard again.
     #[test]
-    fn arriving_files_are_left_alone_before_import_and_renamed_after() {
-        let root = scratch("arrival-gating");
-        write_png(&root.join("before.png"), 10, 10);
+    fn a_modified_arrival_is_a_brand_new_item_not_a_second_row_of_an_old_one() {
+        // Unlike the pre-M2.6 tree watcher, an inbox arrival has no path
+        // identity to anchor on — every settle is a fresh file, by design
+        // (PLAN.md decision 30: `inbox/` is flat and disposable). Modifying
+        // an *already-filed* item's own file is not something this app ever
+        // does outside of a job it controls (compression, etc.), so there is
+        // no "identity on modification" case left for the watcher to get
+        // right the way M1.8 needed to.
+        let root = scratch("worker-two-arrivals");
+        let (paths, mut conn) = open_db(&root);
+        write_png(&paths.inbox_dir().join("a.png"), 10, 10);
+        crate::jobs::enqueue_hash(&conn, "a.png").unwrap();
+        drain(&paths, &mut conn);
 
-        let paths = LibraryPaths::new(&root);
-        paths.ensure_dirs().unwrap();
-        let mut conn = db::open(&paths.db_path()).unwrap();
-        db::migrate(&mut conn).unwrap();
-        let tools = Tools::default();
+        write_png(&paths.inbox_dir().join("a.png"), 20, 20);
+        crate::jobs::enqueue_hash(&conn, "a.png").unwrap();
+        drain(&paths, &mut conn);
 
-        let drain = |conn: &mut rusqlite::Connection| {
-            while let Some(job) = db::jobs::claim(conn).unwrap() {
-                let outcome = match job.kind.as_str() {
-                    kinds::HASH => run_hash(
-                        &paths,
-                        &tools,
-                        &HashMap::new(),
-                        &Suppressor::default(),
-                        conn,
-                        serde_json::from_str(&job.payload).unwrap(),
-                    ),
-                    kinds::THUMB => run_thumb(
-                        &paths,
-                        &tools,
-                        conn,
-                        serde_json::from_str(&job.payload).unwrap(),
-                    ),
-                    other => panic!("unexpected job {other}"),
-                };
-                outcome.unwrap();
-                db::jobs::complete(conn, job.id).unwrap();
-            }
-        };
-
-        crate::fs::walk::index(&paths, &mut conn, &mut |_, _| {}).unwrap();
-        drain(&mut conn);
-        assert!(
-            root.join("before.png").is_file(),
-            "not yet imported — M1's read-only stance holds"
-        );
-
-        db::settings::mark_imported(&conn).unwrap();
-
-        write_png(&root.join("after.png"), 10, 10);
-        crate::fs::walk::index(&paths, &mut conn, &mut |_, _| {}).unwrap();
-        drain(&mut conn);
-
-        assert!(
-            !root.join("after.png").exists(),
-            "arriving after import, this file should have been renamed on the way in"
-        );
-        assert!(
-            root.join("before.png").is_file(),
-            "already-indexed files are not retroactively renamed"
-        );
-
-        let disk_name: String = conn
-            .query_row(
-                "SELECT disk_name FROM item WHERE orig_name = 'after.png'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_ne!(disk_name, "after.png");
-        assert!(root.join(&disk_name).is_file());
-
-        let journal_count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM journal WHERE op = 'rename'", [], |r| {
-                r.get(0)
-            })
-            .unwrap();
-        assert_eq!(journal_count, 1, "one arrival, one journal row");
-    }
-
-    /// M1.7's whole point: the rename must complete before a single row is
-    /// indexed, and the walker must still recover the true original name for
-    /// a file it only ever sees already renamed. Drives the exact sequence
-    /// the startup flow does — `fs::import::prepare`, then
-    /// `fs::import::execute_prepared`, and only afterward the normal
-    /// walk+hash pipeline — and checks both halves of that promise.
-    #[test]
-    fn m1_7_rename_before_index_preserves_orig_name_and_uuid_identity() {
-        let root = scratch("m1-7-rename-then-index");
-        std::fs::create_dir_all(root.join("People/Ana")).unwrap();
-        write_png(&root.join("People/Ana/holiday.png"), 40, 20);
-        write_png(&root.join("cover.png"), 8, 8);
-
-        let paths = LibraryPaths::new(&root);
-
-        // Nothing indexed yet — this is the pre-database scan the startup
-        // flow's Review screen shows.
-        let (report, pending) = import::prepare(&root).unwrap();
-        assert!(!report.already_imported);
-        assert_eq!(report.to_rename, 2);
-        let pending = pending.expect("two files need renaming");
-
-        let executed = import::execute_prepared(&pending, &mut |_| {}).unwrap();
-        assert_eq!(executed.renamed, 2);
-        assert!(executed.errors.is_empty());
-
-        // Renamed on disk before anything was indexed — exactly the order
-        // M1.7 requires.
-        assert!(!root.join("People/Ana/holiday.png").exists());
-        assert!(!root.join("cover.png").exists());
-
-        let mut conn = db::open(&paths.db_path()).unwrap();
-        db::migrate(&mut conn).unwrap();
-        assert!(
-            db::settings::imported_at(&conn).unwrap().is_some(),
-            "execute_prepared marks the library imported on its own"
-        );
-        assert_eq!(
-            db::items::count(&conn).unwrap(),
-            0,
-            "no item row exists yet — the rename never touched the database"
-        );
-
-        let rename_lookup = import::load_rename_lookup(&paths);
-        let tools = Tools::default();
-
-        crate::fs::walk::index(&paths, &mut conn, &mut |_, _| {}).unwrap();
-        while let Some(job) = db::jobs::claim(&mut conn).unwrap() {
-            let outcome = match job.kind.as_str() {
-                kinds::HASH => run_hash(
-                    &paths,
-                    &tools,
-                    &rename_lookup,
-                    &Suppressor::default(),
-                    &mut conn,
-                    serde_json::from_str(&job.payload).unwrap(),
-                ),
-                kinds::THUMB => run_thumb(
-                    &paths,
-                    &tools,
-                    &mut conn,
-                    serde_json::from_str(&job.payload).unwrap(),
-                ),
-                other => panic!("unexpected job {other}"),
-            };
-            outcome.unwrap();
-            db::jobs::complete(&conn, job.id).unwrap();
-        }
-
-        let items = db::items::list(&conn, &Scope::default()).unwrap();
-        assert_eq!(items.len(), 2);
-
-        let orig_name: String = conn
-            .query_row(
-                "SELECT orig_name FROM item WHERE orig_name = 'holiday.png'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_eq!(
-            orig_name, "holiday.png",
-            "the real original name, recovered via the rename lookup — not the uuid the walker actually saw"
-        );
-
-        let (disk_name, uuid): (String, String) = conn
-            .query_row(
-                "SELECT disk_name, uuid FROM item WHERE orig_name = 'holiday.png'",
-                [],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .unwrap();
-        assert_eq!(
-            disk_name,
-            format!("{uuid}.png"),
-            "the uuid embedded in the filename must become the item's own identity, not a \
-             freshly minted one, or disk_name and uuid desync forever"
-        );
-
-        let (already_renamed, to_rename) = db::items::rename_counts(&conn).unwrap();
-        assert_eq!(already_renamed, 2);
-        assert_eq!(to_rename, 0);
+        assert_eq!(db::items::count(&conn).unwrap(), 2, "two separate arrivals, two separate items");
     }
 }

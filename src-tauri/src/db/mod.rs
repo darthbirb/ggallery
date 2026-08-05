@@ -1,6 +1,7 @@
 //! Connection handling and migrations. **All SQL in the application lives
 //! under this module** — commands call functions, never queries.
 
+pub mod backup;
 pub mod folders;
 pub mod items;
 pub mod jobs;
@@ -24,6 +25,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (5, include_str!("migrations/005_drop_archetype_field_type.sql")),
     (6, include_str!("migrations/006_drop_root_title_tag.sql")),
     (7, include_str!("migrations/007_lowercase_vocabulary.sql")),
+    (8, include_str!("migrations/008_folders_as_data.sql")),
 ];
 
 /// Open a connection with the pragmas the whole app assumes. Every thread that
@@ -40,6 +42,46 @@ pub fn open(path: &Path) -> Result<Connection> {
     conn.pragma_update(None, "temp_store", "MEMORY")?;
     conn.pragma_update(None, "cache_size", -32_000i64)?;
     Ok(conn)
+}
+
+/// The schema version at which `folder.rel_path` (and the directory it named)
+/// stop existing — `fs::shard`'s physical migration must have already moved
+/// every file and verified clean before this version is ever applied. See
+/// `needs_storage_migration`.
+pub const STORAGE_MIGRATION_SCHEMA_VERSION: i64 = 8;
+
+/// `0` for a database that predates the `schema_version` table entirely
+/// (never migrated at all), otherwise the highest version applied so far.
+/// Reads without applying anything — callers that need to *act* on the
+/// version before deciding whether `migrate` is even safe to call (this
+/// milestone's storage-migration gate) need that separation.
+pub fn current_schema_version(conn: &Connection) -> Result<i64> {
+    let exists: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_version')",
+        [],
+        |r| r.get(0),
+    )?;
+    if !exists {
+        return Ok(0);
+    }
+    Ok(conn.query_row(
+        "SELECT COALESCE(MAX(version), 0) FROM schema_version",
+        [],
+        |r| r.get(0),
+    )?)
+}
+
+/// True when this library has real pre-M2.6 content (`schema_version`
+/// between 1 and 7) that `fs::shard`'s physical migration has not yet moved
+/// and verified. A brand-new database (`version == 0`) needs nothing — there
+/// is nothing to move — and neither does one already past the storage
+/// migration's own version.
+pub fn needs_storage_migration(conn: &Connection) -> Result<bool> {
+    let version = current_schema_version(conn)?;
+    if version == 0 || version >= STORAGE_MIGRATION_SCHEMA_VERSION {
+        return Ok(false);
+    }
+    Ok(settings::storage_migration_verified_at(conn)?.is_none())
 }
 
 pub fn migrate(conn: &mut Connection) -> Result<()> {

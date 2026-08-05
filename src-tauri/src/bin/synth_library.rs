@@ -2,13 +2,13 @@
 //! shipped — see docs/STRUCTURE.md's `bin/` entry.
 //!
 //! Populates a scratch database directly through `db::*` (no real files, no
-//! thumbnailing — M2 adds no query that touches either) and times the query
-//! paths M2 introduces: the effective-tag cache's full-library and
-//! single-folder rebuilds, the per-item rebuild `jobs::worker::run_hash` now
-//! does inline for every new item, and the sidebar's folder-tree query. M2.1
-//! adds the folder-rename and folder-move subtree job bodies; M2.2 adds
-//! `set_title`'s own subtree fan-out, since a folder now has one name and
-//! retitling drives both.
+//! thumbnailing) and times the query paths that scale with folder or item
+//! count: the effective-tag cache's full-library and single-folder rebuilds,
+//! the per-item rebuild `jobs::worker::run_hash` now does inline for every
+//! new item, the sidebar's folder-tree query, and — since PLAN.md §M2.6 —
+//! the `parent_id`-recursive subtree queries that replaced every
+//! `rel_path`-prefix one: a folder move (now a pure column write plus the
+//! same retag fan-out) and `set_title`'s own subtree fan-out.
 //!
 //! Usage: `cargo run --release --bin synth_library -- --items 100000`
 //! (release — see CLAUDE.md: debug numbers are 6-40x slower and meaningless
@@ -50,11 +50,11 @@ fn run() -> Result<()> {
 
     let t0 = Instant::now();
     db::begin_batch(&conn)?;
-    let leaves = build_tree(&conn)?;
+    let (categories, leaves) = build_tree(&conn)?;
     db::commit_batch(&conn)?;
     println!(
         "  folder tree: {} folders in {:?}",
-        CATEGORIES * LEAVES_PER_CATEGORY + CATEGORIES + 1,
+        CATEGORIES * LEAVES_PER_CATEGORY + CATEGORIES,
         t0.elapsed()
     );
 
@@ -67,14 +67,13 @@ fn run() -> Result<()> {
     // The core question: rebuilding the whole library's effective-tag cache
     // at scale — decision 20's stated risk.
     let t2 = Instant::now();
-    db::tags::rebuild_subtree(&conn, "")?;
+    db::tags::rebuild_subtree(&conn, None)?;
     let full_rebuild = t2.elapsed();
 
     // The common case: one leaf folder's tags change.
-    let leaf_rel = db::folders::rel_for(&conn, leaves[0])?.expect("leaf exists");
     db::folders::add_flag(&conn, leaves[0], "edited")?;
     let t3 = Instant::now();
-    db::tags::rebuild_subtree(&conn, &leaf_rel)?;
+    db::tags::rebuild_subtree(&conn, Some(leaves[0]))?;
     let leaf_rebuild = t3.elapsed();
 
     // What `jobs::worker::run_hash` now does inline for every new item.
@@ -86,42 +85,43 @@ fn run() -> Result<()> {
     }
     let per_item = t4.elapsed() / sample.len() as u32;
 
-    // The sidebar's own query, now carrying two more columns.
+    // The sidebar's own query.
     let t5 = Instant::now();
     let tree = db::folders::tree(&conn)?;
     let tree_query = t5.elapsed();
 
-    // M2.1: subtree path rewrite, and the combined move (rewrite + retag) —
-    // PLAN.md §M2.1's "verify subtree cases at scale" requirement. Both time
-    // exactly the RENAME_FOLDER_SUBTREE / MOVE_FOLDER_SUBTREE job bodies;
-    // the physical directory rename itself is a single O(1) OS call
-    // regardless of subtree size, so it is not what this measures — same
-    // "DB-only, no IO" reasoning as decision 20's other checks here.
-    let rename_cat =
-        db::folders::id_for_rel(&conn, "category-05")?.expect("category-05 exists");
-    db::folders::set_rel_path(&conn, rename_cat, "category-05-renamed")?;
+    // PLAN.md §M2.6: a folder move is now a pure `parent_id` write plus the
+    // same effective-tag fan-out `rebuild_subtree` already exercises above —
+    // there is no descendant path rewrite left to time, since hierarchy is
+    // `parent_id`, not a path prefix.
+    let move_cat = categories[10];
+    let other_root = db::folders::create_record(&conn, None, "elsewhere")?;
     let t6 = Instant::now();
-    db::folders::rewrite_subtree_paths(&conn, "category-05", "category-05-renamed")?;
-    let rename_subtree = t6.elapsed();
+    db::folders::set_parent(&conn, move_cat, Some(other_root))?;
+    db::tags::rebuild_subtree(&conn, Some(move_cat))?;
+    let move_subtree = t6.elapsed();
 
-    let move_cat = db::folders::id_for_rel(&conn, "category-10")?.expect("category-10 exists");
-    db::folders::set_rel_path(&conn, move_cat, "category-10-moved")?;
+    // A folder now has one name — retitling drives the same fan-out, since
+    // the title is a tag: `set_title`'s `enqueue_retag` call queues the
+    // rebuild rather than running it inline, so this times the job body
+    // directly, the same as the checks above.
+    let retitle_cat = categories[15];
     let t7 = Instant::now();
-    db::folders::rewrite_subtree_paths(&conn, "category-10", "category-10-moved")?;
-    db::tags::rebuild_subtree(&conn, "category-10-moved")?;
-    let move_subtree = t7.elapsed();
-
-    // M2.2: a folder now has one name — retitling drives both of the above.
-    // `set_title` itself is the other half: title is a tag, so retitling a
-    // folder with many descendants fans out through `enqueue_retag` into the
-    // exact same `rebuild_subtree` the "leaf-level" check above exercises,
-    // just over a category-sized subtree instead of a single leaf's. The
-    // directory rename this also triggers is a single O(1) OS call — not
-    // measured here, same as the rename/move checks above.
-    let retitle_cat = db::folders::id_for_rel(&conn, "category-15")?.expect("category-15 exists");
-    let t8 = Instant::now();
     db::folders::set_title(&conn, retitle_cat, "Category 15, Retitled", &db::journal::new_batch())?;
-    let retitle_subtree = t8.elapsed();
+    db::tags::rebuild_subtree(&conn, Some(retitle_cat))?;
+    let retitle_subtree = t7.elapsed();
+
+    // Trash and restore a whole category's subtree — PLAN.md §M2.6's partial
+    // `UNIQUE(parent_id, title)` index is what makes this cheap: no path to
+    // free by rewriting, so trashing is exactly two bulk `UPDATE`s regardless
+    // of subtree size.
+    let trash_cat = categories[19];
+    let t8 = Instant::now();
+    let trashed_at = db::folders::trash_subtree(&conn, trash_cat)?;
+    let trash_subtree_time = t8.elapsed();
+    let t9 = Instant::now();
+    db::folders::restore_subtree(&conn, trash_cat, trashed_at)?;
+    let restore_subtree_time = t9.elapsed();
 
     println!();
     report(
@@ -141,12 +141,7 @@ fn run() -> Result<()> {
         Duration::from_millis(500),
     );
     report(
-        &format!("rename_folder_subtree ({LEAVES_PER_CATEGORY} descendants)"),
-        rename_subtree,
-        Duration::from_millis(500),
-    );
-    report(
-        &format!("move_folder_subtree, rewrite+retag ({LEAVES_PER_CATEGORY} descendants)"),
+        &format!("move_folder (parent_id write + retag, {LEAVES_PER_CATEGORY} descendants)"),
         move_subtree,
         Duration::from_secs(3),
     );
@@ -154,6 +149,16 @@ fn run() -> Result<()> {
         &format!("retitle_folder's set_title fan-out ({LEAVES_PER_CATEGORY} descendants)"),
         retitle_subtree,
         Duration::from_secs(3),
+    );
+    report(
+        &format!("trash_subtree ({LEAVES_PER_CATEGORY} descendants)"),
+        trash_subtree_time,
+        Duration::from_millis(500),
+    );
+    report(
+        &format!("restore_subtree ({LEAVES_PER_CATEGORY} descendants)"),
+        restore_subtree_time,
+        Duration::from_millis(500),
     );
 
     Ok(())
@@ -165,21 +170,20 @@ fn run() -> Result<()> {
 /// resolution is exercised at scale too, not just for one folder. Nothing
 /// is seeded (PLAN.md decision 21), so the archetype used here is created
 /// on the spot, the same way a real user would from Settings.
-fn build_tree(conn: &rusqlite::Connection) -> Result<Vec<i64>> {
-    db::folders::upsert(conn, "", "Library")?;
+fn build_tree(conn: &rusqlite::Connection) -> Result<(Vec<i64>, Vec<i64>)> {
     let person = db::folders::create_archetype(conn, "Person")?;
     db::folders::add_archetype_field(conn, person, "instagram", false)?;
 
+    let mut categories = Vec::with_capacity(CATEGORIES);
     let mut leaves = Vec::with_capacity(CATEGORIES * LEAVES_PER_CATEGORY);
 
     for c in 0..CATEGORIES {
-        let cat_rel = format!("category-{c:02}");
-        let cat_id = db::folders::upsert(conn, &cat_rel, &format!("Category {c:02}"))?;
+        let cat_id = db::folders::create_record(conn, None, &format!("Category {c:02}"))?;
         db::folders::add_flag(conn, cat_id, "synthetic")?;
+        categories.push(cat_id);
 
         for l in 0..LEAVES_PER_CATEGORY {
-            let rel = format!("{cat_rel}/leaf-{l:03}");
-            let id = db::folders::upsert(conn, &rel, &format!("Leaf {c:02}-{l:03}"))?;
+            let id = db::folders::create_record(conn, Some(cat_id), &format!("Leaf {c:02}-{l:03}"))?;
             if l % 10 == 0 {
                 db::folders::apply_archetype(conn, id, person)?;
                 db::folders::set_label(conn, id, "instagram", &format!("@leaf{c}{l}"))?;
@@ -187,7 +191,7 @@ fn build_tree(conn: &rusqlite::Connection) -> Result<Vec<i64>> {
             leaves.push(id);
         }
     }
-    Ok(leaves)
+    Ok((categories, leaves))
 }
 
 /// Items spread evenly across the leaf folders. Fabricated content —
@@ -200,7 +204,7 @@ fn insert_items(conn: &rusqlite::Connection, leaves: &[i64], total: usize) -> Re
         let uuid = Uuid::new_v4().to_string();
         let item = db::items::NewItem {
             uuid: uuid.clone(),
-            folder_id,
+            folder_id: Some(folder_id),
             disk_name: format!("{uuid}.jpg"),
             ext: "jpg".to_string(),
             orig_name: format!("{uuid}.jpg"),

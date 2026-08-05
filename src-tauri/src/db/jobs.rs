@@ -123,8 +123,6 @@ pub struct Failure {
     pub job_id: i64,
     /// `hash`, `thumb`, `sprite` — what was being attempted.
     pub stage: String,
-    /// Library-relative folder, empty string at the root.
-    pub folder: String,
     pub name: String,
     pub error: String,
     pub attempts: i64,
@@ -133,9 +131,9 @@ pub struct Failure {
 
 /// Every failed job, resolved to the file it was about.
 ///
-/// A thumbnail or sprite job carries an item id; a hash job carries a folder
-/// and a filename, because its item row does not exist yet. Both are resolved
-/// here so the caller gets one shape.
+/// A thumbnail or sprite job carries an item id; a hash job carries the
+/// `inbox/`-relative path it was hashing, because its item row does not
+/// exist yet. Both are resolved here so the caller gets one shape.
 pub fn failures(conn: &Connection) -> Result<Vec<Failure>> {
     // Scoped to the three indexing stages: this is a per-file failure panel,
     // and a retag job's payload (a folder, or an item with nothing wrong
@@ -159,38 +157,22 @@ pub fn failures(conn: &Connection) -> Result<Vec<Failure>> {
     for (job_id, stage, payload, attempts, error) in rows {
         let value: serde_json::Value = serde_json::from_str(&payload).unwrap_or_default();
 
-        let (folder, name, size_bytes) = if let Some(item_id) =
-            value.get("itemId").or_else(|| value.get("item_id")).and_then(|v| v.as_i64())
-        {
+        let (name, size_bytes) = if let Some(item_id) = value.get("itemId").and_then(|v| v.as_i64()) {
             conn.query_row(
-                "SELECT f.rel_path, COALESCE(i.orig_name, i.disk_name), i.size_bytes
-                   FROM item i JOIN folder f ON f.id = i.folder_id
-                  WHERE i.id = ?1",
+                "SELECT COALESCE(orig_name, disk_name), size_bytes FROM item WHERE id = ?1",
                 params![item_id],
-                |r| Ok((r.get(0)?, r.get(1)?, Some(r.get(2)?))),
+                |r| Ok((r.get(0)?, Some(r.get(1)?))),
             )
             .optional()?
-            .unwrap_or_else(|| (String::new(), format!("item {item_id}"), None))
+            .unwrap_or_else(|| (format!("item {item_id}"), None))
         } else {
-            let disk_name = value
-                .get("diskName")
-                .or_else(|| value.get("disk_name"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown file")
-                .to_string();
-            let folder = value
-                .get("folderId")
-                .or_else(|| value.get("folder_id"))
-                .and_then(|v| v.as_i64())
-                .and_then(|id| crate::db::folders::rel_for(conn, id).ok().flatten())
-                .unwrap_or_default();
-            (folder, disk_name, None)
+            let inbox_rel = value.get("inbox_rel").and_then(|v| v.as_str()).unwrap_or("unknown file").to_string();
+            (inbox_rel, None)
         };
 
         out.push(Failure {
             job_id,
             stage,
-            folder,
             name,
             error,
             attempts,

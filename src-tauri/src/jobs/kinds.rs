@@ -13,15 +13,12 @@ pub const THUMB: &str = "thumb";
 pub const SPRITE: &str = "sprite";
 pub const RETAG_FOLDER: &str = "retag_folder";
 pub const RETAG_ITEM: &str = "retag_item";
-pub const RENAME_FOLDER_SUBTREE: &str = "rename_folder_subtree";
-pub const MOVE_FOLDER_SUBTREE: &str = "move_folder_subtree";
 
 pub const PRIORITY_INDEX: i64 = 100;
 pub const PRIORITY_THUMB: i64 = 20;
 /// Between thumb and hash: tag correctness matters for search (M3+), but
 /// shouldn't starve the grid's own thumbnails while a big folder-level edit
-/// is still fanning out. Subtree path rewrites share this tier — same
-/// "structural correctness, not blocking thumbnails" reasoning.
+/// is still fanning out.
 pub const PRIORITY_RETAG: i64 = 15;
 pub const PRIORITY_HASH: i64 = 10;
 pub const PRIORITY_SPRITE: i64 = 1;
@@ -31,12 +28,17 @@ pub const PRIORITY_SPRITE: i64 = 1;
 /// file the app cannot read will not become readable by trying harder.
 pub const MAX_ATTEMPTS: i64 = 2;
 
-/// A file the walker found. The item row does not exist yet — it is created
-/// once the file has actually been read, so a row never exists without a hash.
+/// A file the watcher (or the startup catch-up walk) found settled in
+/// `inbox/`. The item row does not exist yet — it is created once the file
+/// has actually been read and sharded into `files/`, so a row never exists
+/// without a hash. `inbox_rel` is relative to `inbox/` itself, not the
+/// library root — everything found there is flattened into the Sorting Box
+/// regardless of whatever subdirectory it arrived in (PLAN.md decision 30 —
+/// `inbox/` is the only place files arrive from outside the app, and it is
+/// flat by design).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HashPayload {
-    pub folder_id: i64,
-    pub disk_name: String,
+    pub inbox_rel: String,
 }
 
 /// Thumbnail, sprite and item-level retag jobs, which work from an existing
@@ -47,20 +49,8 @@ pub struct ItemPayload {
 }
 
 /// A folder-level tag edit's fan-out into `item_effective_tag` across its
-/// subtree. See `db::tags::rebuild_subtree`.
+/// subtree. `None` means the whole library. See `db::tags::rebuild_subtree`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetagFolderPayload {
-    pub folder_rel: String,
-}
-
-/// A directory rename or move's fan-out: rewriting every descendant's
-/// `rel_path` prefix. The top folder itself is already updated synchronously
-/// by the caller before this is enqueued — see `db::folders::rewrite_subtree_paths`.
-/// `MOVE_FOLDER_SUBTREE` uses the same shape and additionally rebuilds the
-/// effective-tag cache for `new_rel` after the rewrite, in the same job
-/// execution, so there is no ordering race between two separate jobs.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SubtreePathRewritePayload {
-    pub old_rel: String,
-    pub new_rel: String,
+    pub folder_id: Option<i64>,
 }

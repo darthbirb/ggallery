@@ -4,11 +4,14 @@ use serde::Serialize;
 use crate::db::now;
 use crate::error::Result;
 
-/// What the walker knows about a file before anything has been opened.
+/// What the indexer knows about a file before anything has been opened.
+/// `folder_id` is `None` for everything — every item is indexed into the
+/// Sorting Box first; filing it is a separate, later operation (PLAN.md
+/// decision 30, "`NULL` is the Sorting Box").
 #[derive(Debug, Clone)]
 pub struct NewItem {
     pub uuid: String,
-    pub folder_id: i64,
+    pub folder_id: Option<i64>,
     pub disk_name: String,
     pub ext: String,
     pub orig_name: String,
@@ -34,16 +37,55 @@ pub struct ExistingItem {
     pub deleted: bool,
 }
 
+/// `id`, `uuid` and `ext` are all a caller needs to resolve an item's file —
+/// its location is a pure function of those two (PLAN.md decision 30), so
+/// nothing here ever needs to know which folder the item is filed in.
+#[derive(Debug, Clone)]
+pub struct ItemLocation {
+    pub id: i64,
+    pub uuid: String,
+    pub ext: String,
+}
+
+/// Every live item's location directly inside `folder_id` and everywhere
+/// beneath it — what `fs::trash::trash_folder` needs to physically move each
+/// one's file, gathered *before* the folder's own soft-delete so there is
+/// still a live subtree to walk.
+pub fn locations_in_subtree(conn: &Connection, folder_id: i64) -> Result<Vec<ItemLocation>> {
+    let mut stmt = conn.prepare(
+        "WITH RECURSIVE subtree(id) AS (
+             SELECT ?1
+           UNION ALL
+             SELECT f.id FROM folder f JOIN subtree s ON f.parent_id = s.id
+             WHERE f.deleted_at IS NULL
+         )
+         SELECT id, uuid, ext FROM item
+          WHERE deleted_at IS NULL AND folder_id IN (SELECT id FROM subtree)",
+    )?;
+    let rows = stmt
+        .query_map(params![folder_id], |r| Ok(ItemLocation { id: r.get(0)?, uuid: r.get(1)?, ext: r.get(2)? }))?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(rows)
+}
+
+pub fn location(conn: &Connection, id: i64) -> Result<Option<ItemLocation>> {
+    Ok(conn
+        .query_row(
+            "SELECT id, uuid, ext FROM item WHERE id = ?1",
+            params![id],
+            |r| Ok(ItemLocation { id: r.get(0)?, uuid: r.get(1)?, ext: r.get(2)? }),
+        )
+        .optional()?)
+}
+
 /// Everything a thumbnail or sprite job needs to find the file and name its
-/// output. `folder_rel` + `disk_name` go through `fs::paths` to become an
-/// absolute path — never concatenated anywhere else.
+/// output.
 #[derive(Debug, Clone)]
 pub struct ItemFile {
     pub id: i64,
     pub uuid: String,
+    pub ext: String,
     pub kind: String,
-    pub folder_rel: String,
-    pub disk_name: String,
     pub duration_ms: Option<i64>,
     /// False when probing never managed to read a width and height.
     pub has_dimensions: bool,
@@ -87,9 +129,13 @@ pub struct ItemDetail {
     pub thumb: String,
     pub disk_name: String,
     pub orig_name: Option<String>,
-    pub folder_id: i64,
-    pub folder_rel: String,
-    pub folder_title: String,
+    /// `None` for an item in the Sorting Box.
+    pub folder_id: Option<i64>,
+    /// Root-first ancestry, empty for the Sorting Box. Left empty by
+    /// `db::items::detail` and filled in by the command layer via
+    /// `db::folders::breadcrumb` — a separate query, not worth folding into
+    /// this one for something fetched a row at a time.
+    pub folder_breadcrumb: Vec<crate::db::folders::BreadcrumbCrumb>,
     pub size_bytes: i64,
     pub width: Option<i64>,
     pub height: Option<i64>,
@@ -111,12 +157,11 @@ pub struct ItemDetail {
 pub fn detail(conn: &Connection, id: i64) -> Result<Option<ItemDetail>> {
     Ok(conn
         .query_row(
-            "SELECT i.id, i.kind, i.uuid, i.disk_name, i.orig_name, i.folder_id,
-                    f.rel_path, f.title, i.size_bytes, i.width, i.height, i.duration_ms,
+            "SELECT i.id, i.kind, i.uuid, i.ext, i.disk_name, i.orig_name, i.folder_id,
+                    i.size_bytes, i.width, i.height, i.duration_ms,
                     i.codec, i.bitrate, i.captured_at, i.captured_src, i.added_at,
                     i.favorite, i.notes, i.hash, d.url
                FROM item i
-               JOIN folder f ON f.id = i.folder_id
                LEFT JOIN download d ON d.id = i.download_id
               WHERE i.id = ?1 AND i.deleted_at IS NULL",
             params![id],
@@ -126,24 +171,23 @@ pub fn detail(conn: &Connection, id: i64) -> Result<Option<ItemDetail>> {
                     kind: r.get(1)?,
                     path: String::new(),
                     thumb: crate::fs::paths::shard(&r.get::<_, String>(2)?),
-                    disk_name: r.get(3)?,
-                    orig_name: r.get(4)?,
-                    folder_id: r.get(5)?,
-                    folder_rel: r.get(6)?,
-                    folder_title: r.get(7)?,
-                    size_bytes: r.get(8)?,
-                    width: r.get(9)?,
-                    height: r.get(10)?,
-                    duration_ms: r.get(11)?,
-                    codec: r.get(12)?,
-                    bitrate: r.get(13)?,
-                    captured_at: r.get(14)?,
-                    captured_src: r.get(15)?,
-                    added_at: r.get(16)?,
-                    favorite: r.get::<_, i64>(17)? != 0,
-                    notes: r.get(18)?,
-                    hash: r.get(19)?,
-                    source_url: r.get(20)?,
+                    disk_name: r.get(4)?,
+                    orig_name: r.get(5)?,
+                    folder_id: r.get(6)?,
+                    folder_breadcrumb: Vec::new(),
+                    size_bytes: r.get(7)?,
+                    width: r.get(8)?,
+                    height: r.get(9)?,
+                    duration_ms: r.get(10)?,
+                    codec: r.get(11)?,
+                    bitrate: r.get(12)?,
+                    captured_at: r.get(13)?,
+                    captured_src: r.get(14)?,
+                    added_at: r.get(15)?,
+                    favorite: r.get::<_, i64>(16)? != 0,
+                    notes: r.get(17)?,
+                    hash: r.get(18)?,
+                    source_url: r.get(19)?,
                 })
             },
         )
@@ -160,24 +204,29 @@ pub fn set_favorite(conn: &Connection, ids: &[i64], favorite: bool) -> Result<()
     Ok(())
 }
 
+/// What the grid asks for. "Root is a folder" is gone (PLAN.md decision 30) —
+/// there are three real states, not a folder id plus a magic empty string.
 #[derive(Debug, Clone, Default)]
-pub struct Scope {
-    /// Normalised folder rel_path. `None` or `""` means the whole library.
-    pub folder: Option<String>,
-    pub recursive: bool,
+pub enum Scope {
+    /// Every item, ignoring folder structure entirely.
+    #[default]
+    Everything,
+    /// The Sorting Box: `folder_id IS NULL`. Flat by definition — "not
+    /// everything recursively; just what has not been filed yet"
+    /// (docs/DESIGN.md §2 "Navigation roots").
+    Unsorted,
+    Folder { id: i64, recursive: bool },
 }
 
-pub fn existing(
-    conn: &Connection,
-    folder_id: i64,
-    disk_name: &str,
-) -> Result<Option<ExistingItem>> {
+/// Globally unique now (`idx_item_disk`), not per-folder — a file's name is
+/// its shard location, which no folder can any longer disambiguate.
+pub fn existing_by_disk_name(conn: &Connection, disk_name: &str) -> Result<Option<ExistingItem>> {
     Ok(conn
         .query_row(
             "SELECT id, uuid, size_bytes, mtime, deleted_at
                FROM item
-              WHERE folder_id = ?1 AND disk_name = ?2 COLLATE NOCASE",
-            params![folder_id, disk_name],
+              WHERE disk_name = ?1 COLLATE NOCASE",
+            params![disk_name],
             |r| {
                 let deleted: Option<i64> = r.get(4)?;
                 Ok(ExistingItem {
@@ -198,9 +247,11 @@ pub fn existing(
 /// and sprites, and re-issuing it would orphan them. `orig_name` is likewise
 /// left untouched on refresh: it is the pre-import filename, recorded once
 /// and never revised just because the file's content changed under the same
-/// name. Only the insert branch below sets it.
+/// name. `folder_id` is deliberately not touched on refresh either — a
+/// modified file is the same item wherever it was already filed. Only the
+/// insert branch below sets any of these.
 pub fn upsert(conn: &Connection, item: &NewItem) -> Result<i64> {
-    if let Some(found) = existing(conn, item.folder_id, &item.disk_name)? {
+    if let Some(found) = existing_by_disk_name(conn, &item.disk_name)? {
         conn.execute(
             "UPDATE item
                 SET ext = ?1, hash = ?2, size_bytes = ?3, mtime = ?4,
@@ -257,20 +308,17 @@ pub fn upsert(conn: &Connection, item: &NewItem) -> Result<i64> {
 pub fn file_for(conn: &Connection, id: i64) -> Result<Option<ItemFile>> {
     Ok(conn
         .query_row(
-            "SELECT i.id, i.uuid, i.kind, f.rel_path, i.disk_name, i.duration_ms,
-                    i.width IS NOT NULL AND i.height IS NOT NULL
-               FROM item i JOIN folder f ON f.id = i.folder_id
-              WHERE i.id = ?1",
+            "SELECT id, uuid, ext, kind, duration_ms, width IS NOT NULL AND height IS NOT NULL
+               FROM item WHERE id = ?1",
             params![id],
             |r| {
                 Ok(ItemFile {
                     id: r.get(0)?,
                     uuid: r.get(1)?,
-                    kind: r.get(2)?,
-                    folder_rel: r.get(3)?,
-                    disk_name: r.get(4)?,
-                    duration_ms: r.get(5)?,
-                    has_dimensions: r.get::<_, i64>(6)? != 0,
+                    ext: r.get(2)?,
+                    kind: r.get(3)?,
+                    duration_ms: r.get(4)?,
+                    has_dimensions: r.get::<_, i64>(5)? != 0,
                 })
             },
         )
@@ -293,6 +341,24 @@ pub fn count(conn: &Connection) -> Result<i64> {
         [],
         |r| r.get(0),
     )?)
+}
+
+/// Items in the Sorting Box — `folder_id IS NULL` (PLAN.md decision 30).
+/// There is no folder row to read a count off any more, so the sidebar badge
+/// needs its own small query rather than a folder's `direct_count`.
+pub fn unsorted_count(conn: &Connection) -> Result<i64> {
+    Ok(conn.query_row(
+        "SELECT COUNT(*) FROM item WHERE deleted_at IS NULL AND folder_id IS NULL",
+        [],
+        |r| r.get(0),
+    )?)
+}
+
+/// Every item, trashed or not — what `fs::shard`'s migration progress
+/// denominator counts against, since a trashed item's file still needs
+/// moving to its shard location too.
+pub fn count_all_including_deleted(conn: &Connection) -> Result<i64> {
+    Ok(conn.query_row("SELECT COUNT(*) FROM item", [], |r| r.get(0))?)
 }
 
 /// Item counts and total size, grouped by kind. What the import wizard's scan
@@ -324,103 +390,12 @@ pub fn counts_by_kind(conn: &Connection) -> Result<Vec<KindTotal>> {
     Ok(rows)
 }
 
-/// `(already renamed, still needs renaming)`. A row is "renamed" exactly when
-/// `disk_name` already equals `<uuid>.<ext>` — the same equality the schema
-/// comment in `001_initial.sql` describes as what M1.5 establishes for good,
-/// so there is no separate flag to track it.
-pub fn rename_counts(conn: &Connection) -> Result<(i64, i64)> {
-    let already: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM item
-          WHERE deleted_at IS NULL AND disk_name = uuid || '.' || ext",
-        [],
-        |r| r.get(0),
-    )?;
-    let total = count(conn)?;
-    Ok((already, total - already))
-}
-
-/// One file the import wizard still needs to rename.
-#[derive(Debug, Clone)]
-pub struct RenameCandidate {
-    pub id: i64,
-    pub uuid: String,
-    pub ext: String,
-    pub orig_name: Option<String>,
-    pub folder_rel: String,
-    pub disk_name: String,
-}
-
-/// The next batch of not-yet-renamed items after `after_id`, in id order.
-///
-/// `disk_name != uuid || '.' || ext` is not indexed, so filtering on it alone
-/// would rescan the whole table on every batch — quadratic over a 300GB
-/// library. Pairing it with `id > ?` lets SQLite walk the primary key forward
-/// from where the last batch stopped, so the filter only ever looks at rows
-/// this call has not already passed over: one forward pass across the whole
-/// import, not one per batch. See PLAN.md decision 19.
-pub fn rename_candidates_after(
-    conn: &Connection,
-    after_id: i64,
-    limit: i64,
-) -> Result<Vec<RenameCandidate>> {
-    let mut stmt = conn.prepare(
-        "SELECT i.id, i.uuid, i.ext, i.orig_name, f.rel_path, i.disk_name
-           FROM item i JOIN folder f ON f.id = i.folder_id
-          WHERE i.deleted_at IS NULL AND i.id > ?1 AND i.disk_name != (i.uuid || '.' || i.ext)
-          ORDER BY i.id
-          LIMIT ?2",
-    )?;
-    let rows = stmt
-        .query_map(params![after_id, limit], |r| {
-            Ok(RenameCandidate {
-                id: r.get(0)?,
-                uuid: r.get(1)?,
-                ext: r.get(2)?,
-                orig_name: r.get(3)?,
-                folder_rel: r.get(4)?,
-                disk_name: r.get(5)?,
-            })
-        })?
-        .collect::<rusqlite::Result<_>>()?;
-    Ok(rows)
-}
-
-/// One item, by id — what `fs::import::rename_on_arrival` needs to rename a
-/// single freshly-indexed file. Same shape as `rename_candidates_after`, just
-/// not filtered to "still needs renaming": the caller already knows this item
-/// is new.
-pub fn rename_target(conn: &Connection, id: i64) -> Result<Option<RenameCandidate>> {
-    Ok(conn
-        .query_row(
-            "SELECT i.id, i.uuid, i.ext, i.orig_name, f.rel_path, i.disk_name
-               FROM item i JOIN folder f ON f.id = i.folder_id
-              WHERE i.id = ?1",
-            params![id],
-            |r| {
-                Ok(RenameCandidate {
-                    id: r.get(0)?,
-                    uuid: r.get(1)?,
-                    ext: r.get(2)?,
-                    orig_name: r.get(3)?,
-                    folder_rel: r.get(4)?,
-                    disk_name: r.get(5)?,
-                })
-            },
-        )
-        .optional()?)
-}
-
-/// Record the file's new on-disk name. Nothing else about the row changes —
-/// `orig_name` keeps the pre-import filename as searchable metadata forever.
-pub fn set_disk_name(conn: &Connection, id: i64, disk_name: &str) -> Result<()> {
-    conn.execute(
-        "UPDATE item SET disk_name = ?1 WHERE id = ?2",
-        params![disk_name, id],
-    )?;
-    Ok(())
-}
-
-pub fn folder_id_of(conn: &Connection, id: i64) -> Result<Option<i64>> {
+/// The item's current folder — `None` (outer) if no such live item exists,
+/// `Some(None)` if it exists but is unfiled (the Sorting Box). Two levels of
+/// `Option` because `folder_id` itself is nullable now (PLAN.md decision 30):
+/// this is the one place that distinction actually matters to a caller, so
+/// it is spelled out rather than collapsed.
+pub fn folder_id_of(conn: &Connection, id: i64) -> Result<Option<Option<i64>>> {
     Ok(conn
         .query_row(
             "SELECT folder_id FROM item WHERE id = ?1 AND deleted_at IS NULL",
@@ -430,9 +405,10 @@ pub fn folder_id_of(conn: &Connection, id: i64) -> Result<Option<i64>> {
         .optional()?)
 }
 
-/// The move operation's DB half — `fs::relocate::move_items` has already
-/// moved the file on disk by the time this runs.
-pub fn set_folder(conn: &Connection, id: i64, folder_id: i64) -> Result<()> {
+/// The move operation's DB half — a pure column write. A file's location
+/// never depended on its folder to begin with (PLAN.md decision 30), so
+/// there is nothing else for a move to do.
+pub fn set_folder(conn: &Connection, id: i64, folder_id: Option<i64>) -> Result<()> {
     conn.execute(
         "UPDATE item SET folder_id = ?1 WHERE id = ?2",
         params![folder_id, id],
@@ -441,8 +417,9 @@ pub fn set_folder(conn: &Connection, id: i64, folder_id: i64) -> Result<()> {
 }
 
 /// The delete operation's DB half — reuses the same soft-delete column the
-/// watcher already uses for a file that vanished from disk. `fs::trash`
-/// has already moved the file into `.gallery/trash/` by the time this runs.
+/// reconcile sweep already uses for a file that vanished from disk.
+/// `fs::trash` has already moved the file into `.gallery/trash/` by the time
+/// this runs.
 pub fn trash_one(conn: &Connection, id: i64) -> Result<()> {
     conn.execute(
         "UPDATE item SET deleted_at = ?1 WHERE id = ?2",
@@ -458,56 +435,7 @@ pub fn restore_one(conn: &Connection, id: i64) -> Result<()> {
     Ok(())
 }
 
-/// What the import wizard's verify step re-hashes.
-#[derive(Debug, Clone)]
-pub struct VerifyCandidate {
-    pub id: i64,
-    pub folder_rel: String,
-    pub disk_name: String,
-    pub hash: String,
-}
-
-/// A random sample of already-renamed items. Called once, after the whole
-/// rename has finished, so the `ORDER BY RANDOM()` full-table sort is a
-/// one-off cost rather than a repeated query path — unlike the grid or search,
-/// this is not a shape PLAN.md decision 19 is warning about.
-pub fn random_sample_for_verify(conn: &Connection, n: i64) -> Result<Vec<VerifyCandidate>> {
-    let mut stmt = conn.prepare(
-        "SELECT i.id, f.rel_path, i.disk_name, i.hash
-           FROM item i JOIN folder f ON f.id = i.folder_id
-          WHERE i.deleted_at IS NULL AND i.disk_name = (i.uuid || '.' || i.ext)
-          ORDER BY RANDOM()
-          LIMIT ?1",
-    )?;
-    let rows = stmt
-        .query_map(params![n], |r| {
-            Ok(VerifyCandidate {
-                id: r.get(0)?,
-                folder_rel: r.get(1)?,
-                disk_name: r.get(2)?,
-                hash: r.get(3)?,
-            })
-        })?
-        .collect::<rusqlite::Result<_>>()?;
-    Ok(rows)
-}
-
 pub fn list(conn: &Connection, scope: &Scope) -> Result<Vec<GridItem>> {
-    // `None` and `Some("")` are different questions, and both are asked:
-    // *Everything* ignores folder structure entirely, while *Loose items* is
-    // the root folder and nothing beneath it. See docs/DESIGN.md §2
-    // "Navigation roots" — the library root is not a folder in the interface,
-    // but items at the top level still have to belong somewhere.
-    let whole_library = match scope.folder.as_deref() {
-        None => true,
-        Some("") => scope.recursive,
-        Some(_) => false,
-    };
-    let folder = if whole_library {
-        ""
-    } else {
-        scope.folder.as_deref().unwrap_or("")
-    };
     let base = "SELECT id, uuid, kind, width, height, duration_ms, favorite,
                        COALESCE(captured_at, mtime) AS at, COALESCE(orig_name, disk_name)
                   FROM item
@@ -528,31 +456,44 @@ pub fn list(conn: &Connection, scope: &Scope) -> Result<Vec<GridItem>> {
         })
     };
 
-    // The whole library, or one folder, or one folder and everything beneath
-    // it. Folder views are recursive by default — see PLAN.md decision 10.
-    let rows: Vec<GridItem> = if whole_library {
-        let sql = format!("{base}{order}");
-        let mut stmt = conn.prepare(&sql)?;
-        let rows = stmt.query_map([], map)?.collect::<rusqlite::Result<_>>()?;
-        rows
-    } else if scope.recursive {
-        let sql = format!(
-            "{base} AND folder_id IN (SELECT id FROM folder
-                                       WHERE rel_path = ?1 OR rel_path LIKE ?1 || '/%'){order}"
-        );
-        let mut stmt = conn.prepare(&sql)?;
-        let rows = stmt
-            .query_map(params![folder], map)?
-            .collect::<rusqlite::Result<_>>()?;
-        rows
-    } else {
-        let sql =
-            format!("{base} AND folder_id = (SELECT id FROM folder WHERE rel_path = ?1){order}");
-        let mut stmt = conn.prepare(&sql)?;
-        let rows = stmt
-            .query_map(params![folder], map)?
-            .collect::<rusqlite::Result<_>>()?;
-        rows
+    let rows: Vec<GridItem> = match scope {
+        Scope::Everything => {
+            let sql = format!("{base}{order}");
+            let mut stmt = conn.prepare(&sql)?;
+            let rows = stmt.query_map([], map)?.collect::<rusqlite::Result<_>>()?;
+            rows
+        }
+        Scope::Unsorted => {
+            let sql = format!("{base} AND folder_id IS NULL{order}");
+            let mut stmt = conn.prepare(&sql)?;
+            let rows = stmt.query_map([], map)?.collect::<rusqlite::Result<_>>()?;
+            rows
+        }
+        Scope::Folder { id, recursive: false } => {
+            let sql = format!("{base} AND folder_id = ?1{order}");
+            let mut stmt = conn.prepare(&sql)?;
+            let rows = stmt.query_map(params![id], map)?.collect::<rusqlite::Result<_>>()?;
+            rows
+        }
+        Scope::Folder { id, recursive: true } => {
+            // Folder counts stay in the thousands at most (see
+            // `db::folders::tree`'s own reasoning), so a recursive CTE over
+            // `folder` alone — joined against, never iterated per item — is
+            // not the shape PLAN.md decision 20 warns about. Verified
+            // against `synth_library` at scale regardless.
+            let sql = format!(
+                "WITH RECURSIVE subtree(id) AS (
+                     SELECT ?1
+                   UNION ALL
+                     SELECT f.id FROM folder f JOIN subtree s ON f.parent_id = s.id
+                     WHERE f.deleted_at IS NULL
+                 )
+                 {base} AND folder_id IN (SELECT id FROM subtree){order}"
+            );
+            let mut stmt = conn.prepare(&sql)?;
+            let rows = stmt.query_map(params![id], map)?.collect::<rusqlite::Result<_>>()?;
+            rows
+        }
     };
 
     Ok(rows)
@@ -560,68 +501,32 @@ pub fn list(conn: &Connection, scope: &Scope) -> Result<Vec<GridItem>> {
 
 // --- reconciliation sweep -------------------------------------------------
 //
-// A re-index records every file it saw, then soft-deletes the rows it did not.
-// This is bookkeeping only: nothing on disk is touched, and a file that comes
-// back clears its own `deleted_at` through `upsert`.
+// `fs::walk`'s startup reconcile records the uuid of every item whose shard
+// file it actually found, then soft-deletes the rows it did not — bookkeeping
+// only, nothing on disk is touched, and a file that comes back clears its own
+// `deleted_at` through `upsert`. Keyed by uuid (PLAN.md decision 30), not by
+// a folder and a filename — there is no directory tree left to walk, only
+// `files/` itself, sharded by uuid.
 
 pub fn begin_sweep(conn: &Connection) -> Result<()> {
     conn.execute_batch(
         "DROP TABLE IF EXISTS temp.seen;
-         CREATE TEMP TABLE seen (folder_id INTEGER NOT NULL, disk_name TEXT NOT NULL);",
+         CREATE TEMP TABLE seen (uuid TEXT NOT NULL);",
     )?;
     Ok(())
 }
 
-pub fn mark_seen(conn: &Connection, folder_id: i64, disk_name: &str) -> Result<()> {
-    conn.execute(
-        "INSERT INTO temp.seen (folder_id, disk_name) VALUES (?1, ?2)",
-        params![folder_id, disk_name],
-    )?;
+pub fn mark_seen(conn: &Connection, uuid: &str) -> Result<()> {
+    conn.execute("INSERT INTO temp.seen (uuid) VALUES (?1)", params![uuid])?;
     Ok(())
-}
-
-// --- watcher-driven single-path retirement --------------------------------
-//
-// The sweep above is for a whole-library walk. The watcher retires one path
-// at a time, as soon as it sees the file or folder disappear, rather than
-// waiting for a reconcile pass to notice.
-
-/// Soft-delete one item by its folder and disk name. A no-op if nothing
-/// matches — the file may never have been indexed, or this may be the tail
-/// half of a rename the app itself suppressed.
-pub fn retire_one(conn: &Connection, folder_id: i64, disk_name: &str) -> Result<bool> {
-    let n = conn.execute(
-        "UPDATE item SET deleted_at = ?1
-          WHERE folder_id = ?2 AND disk_name = ?3 COLLATE NOCASE AND deleted_at IS NULL",
-        params![now(), folder_id, disk_name],
-    )?;
-    Ok(n > 0)
-}
-
-/// Soft-delete every item in `folder_rel` and everything beneath it — the
-/// watcher's response to a whole folder disappearing at once. Folders
-/// themselves have no lifecycle yet (that is M2's job), so the row is left
-/// behind, empty, rather than removed.
-pub fn retire_folder(conn: &Connection, folder_rel: &str) -> Result<usize> {
-    Ok(conn.execute(
-        "UPDATE item SET deleted_at = ?1
-          WHERE deleted_at IS NULL
-            AND folder_id IN (SELECT id FROM folder
-                               WHERE rel_path = ?2 OR rel_path LIKE ?2 || '/%')",
-        params![now(), folder_rel],
-    )?)
 }
 
 pub fn finish_sweep(conn: &Connection) -> Result<usize> {
-    conn.execute_batch(
-        "CREATE INDEX IF NOT EXISTS temp.idx_seen ON seen(folder_id, disk_name COLLATE NOCASE);",
-    )?;
+    conn.execute_batch("CREATE INDEX IF NOT EXISTS temp.idx_seen ON seen(uuid);")?;
     let gone = conn.execute(
         "UPDATE item SET deleted_at = ?1
           WHERE deleted_at IS NULL
-            AND NOT EXISTS (SELECT 1 FROM temp.seen s
-                             WHERE s.folder_id = item.folder_id
-                               AND s.disk_name = item.disk_name COLLATE NOCASE)",
+            AND NOT EXISTS (SELECT 1 FROM temp.seen s WHERE s.uuid = item.uuid)",
         params![now()],
     )?;
     conn.execute_batch("DROP TABLE IF EXISTS temp.seen;")?;

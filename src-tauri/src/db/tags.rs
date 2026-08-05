@@ -89,16 +89,20 @@ pub fn resolve_ancestor_tags(conn: &Connection, folder_id: i64) -> Result<Vec<(i
 }
 
 /// Full recompute for one item: its current folder's inherited tags plus its
-/// own manual tags. Used for a brand-new item — called inline from
+/// own manual tags. `None` for an unfiled item (the Sorting Box) — nothing to
+/// inherit from. Used for a brand-new item — called inline from
 /// `jobs::worker::run_hash`, not queued, since the cost is one bounded
 /// ancestor walk rather than a scan — and for item-level manual tag changes.
 pub fn rebuild_item(conn: &Connection, item_id: i64) -> Result<()> {
-    let folder_id: i64 = conn.query_row(
+    let folder_id: Option<i64> = conn.query_row(
         "SELECT folder_id FROM item WHERE id = ?1",
         params![item_id],
         |r| r.get(0),
     )?;
-    let inherited = resolve_ancestor_tags(conn, folder_id)?;
+    let inherited = match folder_id {
+        Some(folder_id) => resolve_ancestor_tags(conn, folder_id)?,
+        None => Vec::new(),
+    };
 
     conn.execute(
         "DELETE FROM item_effective_tag WHERE item_id = ?1",
@@ -121,40 +125,78 @@ pub fn rebuild_item(conn: &Connection, item_id: i64) -> Result<()> {
 
 /// Bulk rebuild for a folder-level change: the folder's own tags edited, an
 /// archetype applied, or its title changed. Scope is the folder and every
-/// descendant, per DATA-MODEL's invalidation table.
+/// descendant, per DATA-MODEL's invalidation table. `None` means the whole
+/// library (a root-level folder's own tags changed, or none of the above —
+/// see `db::items::Scope::Everything` for the same "no folder" shape).
 ///
-/// Walks the subtree in `rel_path` order — a prefix always sorts before
-/// anything nested under it, so a folder's row is visited after its
-/// parent's — accumulating each folder's tag set from its parent's
+/// Walks the subtree parent-before-child (`depth ASC` in the recursive CTE
+/// below), accumulating each folder's tag set from its parent's
 /// already-computed set plus its own `folder_tag` rows. That is one pass
 /// over folders (thousands at most, per `db::folders::tree`'s own
 /// reasoning) rather than one recursive ancestry query per item, which is
 /// exactly the shape PLAN.md decision 20 warns is catastrophic at scale.
-pub fn rebuild_subtree(conn: &Connection, folder_rel: &str) -> Result<()> {
-    let Some(folder_id) = folder_id_for(conn, folder_rel)? else {
-        return Ok(());
+pub fn rebuild_subtree(conn: &Connection, folder_id: Option<i64>) -> Result<()> {
+    let Some(folder_id) = folder_id else {
+        return rebuild_whole_library(conn);
     };
+    if !folder_exists(conn, folder_id)? {
+        return Ok(());
+    }
     let parent_id: Option<i64> = conn.query_row(
         "SELECT parent_id FROM folder WHERE id = ?1",
         params![folder_id],
         |r| r.get(0),
     )?;
 
-    // Seed: whatever lies above `folder_rel` contributes tags that have not
+    // Seed: whatever lies above `folder_id` contributes tags that have not
     // changed, but the walk below still needs their value to start from.
     let seed: HashMap<i64, i64> = match parent_id {
         Some(pid) => resolve_ancestor_tags(conn, pid)?.into_iter().collect(),
         None => HashMap::new(),
     };
 
-    let subtree = subtree_folders(conn, folder_rel)?;
+    let subtree = subtree_folders(conn, folder_id)?;
+    rebuild_from_seed(conn, parent_id.unwrap_or(-1), seed, &subtree)
+}
 
+fn rebuild_whole_library(conn: &Connection) -> Result<()> {
+    let mut stmt = conn.prepare(
+        "WITH RECURSIVE t(id, parent_id, depth) AS (
+             SELECT id, parent_id, 0 FROM folder WHERE parent_id IS NULL AND deleted_at IS NULL
+           UNION ALL
+             SELECT f.id, f.parent_id, t.depth + 1
+               FROM folder f JOIN t ON f.parent_id = t.id
+              WHERE f.deleted_at IS NULL
+         )
+         SELECT id, parent_id FROM t ORDER BY depth",
+    )?;
+    let subtree: Vec<(i64, Option<i64>)> = stmt
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    drop(stmt);
+    rebuild_from_seed(conn, -1, HashMap::new(), &subtree)
+}
+
+fn folder_exists(conn: &Connection, folder_id: i64) -> Result<bool> {
+    Ok(conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM folder WHERE id = ?1 AND deleted_at IS NULL)",
+        params![folder_id],
+        |r| r.get(0),
+    )?)
+}
+
+fn rebuild_from_seed(
+    conn: &Connection,
+    seed_key: i64,
+    seed: HashMap<i64, i64>,
+    subtree: &[(i64, Option<i64>)],
+) -> Result<()> {
     crate::db::begin_batch(conn)?;
     let result = (|| -> Result<()> {
         let mut tag_sets: HashMap<i64, HashMap<i64, i64>> = HashMap::new();
-        tag_sets.insert(parent_id.unwrap_or(-1), seed);
+        tag_sets.insert(seed_key, seed);
 
-        for (id, parent) in &subtree {
+        for (id, parent) in subtree {
             let mut set = tag_sets.get(&parent.unwrap_or(-1)).cloned().unwrap_or_default();
 
             let mut own_stmt = conn.prepare("SELECT tag_id FROM folder_tag WHERE folder_id = ?1")?;
@@ -184,37 +226,22 @@ pub fn rebuild_subtree(conn: &Connection, folder_rel: &str) -> Result<()> {
     }
 }
 
-fn folder_id_for(conn: &Connection, folder_rel: &str) -> Result<Option<i64>> {
-    Ok(conn
-        .query_row(
-            "SELECT id FROM folder WHERE rel_path = ?1",
-            params![folder_rel],
-            |r| r.get(0),
-        )
-        .optional()?)
-}
-
-/// `(id, parent_id)` for `folder_rel` and everything beneath it, parent
-/// before child. Mirrors `db::items::list`'s own root-vs-prefix branch:
-/// `'' || '/%'` is `'/ %'`, which matches nothing, since no `rel_path` ever
-/// carries a leading slash — the whole-library case needs no `WHERE` at all.
-fn subtree_folders(conn: &Connection, folder_rel: &str) -> Result<Vec<(i64, Option<i64>)>> {
-    let sql = if folder_rel.is_empty() {
-        "SELECT id, parent_id FROM folder ORDER BY rel_path".to_string()
-    } else {
-        "SELECT id, parent_id FROM folder
-          WHERE rel_path = ?1 OR rel_path LIKE ?1 || '/%'
-          ORDER BY rel_path"
-            .to_string()
-    };
-    let mut stmt = conn.prepare(&sql)?;
-    let rows = if folder_rel.is_empty() {
-        stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
-            .collect::<rusqlite::Result<_>>()?
-    } else {
-        stmt.query_map(params![folder_rel], |r| Ok((r.get(0)?, r.get(1)?)))?
-            .collect::<rusqlite::Result<_>>()?
-    };
+/// `(id, parent_id)` for `folder_id` and everything beneath it, parent
+/// before child.
+fn subtree_folders(conn: &Connection, folder_id: i64) -> Result<Vec<(i64, Option<i64>)>> {
+    let mut stmt = conn.prepare(
+        "WITH RECURSIVE t(id, parent_id, depth) AS (
+             SELECT id, parent_id, 0 FROM folder WHERE id = ?1
+           UNION ALL
+             SELECT f.id, f.parent_id, t.depth + 1
+               FROM folder f JOIN t ON f.parent_id = t.id
+              WHERE f.deleted_at IS NULL
+         )
+         SELECT id, parent_id FROM t ORDER BY depth",
+    )?;
+    let rows = stmt
+        .query_map(params![folder_id], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .collect::<rusqlite::Result<_>>()?;
     Ok(rows)
 }
 
@@ -479,9 +506,8 @@ mod tests {
         conn
     }
 
-    fn folder(conn: &Connection, rel: &str, title: &str) -> i64 {
-        let id = db::folders::upsert(conn, rel, title).unwrap();
-        id
+    fn folder(conn: &Connection, path: &str, title: &str) -> i64 {
+        db::folders::ensure_path(conn, path, title).unwrap()
     }
 
     fn item(conn: &Connection, folder_id: i64, name: &str) -> i64 {
@@ -489,7 +515,7 @@ mod tests {
             conn,
             &db::items::NewItem {
                 uuid: uuid::Uuid::new_v4().to_string(),
-                folder_id,
+                folder_id: Some(folder_id),
                 disk_name: name.to_string(),
                 ext: "jpg".to_string(),
                 orig_name: name.to_string(),
@@ -617,7 +643,7 @@ mod tests {
             params![ana],
         )
         .unwrap();
-        rebuild_subtree(&conn, "people/ana").unwrap();
+        rebuild_subtree(&conn, Some(ana)).unwrap();
 
         assert!(!item_effective_tags(&conn, item_id)
             .unwrap()
@@ -634,7 +660,7 @@ mod tests {
         add_item_tag(&conn, item_id, None, "favourite-shot").unwrap();
 
         flag(&conn, ana, "beach", "manual");
-        rebuild_subtree(&conn, "people/ana").unwrap();
+        rebuild_subtree(&conn, Some(ana)).unwrap();
 
         let values: Vec<String> = item_effective_tags(&conn, item_id)
             .unwrap()
@@ -646,15 +672,17 @@ mod tests {
     }
 
     #[test]
-    fn a_root_level_edit_rebuilds_the_whole_library() {
+    fn rebuild_subtree_with_no_folder_rebuilds_the_whole_library() {
+        // `None` is the whole-library case (PLAN.md decision 30 — there is
+        // no root folder any more for a "root-level edit" to mean anything
+        // narrower than that).
         let conn = memory_conn();
-        let root = folder(&conn, "", "Library");
-        let ana = folder(&conn, "ana", "Ana");
-        let item_id = item(&conn, ana, "photo.jpg");
+        let top = folder(&conn, "top", "Top");
+        let item_id = item(&conn, top, "photo.jpg");
         rebuild_item(&conn, item_id).unwrap();
 
-        flag(&conn, root, "all", "manual");
-        rebuild_subtree(&conn, "").unwrap();
+        flag(&conn, top, "all", "manual");
+        rebuild_subtree(&conn, None).unwrap();
 
         assert!(item_effective_tags(&conn, item_id)
             .unwrap()
@@ -670,7 +698,7 @@ mod tests {
         flag(&conn, people, "shared", "manual");
         flag(&conn, ana, "shared", "manual");
 
-        rebuild_subtree(&conn, "people").unwrap();
+        rebuild_subtree(&conn, Some(people)).unwrap();
 
         let item_id = item(&conn, ana, "photo.jpg");
         rebuild_item(&conn, item_id).unwrap();

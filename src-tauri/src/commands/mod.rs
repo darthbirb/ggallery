@@ -11,6 +11,7 @@ pub mod import;
 pub mod items;
 pub mod jobs;
 pub mod library;
+pub mod storage_migration;
 pub mod tags;
 pub mod triage;
 

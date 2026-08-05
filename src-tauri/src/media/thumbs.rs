@@ -23,7 +23,7 @@ pub const QUALITY: f32 = 78.0;
 /// for free, which is what lets an item probed by a version that could not
 /// read the file heal itself without a second pass over the disk.
 pub fn generate(paths: &LibraryPaths, item: &ItemFile, tools: &Tools) -> Result<Option<(i64, i64)>> {
-    let src = paths.item_path(&item.folder_rel, &item.disk_name)?;
+    let src = paths.item_path(&item.uuid, &item.ext);
     let out = paths.thumb_path(&item.uuid);
 
     let (image, source_size) = match Kind::parse(&item.kind) {

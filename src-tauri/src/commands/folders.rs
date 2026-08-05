@@ -19,11 +19,9 @@ pub async fn get_folder(state: State<'_, AppState>, id: i64) -> Result<FolderDet
     .await
 }
 
-/// A folder has one name (PLAN.md §M2.2) — this both updates the title and,
-/// when the sanitised result differs from what's on disk, renames the
-/// directory to match. There is no separate rename-directory command any
-/// more.
-/// Returns the journal batch, so the toast that follows can offer Undo.
+/// A folder has one name (PLAN.md decision 30) — one column, nothing on
+/// disk to keep in step with it. Returns the journal batch, so the toast
+/// that follows can offer Undo.
 #[tauri::command]
 pub async fn set_folder_title(
     state: State<'_, AppState>,
@@ -33,16 +31,8 @@ pub async fn set_folder_title(
     let library = state.library()?;
     blocking(move || {
         let conn = library.conn()?;
-        let suppressor = library.queue().inner().suppressor.clone();
         let batch = db::journal::new_batch();
-        crate::fs::relocate::retitle_folder(
-            &library.paths,
-            &conn,
-            &suppressor,
-            id,
-            &title,
-            &batch,
-        )?;
+        crate::fs::relocate::retitle_folder(&conn, id, &title, &batch)?;
         Ok(batch)
     })
     .await
@@ -180,7 +170,13 @@ pub async fn list_archetypes(state: State<'_, AppState>) -> Result<Vec<Archetype
     .await
 }
 
-// --- folder lifecycle: create, rename directory, move, delete (M2.1) -----
+// --- folder lifecycle: create, retitle, move, delete (M2.1, rebuilt for
+// PLAN.md §M2.6 — none of this touches a file any more) -------------------
+//
+// There is no `reveal_folder` any more: a folder has no directory left to
+// reveal in Explorer (docs/DESIGN.md §1 specifies "Reveal in Explorer" only
+// for items, never folders — this command was extra, and decision 30 removed
+// the thing it revealed).
 
 #[tauri::command]
 pub async fn create_folder(
@@ -192,14 +188,7 @@ pub async fn create_folder(
     let library = state.library()?;
     blocking(move || {
         let conn = library.conn()?;
-        crate::fs::relocate::create_folder(
-            &library.paths,
-            &conn,
-            parent_id,
-            &name,
-            archetype_id,
-            &db::journal::new_batch(),
-        )
+        crate::fs::relocate::create_folder(&conn, parent_id, &name, archetype_id, &db::journal::new_batch())
     })
     .await
 }
@@ -214,7 +203,7 @@ pub async fn move_folder(
     blocking(move || {
         let conn = library.conn()?;
         let batch = db::journal::new_batch();
-        crate::fs::relocate::move_folder(&library.paths, &conn, id, new_parent_id, &batch)?;
+        crate::fs::relocate::move_folder(&conn, id, new_parent_id, &batch)?;
         Ok(batch)
     })
     .await
@@ -228,30 +217,6 @@ pub async fn delete_folder(state: State<'_, AppState>, id: i64) -> Result<String
         let batch = db::journal::new_batch();
         crate::fs::trash::trash_folder(&library.paths, &conn, id, &batch)?;
         Ok(batch)
-    })
-    .await
-}
-
-/// The same escape hatch items get (docs/DESIGN.md §1 "Item operations"),
-/// for a folder: open Explorer with the directory selected.
-#[tauri::command]
-pub async fn reveal_folder(
-    app: tauri::AppHandle,
-    state: State<'_, AppState>,
-    id: i64,
-) -> Result<()> {
-    let library = state.library()?;
-    blocking(move || {
-        let rel = {
-            let conn = library.conn()?;
-            db::folders::rel_for(&conn, id)?
-                .ok_or_else(|| AppError::invalid("folder not found"))?
-        };
-        let path = library.paths.to_abs(&rel)?;
-        use tauri_plugin_opener::OpenerExt;
-        app.opener()
-            .reveal_item_in_dir(path)
-            .map_err(|err| AppError::invalid(err.to_string()))
     })
     .await
 }
