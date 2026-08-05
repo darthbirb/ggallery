@@ -97,6 +97,27 @@ Launching the built binary and taking a screenshot is fine. Interacting with it 
 When a milestone needs interactive behaviour confirmed, list the specific steps and ask
 the user to run them.
 
+## Nothing changes the machine
+
+**The blast radius of any command must stop at this repository and the library folder.**
+That covers the obvious — no registry edits, no services, no scheduled tasks, no drivers,
+no global package installs, no changes to environment variables outside the process, no
+`fsutil`, `diskpart`, `bcdedit`, `netsh`, `reg`, or anything else that reconfigures
+Windows. It also covers the non-obvious: changing how a filesystem behaves, altering
+permissions on a directory, disabling something to make a test pass.
+
+**Setting up a test is never a reason to reconfigure the machine.** M2.5b reached for
+`fsutil file setCaseSensitiveInfo` to create two directories differing only in case, so a
+sibling-merge test could run against real ones. The user's machine then crashed twice, and
+a cleanup command against that directory hung for two minutes. Causation was never proved
+and probably cannot be. It does not need to be: the test was rewritten to prove the same
+merge logic without touching the filesystem at all, which is what it should have done
+first. If a test seems to require a system-level change, that is a signal the test is
+reaching too far, not a permission to make the change.
+
+If something genuinely cannot be done without touching the machine, say so and let the
+user decide. It is their computer, and they are sitting at it.
+
 ## Finishing a milestone
 
 **Always run a full release build before reporting a milestone done** — frontend included,

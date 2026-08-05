@@ -27,8 +27,12 @@ Then one of three outcomes, all of them legitimate:
 
 ## Open
 
-*(Empty. Add items as they are noticed — one bullet each, surface named, no triage
-required at the time of writing.)*
+- **Grid — no drag-marquee selection.** `state/selection.ts`'s own doc comment says
+  rubber-band selection "arrives with direct manipulation in M2.5b," but PLAN.md's actual
+  M2.5b scope line only names the pane's Grid/Folders modes, the three drop targets,
+  spring-loading and inline folder creation — marquee-select is a separate gesture (drag
+  from empty grid background to select a rectangle of tiles, versus dragging a tile to move
+  it) that M2.5b did not build. Noticed while implementing M2.5b's actual drops.
 
 <!--
 Format, for reference — delete nothing from here, it is not a list of real items:

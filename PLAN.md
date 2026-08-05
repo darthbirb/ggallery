@@ -713,7 +713,7 @@ Everything the filesystem used to enforce — forbidden characters, reserved dev
 `MAX_PATH`, sibling collisions — leaves the codebase with it. M2.2 exists only as
 history after this.
 
-**M2.6a — import mirrors the tree.** The one thing M2.6 got wrong, found in use. Deleting
+**M2.6a — import mirrors the tree. Built.** The one thing M2.6 got wrong, found in use. Deleting
 the tree-walker left first import with nothing to discover, and the fix taken was to sweep
 every top-level entry into `inbox/` and let everything land in the Sorting Box — correct
 for a drop, wrong for an import. It discards, irreversibly and at the door, the entire
@@ -737,9 +737,9 @@ out of directories. There is no undo. It is the right default, because a file ro
 unnoticed at the root is the worse failure, but it is a rule a person has to know and it
 now appears in DESIGN §4.
 
-**M2.5b — the sorting surfaces.** The pane's **Grid** and **Folders** modes, all three drop
-targets, spring-loading, and inline folder creation in the folder pane. **Depends on M2.6**:
-a drop is a row update here, not a file move.
+**M2.5b — the sorting surfaces. Built.** The pane's **Grid** and **Folders** modes, all three
+drop targets, spring-loading, and inline folder creation in the folder pane. **Depends on
+M2.6**: a drop is a row update here, not a file move.
 
 **The mode switcher is icon buttons in the pane header**, in the same group as maximise and
 close — not a labelled tab row. *(Decided in M2.5a.2, before the modes exist.* Three text

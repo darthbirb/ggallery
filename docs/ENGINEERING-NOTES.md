@@ -36,6 +36,23 @@ Generating the 100k-item test library: 7.3 minutes debug, 3 minutes release. Do 
 performance measurement on release builds — debug numbers are not merely pessimistic, they
 are meaningless.
 
+**WebView2 swallows HTML5 drag and drop unless told not to.** By default the webview
+intercepts drag events for its own OS-level file-drop handling, which silently eats the
+frontend's `draggable` / `dragover` / `drop` — found building M2.5b's tile-to-folder drags,
+which never fired a single event until this was set. `WebviewWindowBuilder::disable_drag_drop_handler()`
+turns it off; Tauri's own doc comment on the method says exactly why: "required to use HTML5
+drag and drop APIs on the frontend on Windows." Set in `lib.rs`'s `build_window`.
+
+**This is a trade, not a free win, and M4 is where the other half comes due.** Disabling
+the native handler also disables Tauri's `onDragDropEvent`, which is the obvious way to
+implement *"dragging from Explorer onto the window"* — a source of items that
+[DESIGN.md](DESIGN.md) §4 specifies and that M4 builds. Nothing relies on it today, which
+is why the trade was correct here; nothing will still be true when someone reaches for it
+and finds an event that never fires. **Explorer drops must be read from the HTML5 drop
+event's `dataTransfer.files` instead.** Do not "fix" the dead Tauri API by re-enabling the
+native handler — that would silently kill every in-app drag built in M2.5b, which is the
+same bug in the opposite direction and much harder to spot.
+
 ---
 
 ## Tailwind v4
