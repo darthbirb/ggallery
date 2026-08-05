@@ -1,8 +1,10 @@
 pub mod clipboard;
 pub mod import;
+pub mod jsonl;
 pub mod lowercase_migration;
 pub mod paths;
 pub mod relocate;
+pub mod shard;
 pub mod trash;
 pub mod undo;
 pub mod walk;

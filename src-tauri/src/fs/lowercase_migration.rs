@@ -1,23 +1,37 @@
-//! The one-time fold-and-merge behind PLAN.md decision 31 — "everything the
+//! The one-time fold-and-merge behind PLAN.md decision 31 -- "everything the
 //! tag system stores is lowercase". Every write path (`db::tags::
 //! get_or_create_tag`, `db::folders::{upsert,create_record,
 //! set_title_unjournalled}`) already folds new text on the way in; this is
 //! what repairs a library that had "Beach" and "beach" (or two sibling
 //! folders "Ana" and "ana") sitting side by side before that shipped.
 //!
-//! **Not a numbered `.sql` migration**, deliberately — `007_lowercase_
+//! **Not a numbered `.sql` migration**, deliberately -- `007_lowercase_
 //! vocabulary.sql` exists as the paper-trail entry decision 31 asks for, but
 //! is a no-op. Merging a real collision needs application logic a `.sql`
 //! file can't safely express: which tag wins, repointing three tables' worth
-//! of foreign keys without tripping their composite primary keys, and — for
-//! a folder collision — physically moving files between two real
-//! directories, something only `fs::relocate`'s Rust functions know how to
-//! do. Run once, gated by a `setting` marker rather than `schema_version`,
-//! from `Library::open` right after `db::migrate`.
+//! of foreign keys without tripping their composite primary keys, and -- for
+//! a folder collision -- physically moving files between two real
+//! directories, something only `fs::relocate`'s Rust functions used to know
+//! how to do.
 //!
-//! **Reactive, not a reconciler.** This runs exactly once per library and
-//! only ever merges an *exact* collision decision 31's own fold created —
-//! it does not scan for or repair anything else.
+//! **Split in two since PLAN.md §M2.6.** [`merge_tags`] is schema-agnostic
+//! and keeps running from `Library::open` right after `db::migrate`, gated
+//! by its own `setting` marker, same as always. [`merge_folders`] is not: it
+//! resolves an on-disk *directory* collision -- `Ana` and `ana` as two real
+//! directories -- which is only possible against the pre-M2.6 schema, where
+//! `folder.rel_path` still names one. Once schema migration 008 applies,
+//! `UNIQUE(parent_id, title)` makes that collision structurally impossible
+//! to create in the first place, so there is nothing left for it to repair.
+//! It runs exactly once, as a precondition `commands::storage_migration`
+//! calls before `fs::shard::write_manifest` -- a real pre-M2.5d library may
+//! still carry a collision this never got the chance to resolve, and
+//! migration 008's own `UNIQUE` index creation would otherwise fail loudly
+//! on exactly that instead (see that migration's comments). Not
+//! marker-gated -- naturally idempotent, since a second call simply finds no
+//! collision groups left.
+//!
+//! **Reactive, not a reconciler.** Neither function scans for or repairs
+//! anything beyond an *exact* collision decision 31's own fold created.
 
 use std::collections::{HashMap, HashSet};
 
@@ -43,7 +57,7 @@ pub struct LowercaseMergeReport {
 #[serde(rename_all = "camelCase")]
 pub struct TagMerge {
     /// The distinct spellings that collapsed into one, e.g. `["Beach",
-    /// "BEACH"]` — original case, so the report reads like what the user
+    /// "BEACH"]` -- original case, so the report reads like what the user
     /// actually typed rather than a second copy of the folded form.
     pub originals: Vec<String>,
     pub folded: String,
@@ -55,29 +69,27 @@ pub struct TagMerge {
 pub struct FolderMerge {
     pub originals: Vec<String>,
     pub folded: String,
-    /// `None` for a top-level folder — the library root is never one of
+    /// `None` for a top-level folder -- the library root is never one of
     /// these (docs/DESIGN.md §2 "Navigation roots").
     pub parent_title: Option<String>,
 }
 
 /// Idempotent and cheap after the first real run: the marker check is one
-/// row lookup.
-pub fn run(paths: &LibraryPaths, conn: &Connection) -> Result<LowercaseMergeReport> {
+/// row lookup. Schema-agnostic -- tags never had a directory to collide on,
+/// so this is safe to call at any schema version, old or new.
+pub fn merge_tags(conn: &Connection) -> Result<Vec<TagMerge>> {
     if db::settings::get(conn, MARKER)?.is_some() {
-        return Ok(LowercaseMergeReport::default());
+        return Ok(Vec::new());
     }
 
-    let mut report = LowercaseMergeReport::default();
-    merge_tags(conn, &mut report)?;
-    merge_folders(paths, conn, &mut report)?;
+    let mut merged = Vec::new();
+    merge_tags_inner(conn, &mut merged)?;
 
     db::settings::set(conn, MARKER, &db::now().to_string())?;
-    Ok(report)
+    Ok(merged)
 }
 
-// --- tags -------------------------------------------------------------
-
-fn merge_tags(conn: &Connection, report: &mut LowercaseMergeReport) -> Result<()> {
+fn merge_tags_inner(conn: &Connection, merged: &mut Vec<TagMerge>) -> Result<()> {
     let rows: Vec<(i64, Option<String>, String)> = {
         let mut stmt = conn.prepare("SELECT id, key, value FROM tag")?;
         let rows = stmt
@@ -106,7 +118,7 @@ fn merge_tags(conn: &Connection, report: &mut LowercaseMergeReport) -> Result<()
             continue;
         }
 
-        // Lowest id wins — deterministic, and matches the "first one sticks"
+        // Lowest id wins -- deterministic, and matches the "first one sticks"
         // idiom `INSERT OR IGNORE` already uses elsewhere in this module.
         members.sort_by_key(|(id, _, _)| *id);
         let winner_id = members[0].0;
@@ -127,7 +139,7 @@ fn merge_tags(conn: &Connection, report: &mut LowercaseMergeReport) -> Result<()
             conn.execute("DELETE FROM tag WHERE id = ?1", params![loser_id])?;
         }
 
-        report.tags_merged.push(TagMerge {
+        merged.push(TagMerge {
             originals,
             folded: folded_value,
             key: folded_key,
@@ -137,7 +149,7 @@ fn merge_tags(conn: &Connection, report: &mut LowercaseMergeReport) -> Result<()
     Ok(())
 }
 
-/// `folder_tag`'s `source` in order of specificity — the one column that can
+/// `folder_tag`'s `source` in order of specificity -- the one column that can
 /// genuinely disagree between two rows a merge is about to collapse into
 /// one, when the same folder happens to link both the winner and the loser
 /// under different sources.
@@ -147,8 +159,8 @@ fn source_rank(source: &str) -> usize {
     SOURCE_PRIORITY.iter().position(|s| *s == source).unwrap_or(SOURCE_PRIORITY.len())
 }
 
-/// Every attachment `loser` carries — `folder_tag`, `item_tag`,
-/// `item_effective_tag`, `tag_alias` — moved onto `winner`, then `loser`'s
+/// Every attachment `loser` carries -- `folder_tag`, `item_tag`,
+/// `item_effective_tag`, `tag_alias` -- moved onto `winner`, then `loser`'s
 /// own rows dropped. `INSERT OR IGNORE` plus delete rather than a bulk
 /// `UPDATE tag_id`, because a folder or item can already carry both tags
 /// (someone tagged the same folder "Beach" and "beach" separately), and the
@@ -209,14 +221,18 @@ fn repoint_tag(conn: &Connection, loser: i64, winner: i64) -> Result<()> {
     Ok(())
 }
 
-// --- folders ------------------------------------------------------------
+// --- folders (pre-M2.6 schema only -- see module docs) ---------------------
 
-fn merge_folders(paths: &LibraryPaths, conn: &Connection, report: &mut LowercaseMergeReport) -> Result<()> {
+/// Resolves every sibling-title collision left over from before decision 31's
+/// write-time fold shipped, by physically merging the loser directory into
+/// the winner's. Called once by `commands::storage_migration` before
+/// `fs::shard::write_manifest`, against the still-`rel_path`-shaped schema.
+pub fn merge_folders(paths: &LibraryPaths, conn: &Connection) -> Result<Vec<FolderMerge>> {
+    let mut merged = Vec::new();
     // Folders a merge attempt already failed on this run (its directory
-    // missing, most likely — see `fs::relocate::require_dir`) are excluded
-    // from every later pass rather than retried forever: one broken folder
-    // must never be able to block the rest of the library from folding, or
-    // from opening at all.
+    // missing, most likely) are excluded from every later pass rather than
+    // retried forever: one broken folder must never be able to block the
+    // rest of the library from folding, or the migration from running.
     let mut poisoned: HashSet<i64> = HashSet::new();
 
     loop {
@@ -248,10 +264,10 @@ fn merge_folders(paths: &LibraryPaths, conn: &Connection, report: &mut Lowercase
         let originals: Vec<String> = members.iter().map(|(_, title)| title.clone()).collect();
         let losers: Vec<i64> = members.into_iter().skip(1).map(|(id, _)| id).collect();
 
-        let merged = losers.iter().try_fold(true, |ok, &loser_id| {
+        let merge_ok = losers.iter().try_fold(true, |ok, &loser_id| {
             Result::Ok(ok && merge_one_folder(paths, conn, winner_id, loser_id).is_ok())
         });
-        if !matches!(merged, Ok(true)) {
+        if !matches!(merge_ok, Ok(true)) {
             poisoned.insert(winner_id);
             poisoned.extend(&losers);
             continue;
@@ -266,14 +282,14 @@ fn merge_folders(paths: &LibraryPaths, conn: &Connection, report: &mut Lowercase
             None => None,
         };
 
-        report.folders_merged.push(FolderMerge {
+        merged.push(FolderMerge {
             originals,
             folded: folded_title,
             parent_title,
         });
     }
 
-    Ok(())
+    Ok(merged)
 }
 
 /// Folds `loser` into `winner`: every subfolder and item it directly holds
@@ -282,11 +298,11 @@ fn merge_folders(paths: &LibraryPaths, conn: &Connection, report: &mut Lowercase
 /// notes/cover/favourite merged in wherever the winner had a gap, then its
 /// now-empty directory removed and its record soft-deleted.
 ///
-/// **Must leave nothing for the filesystem watcher to rediscover** — the
-/// whole reason this is a physical merge and not just a database one: an
-/// orphaned directory with no folder row pointing at it would be walked back
-/// into existence as a "new" folder the moment the watcher (or the next
-/// walk) saw it.
+/// **Must leave nothing for a later walk to rediscover** -- the whole reason
+/// this is a physical merge and not just a database one: an orphaned
+/// directory with no folder row pointing at it would otherwise still be
+/// sitting there when `fs::shard`'s migration walks the pre-migration schema
+/// looking for every item's current path.
 fn merge_one_folder(paths: &LibraryPaths, conn: &Connection, winner_id: i64, loser_id: i64) -> Result<()> {
     let loser_rel: String =
         conn.query_row("SELECT rel_path FROM folder WHERE id = ?1", params![loser_id], |r| r.get(0))?;
@@ -300,7 +316,7 @@ fn merge_one_folder(paths: &LibraryPaths, conn: &Connection, winner_id: i64, los
         rows
     };
     for child_id in children {
-        crate::fs::relocate::move_folder_unjournalled(paths, conn, child_id, Some(winner_id))?;
+        move_folder_dir_only(paths, conn, child_id, winner_id)?;
     }
 
     let item_ids: Vec<i64> = {
@@ -310,11 +326,14 @@ fn merge_one_folder(paths: &LibraryPaths, conn: &Connection, winner_id: i64, los
             .collect::<rusqlite::Result<_>>()?;
         rows
     };
-    if !item_ids.is_empty() {
-        crate::fs::relocate::move_items(paths, conn, &item_ids, winner_id, &db::journal::new_batch())?;
+    for item_id in item_ids {
+        conn.execute(
+            "UPDATE item SET folder_id = ?1 WHERE id = ?2",
+            params![winner_id, item_id],
+        )?;
     }
 
-    // Manual and archetype labels/flags — not the loser's own title-tag,
+    // Manual and archetype labels/flags -- not the loser's own title-tag,
     // which simply stops existing along with the row it belonged to.
     let tags: Vec<(i64, String)> = {
         let mut stmt = conn.prepare(
@@ -354,17 +373,16 @@ fn merge_one_folder(paths: &LibraryPaths, conn: &Connection, winner_id: i64, los
         ],
     )?;
 
-    // Empty now — everything above already moved out. Tolerant of it already
-    // being gone, the same as every other action `fs::relocate::require_dir`
-    // and `fs::trash::move_to_trash` guard against (docs/DESIGN.md §M2.5d).
+    // Empty now -- everything above already moved out. Tolerant of it already
+    // being gone.
     if let Ok(abs) = paths.to_abs(&loser_rel) {
         let _ = std::fs::remove_dir(&abs);
     }
 
-    // Soft-deleted, like every other removal in the app, with `rel_path`
-    // freed the same way `fs::trash::trash_folder` frees it — a UNIQUE
-    // column left pointing at a merged-away row would refuse the next
-    // folder anyone ever creates at that path.
+    // Soft-deleted, with `rel_path` freed the same way `fs::trash::
+    // trash_folder` used to -- a UNIQUE column left pointing at a
+    // merged-away row would refuse the next folder created at that path
+    // for the remainder of this (pre-migration) schema's life.
     conn.execute(
         "UPDATE folder SET deleted_at = ?1, rel_path = '.merged/' || id WHERE id = ?2",
         params![db::now(), loser_id],
@@ -372,10 +390,57 @@ fn merge_one_folder(paths: &LibraryPaths, conn: &Connection, winner_id: i64, los
     Ok(())
 }
 
+/// Physically relocate one folder's own directory into a new parent,
+/// rewriting its `rel_path` and every descendant's — the pre-migration
+/// (v7-schema) directory move this repair still needs, now that
+/// `fs::relocate::move_folder` no longer touches disk at all. Deliberately
+/// separate from that function rather than a call into it: this module is
+/// the last piece of code in the application that still assumes a folder
+/// has a directory, and keeping that assumption contained here is the point.
+fn move_folder_dir_only(paths: &LibraryPaths, conn: &Connection, folder_id: i64, new_parent_id: i64) -> Result<()> {
+    let (old_rel, title): (String, String) = conn.query_row(
+        "SELECT rel_path, title FROM folder WHERE id = ?1",
+        params![folder_id],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
+    let new_parent_rel: String = conn.query_row(
+        "SELECT rel_path FROM folder WHERE id = ?1",
+        params![new_parent_id],
+        |r| r.get(0),
+    )?;
+    let name = old_rel.rsplit_once('/').map(|(_, n)| n.to_string()).unwrap_or(old_rel.clone());
+    let new_rel = if new_parent_rel.is_empty() {
+        name
+    } else {
+        format!("{new_parent_rel}/{name}")
+    };
+
+    let old_abs = paths.to_abs(&old_rel)?;
+    let new_abs = paths.to_abs(&new_rel)?;
+    if !old_abs.is_dir() {
+        return Err(crate::error::AppError::invalid(format!(
+            "{} is missing from disk — it may have been moved or deleted outside the app",
+            old_abs.display()
+        )));
+    }
+    std::fs::rename(&old_abs, &new_abs)?;
+
+    let old_len = old_rel.chars().count() as i64;
+    conn.execute(
+        "UPDATE folder SET parent_id = ?1, rel_path = ?2 WHERE id = ?3",
+        params![new_parent_id, new_rel, folder_id],
+    )?;
+    conn.execute(
+        "UPDATE folder SET rel_path = ?1 || substr(rel_path, ?3 + 1) WHERE rel_path LIKE ?2 || '/%'",
+        params![new_rel, old_rel, old_len],
+    )?;
+    let _ = title;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::journal;
 
     fn scratch(name: &str) -> std::path::PathBuf {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -387,11 +452,27 @@ mod tests {
         root
     }
 
-    fn open_db(root: &std::path::Path) -> (LibraryPaths, Connection) {
+    /// Opens a raw, unmigrated (v7-shaped) database directly -- these tests
+    /// exercise the pre-M2.6 schema this module still targets, so they build
+    /// it by hand rather than going through today's `db::migrate`, which now
+    /// also applies migration 008.
+    fn open_v7_db(root: &std::path::Path) -> (LibraryPaths, Connection) {
         let paths = LibraryPaths::new(root);
         paths.ensure_dirs().unwrap();
-        let mut conn = db::open(&paths.db_path()).unwrap();
-        db::migrate(&mut conn).unwrap();
+        let conn = Connection::open(paths.db_path()).unwrap();
+        conn.execute_batch("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);").unwrap();
+        for (version, sql) in [
+            (1, include_str!("../db/migrations/001_initial.sql")),
+            (2, include_str!("../db/migrations/002_folder_metadata.sql")),
+            (3, include_str!("../db/migrations/003_drop_seeded_archetypes.sql")),
+            (4, include_str!("../db/migrations/004_folder_soft_delete.sql")),
+            (5, include_str!("../db/migrations/005_drop_archetype_field_type.sql")),
+            (6, include_str!("../db/migrations/006_drop_root_title_tag.sql")),
+            (7, include_str!("../db/migrations/007_lowercase_vocabulary.sql")),
+        ] {
+            conn.execute_batch(sql).unwrap();
+            conn.execute("INSERT INTO schema_version (version) VALUES (?1)", [version]).unwrap();
+        }
         (paths, conn)
     }
 
@@ -415,7 +496,7 @@ mod tests {
     #[test]
     fn merges_two_tags_that_collide_once_folded_carrying_both_attachments() {
         let root = scratch("lowercase-tag-merge");
-        let (paths, conn) = open_db(&root);
+        let (_paths, conn) = open_v7_db(&root);
         let root_id = raw_folder(&conn, None, "", "library");
         let ana = raw_folder(&conn, Some(root_id), "ana", "ana");
 
@@ -432,10 +513,10 @@ mod tests {
         )
         .unwrap();
 
-        let report = run(&paths, &conn).unwrap();
+        let merged = merge_tags(&conn).unwrap();
 
-        assert_eq!(report.tags_merged.len(), 1);
-        let merge = &report.tags_merged[0];
+        assert_eq!(merged.len(), 1);
+        let merge = &merged[0];
         assert_eq!(merge.folded, "beach");
         assert_eq!(merge.originals.len(), 2);
         assert!(merge.originals.contains(&"Beach".to_string()));
@@ -458,16 +539,15 @@ mod tests {
     #[test]
     fn a_second_run_does_nothing_the_marker_makes_it_idempotent() {
         let root = scratch("lowercase-idempotent");
-        let (paths, conn) = open_db(&root);
+        let (_paths, conn) = open_v7_db(&root);
         raw_tag(&conn, None, "Beach");
         raw_tag(&conn, None, "beach");
 
-        let first = run(&paths, &conn).unwrap();
-        assert_eq!(first.tags_merged.len(), 1);
+        let first = merge_tags(&conn).unwrap();
+        assert_eq!(first.len(), 1);
 
-        let second = run(&paths, &conn).unwrap();
-        assert!(second.tags_merged.is_empty());
-        assert!(second.folders_merged.is_empty());
+        let second = merge_tags(&conn).unwrap();
+        assert!(second.is_empty());
     }
 
     #[test]
@@ -477,40 +557,18 @@ mod tests {
         std::fs::create_dir_all(root.join("ana-2/2024 Trip")).unwrap();
         std::fs::write(root.join("Ana/keep.jpg"), b"a").unwrap();
         std::fs::write(root.join("ana-2/2024 Trip/photo.jpg"), b"b").unwrap();
-        let (paths, conn) = open_db(&root);
+        let (paths, conn) = open_v7_db(&root);
 
         let root_id = raw_folder(&conn, None, "", "library");
         let winner = raw_folder(&conn, Some(root_id), "ana", "Ana");
         let loser = raw_folder(&conn, Some(root_id), "ana-2", "ana");
         let trip = raw_folder(&conn, Some(loser), "ana-2/2024 trip", "2024 trip");
 
-        let item_id = db::items::upsert(
-            &conn,
-            &db::items::NewItem {
-                uuid: uuid::Uuid::new_v4().to_string(),
-                folder_id: winner,
-                disk_name: "keep.jpg".to_string(),
-                ext: "jpg".to_string(),
-                orig_name: "keep.jpg".to_string(),
-                hash: "h1".to_string(),
-                size_bytes: 1,
-                mtime: 0,
-                kind: "image".to_string(),
-                width: None,
-                height: None,
-                duration_ms: None,
-                codec: None,
-                bitrate: None,
-                captured_at: None,
-                captured_src: None,
-            },
-        )
-        .unwrap();
         let trip_item_id = db::items::upsert(
             &conn,
             &db::items::NewItem {
                 uuid: uuid::Uuid::new_v4().to_string(),
-                folder_id: trip,
+                folder_id: Some(trip),
                 disk_name: "photo.jpg".to_string(),
                 ext: "jpg".to_string(),
                 orig_name: "photo.jpg".to_string(),
@@ -528,12 +586,11 @@ mod tests {
             },
         )
         .unwrap();
-        let _ = item_id;
 
-        let report = run(&paths, &conn).unwrap();
+        let merged = merge_folders(&paths, &conn).unwrap();
 
-        assert_eq!(report.folders_merged.len(), 1);
-        let merge = &report.folders_merged[0];
+        assert_eq!(merged.len(), 1);
+        let merge = &merged[0];
         assert_eq!(merge.folded, "ana");
         assert_eq!(merge.originals.len(), 2);
 
@@ -541,8 +598,10 @@ mod tests {
         assert!(!root.join("ana-2").exists());
         assert!(root.join("Ana/2024 Trip/photo.jpg").is_file());
 
-        let winner_detail = db::folders::get_detail(&conn, winner).unwrap().unwrap();
-        assert_eq!(winner_detail.title, "ana");
+        let winner_title: String = conn
+            .query_row("SELECT title FROM folder WHERE id = ?1", params![winner], |r| r.get(0))
+            .unwrap();
+        assert_eq!(winner_title, "ana");
 
         let trip_now: i64 = conn
             .query_row("SELECT parent_id FROM folder WHERE id = ?1", params![trip], |r| r.get(0))
@@ -558,8 +617,6 @@ mod tests {
             .query_row("SELECT deleted_at FROM folder WHERE id = ?1", params![loser], |r| r.get(0))
             .unwrap();
         assert!(loser_gone.is_some());
-
-        let _ = journal::new_batch();
     }
 
     #[test]
@@ -567,7 +624,7 @@ mod tests {
         let root = scratch("lowercase-folder-merge-tags");
         std::fs::create_dir_all(root.join("Ana")).unwrap();
         std::fs::create_dir_all(root.join("ana-2")).unwrap();
-        let (paths, conn) = open_db(&root);
+        let (paths, conn) = open_v7_db(&root);
 
         let root_id = raw_folder(&conn, None, "", "library");
         let winner = raw_folder(&conn, Some(root_id), "ana", "Ana");
@@ -585,27 +642,36 @@ mod tests {
         )
         .unwrap();
 
-        run(&paths, &conn).unwrap();
+        merge_folders(&paths, &conn).unwrap();
 
-        let detail = db::folders::get_detail(&conn, winner).unwrap().unwrap();
-        assert_eq!(detail.notes.as_deref(), Some("from the loser"), "filled the winner's gap");
-        assert!(detail.flags.iter().any(|f| f.value == "summer"));
+        let (notes,): (Option<String>,) = conn
+            .query_row("SELECT notes FROM folder WHERE id = ?1", params![winner], |r| Ok((r.get(0)?,)))
+            .unwrap();
+        assert_eq!(notes.as_deref(), Some("from the loser"), "filled the winner's gap");
+
+        let has_summer: bool = conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM folder_tag ft JOIN tag t ON t.id = ft.tag_id
+                  WHERE ft.folder_id = ?1 AND t.value = 'summer')",
+                params![winner],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(has_summer);
     }
 
     #[test]
     fn a_folder_merge_survives_a_sibling_whose_directory_is_already_gone() {
-        // One broken folder (task #6's own problem) must not block the rest
-        // of the library from folding, or the library from opening at all.
-        // The failure has to come from something the merge actually *does*
-        // — an empty loser with nothing to relocate never touches its own
-        // directory except a best-effort cleanup at the very end (tolerant
-        // of it already being gone, same as `fs::trash`), so this gives the
-        // loser a subfolder to move, forcing `require_dir` to trip over the
-        // directory that was never there.
+        // One broken folder must not block the rest of the library from
+        // folding. The failure has to come from something the merge
+        // actually *does* -- an empty loser with nothing to relocate never
+        // touches its own directory except a best-effort cleanup at the very
+        // end -- so this gives the loser a subfolder to move, forcing the
+        // physical rename to trip over the directory that was never there.
         let root = scratch("lowercase-folder-merge-missing-dir");
         std::fs::create_dir_all(root.join("Ana")).unwrap();
         // "ana-2" and everything under it deliberately never created on disk.
-        let (paths, conn) = open_db(&root);
+        let (paths, conn) = open_v7_db(&root);
 
         let root_id = raw_folder(&conn, None, "", "library");
         raw_folder(&conn, Some(root_id), "ana", "Ana");
@@ -614,11 +680,12 @@ mod tests {
         raw_tag(&conn, None, "Beach");
         raw_tag(&conn, None, "beach");
 
-        let report = run(&paths, &conn).unwrap();
+        let tags_merged = merge_tags(&conn).unwrap();
+        let folders_merged = merge_folders(&paths, &conn).unwrap();
 
         // The tag merge, unrelated to the broken folder, still completed.
-        assert_eq!(report.tags_merged.len(), 1);
+        assert_eq!(tags_merged.len(), 1);
         // The folder merge could not proceed, so it is not reported as done.
-        assert!(report.folders_merged.is_empty());
+        assert!(folders_merged.is_empty());
     }
 }

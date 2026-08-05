@@ -1,248 +1,183 @@
-//! The library indexer.
+//! The startup reconcile pass.
 //!
-//! **Strictly read-only over the library.** The walk opens directories and
-//! reads file metadata; it does not rename, move, delete or write anything
-//! outside `.gallery/`. Reading file contents happens later, in hash jobs, so
-//! that the walk stays fast enough to give the user a shape of the library
-//! within seconds of pointing at it.
+//! PLAN.md §M2.6 deleted this module's whole reason for being a *walker*:
+//! folders are no longer directories, so there is nothing left to discover
+//! by walking one. What used to be "index the library root" is now two much
+//! smaller, uuid-driven jobs, both run once at startup by [`reconcile`] and
+//! otherwise handled live by `fs::watch`:
+//!
+//! 1. **Sweep the root.** `inbox/` is the only place a user is meant to put
+//!    files (PLAN.md decision 30), but nothing stops one landing directly in
+//!    the library root instead — by hand, or because `fs::watch`'s live
+//!    root watch was not running to catch it. [`sweep_root_into_inbox`] moves
+//!    every top-level entry that is not the app's own into `inbox/`, one
+//!    `rename` per entry, so this covers whatever the watcher missed.
+//! 2. **Does every item's shard file still exist?** A cheap existence check
+//!    per row — `files/` is never itself walked, since the uuid already says
+//!    exactly where to look — soft-deleting anything that doesn't resolve.
+//! 3. **Drain `inbox/`.** Anything sitting there when the app starts (dropped
+//!    in while it was closed, or just swept in by step 1) is queued for
+//!    hashing exactly like a live arrival the watcher catches.
 
-use std::collections::HashMap;
 use std::fs::Metadata;
-use std::path::Path;
 use std::time::UNIX_EPOCH;
 
 use rusqlite::Connection;
-use walkdir::{DirEntry, WalkDir};
+use walkdir::WalkDir;
 
 use crate::db;
 use crate::error::Result;
 use crate::fs::paths::LibraryPaths;
 use crate::jobs;
 
-/// Rows per transaction. Small enough that job workers writing item rows are
-/// never locked out for long, large enough that a 100k-file walk is not 100k
-/// fsyncs.
-const BATCH: u64 = 500;
-
 /// Windows and macOS litter; never library content.
-///
-/// `pub(crate)` — the M1.7 pre-import filesystem scan in `fs::import`
-/// filters by the same list before any database exists to check against.
 pub(crate) const IGNORED_FILES: &[&str] = &["thumbs.db", "desktop.ini", ".ds_store"];
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct WalkReport {
-    pub folders: u64,
-    pub files: u64,
+    /// Live items whose shard file was confirmed present.
+    pub items_checked: u64,
+    /// Inbox arrivals newly queued for hashing.
     pub queued: u64,
+    /// Items retired because their shard file no longer resolves.
     pub vanished: usize,
 }
 
-/// Directory name to fall back on when the root has none (e.g. a drive
-/// root). Shared with `fs::watch`, which resolves the same root folder row
-/// on demand while ensuring a new arrival's folder chain exists.
-pub(crate) fn root_title(paths: &LibraryPaths) -> String {
-    paths
-        .root()
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| "Library".to_string())
+/// One entry `sweep_root_into_inbox` could not move — the name it found at
+/// the root, and why.
+#[derive(Debug, Clone)]
+pub struct RootSweepError {
+    pub name: String,
+    pub error: String,
 }
 
-pub fn index(
+#[derive(Debug, Clone, Default)]
+pub struct RootSweepReport {
+    pub moved: i64,
+    pub errors: Vec<RootSweepError>,
+}
+
+/// Move every top-level entry in the library root — apart from the app's own
+/// `.gallery`, `files` and `inbox` — into `inbox/`. One `rename` per entry,
+/// so a whole pre-existing directory tree moves in a single atomic step
+/// regardless of how many files are nested inside it. Idempotent for free:
+/// an entry no longer at the root (already swept by an earlier pass) is
+/// simply not there to find, not an error.
+///
+/// Shared by three callers that all mean the same thing by "a file showed up
+/// somewhere it shouldn't stay": `fs::import`'s first-import ceremony (the
+/// whole existing tree, once), this module's own startup `reconcile` (catch-up
+/// for whatever `fs::watch` missed while the app was closed), and
+/// `fs::watch`'s live root watch (one entry, as it settles).
+pub fn sweep_root_into_inbox(
     paths: &LibraryPaths,
-    conn: &mut Connection,
+    on_progress: &mut dyn FnMut(i64, i64),
+) -> Result<RootSweepReport> {
+    paths.ensure_dirs()?;
+
+    let mut entries = Vec::new();
+    for entry in std::fs::read_dir(paths.root())? {
+        let entry = entry?;
+        let name = entry.file_name();
+        if crate::fs::paths::is_reserved_top_level(&name.to_string_lossy()) {
+            continue;
+        }
+        entries.push(name);
+    }
+
+    let total = entries.len() as i64;
+    let mut report = RootSweepReport::default();
+
+    for name in entries {
+        let src = paths.root().join(&name);
+        let dest = paths.inbox_dir().join(&name);
+        let name_str = name.to_string_lossy().to_string();
+
+        if !src.exists() {
+            report.moved += 1;
+        } else if dest.exists() {
+            report.errors.push(RootSweepError {
+                name: name_str,
+                error: format!("{} already exists in inbox", dest.display()),
+            });
+        } else {
+            match std::fs::rename(&src, &dest) {
+                Ok(()) => report.moved += 1,
+                Err(err) => report.errors.push(RootSweepError { name: name_str, error: err.to_string() }),
+            }
+        }
+
+        on_progress(report.moved, total);
+    }
+
+    Ok(report)
+}
+
+/// Reconcile the database against disk, then drain `inbox/`. Run once at
+/// startup, and again whenever the watcher overflows or errors and can no
+/// longer trust that it saw everything.
+pub fn reconcile(
+    paths: &LibraryPaths,
+    conn: &Connection,
     on_progress: &mut dyn FnMut(u64, u64),
 ) -> Result<WalkReport> {
     let mut report = WalkReport::default();
-    let mut folder_ids: HashMap<String, i64> = HashMap::new();
+
+    // Catch up on anything that landed directly in the root — by hand, or
+    // because the live root watch (`fs::watch`) was not running to sweep it
+    // the moment it settled — before the inbox drain below, so it is picked
+    // up in this same pass rather than waiting for the next one.
+    match sweep_root_into_inbox(paths, &mut |_, _| {}) {
+        Ok(swept) => {
+            for err in &swept.errors {
+                eprintln!("reconcile could not sweep {} into inbox: {}", err.name, err.error);
+            }
+        }
+        Err(err) => eprintln!("reconcile could not sweep the library root: {err}"),
+    }
 
     db::items::begin_sweep(conn)?;
-
-    let root_id = db::folders::upsert(conn, "", &root_title(paths))?;
-    folder_ids.insert(String::new(), root_id);
-    report.folders = 1;
-
-    walk_tree(
-        paths,
-        conn,
-        paths.root(),
-        &mut folder_ids,
-        &mut report,
-        true,
-        on_progress,
-    )?;
-
-    // Anything in the database that the walk did not see is gone from disk.
-    // This is database bookkeeping only — no file is touched — and a file that
-    // comes back clears the mark when it is re-indexed.
+    let mut stmt = conn.prepare("SELECT uuid, ext FROM item WHERE deleted_at IS NULL")?;
+    let rows: Vec<(String, String)> = stmt
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    drop(stmt);
+    for (uuid, ext) in &rows {
+        if paths.item_path(uuid, ext).is_file() {
+            db::items::mark_seen(conn, uuid)?;
+        }
+        report.items_checked += 1;
+    }
     report.vanished = db::items::finish_sweep(conn)?;
+    on_progress(report.items_checked, report.queued);
+
+    let inbox = paths.inbox_dir();
+    for entry in WalkDir::new(&inbox).follow_links(false).into_iter().flatten() {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if IGNORED_FILES.contains(&name.to_lowercase().as_str()) {
+            continue;
+        }
+        let Ok(inbox_rel) = entry.path().strip_prefix(&inbox) else { continue };
+        let inbox_rel = inbox_rel.to_string_lossy().replace('\\', "/");
+
+        // A hash job for this exact arrival may already be queued from a
+        // previous reconcile or from the watcher having just settled it —
+        // `inbox/` is expected to hold at most a handful of files at once
+        // (unlike a 300GB library), so a per-file `is_queued` check here
+        // costs nothing the way it would over the whole library.
+        let payload = serde_json::to_string(&jobs::kinds::HashPayload { inbox_rel: inbox_rel.clone() })?;
+        if db::jobs::is_queued(conn, jobs::kinds::HASH, &payload)? {
+            continue;
+        }
+        jobs::enqueue_hash(conn, &inbox_rel)?;
+        report.queued += 1;
+    }
+    on_progress(report.items_checked, report.queued);
 
     Ok(report)
-}
-
-/// Walk one subtree that just appeared under an already-open, already-indexed
-/// library — the filesystem watcher's response to a whole folder arriving in
-/// one atomic move. `ReadDirectoryChangesW` reports a single event for the
-/// top directory in that case, with no guarantee of separate events for
-/// whatever was already inside it, so the watcher walks it once here rather
-/// than assuming per-file events will follow.
-///
-/// Unlike `index`, there is no reconciliation sweep: only `dir` is in scope,
-/// so "not seen during this walk" says nothing about anything outside it —
-/// running one would incorrectly retire every other item in the library.
-/// The caller is expected to have already ensured `dir`'s own ancestor chain
-/// of folder rows exists (see `fs::watch::ensure_folder_chain`); this walk
-/// only ever creates folder rows for `dir` and whatever is beneath it.
-pub fn index_subtree(paths: &LibraryPaths, conn: &Connection, dir: &Path) -> Result<WalkReport> {
-    let mut report = WalkReport::default();
-    let mut folder_ids: HashMap<String, i64> = HashMap::new();
-    walk_tree(
-        paths,
-        conn,
-        dir,
-        &mut folder_ids,
-        &mut report,
-        false,
-        &mut |_, _| {},
-    )?;
-    Ok(report)
-}
-
-/// The shared walk loop: queues work for every file under `start`, creating
-/// folder rows for directories it has not seen yet. `folder_ids` is seeded by
-/// the caller with whatever ancestors are already known — `index` seeds it
-/// with the root; `index_subtree` starts it empty because `start` itself and
-/// everything below it is new. `mark_seen` is only meaningful alongside a
-/// sweep, so it is skipped entirely for a subtree walk, which has no sweep to
-/// feed.
-fn walk_tree(
-    paths: &LibraryPaths,
-    conn: &Connection,
-    start: &Path,
-    folder_ids: &mut HashMap<String, i64>,
-    report: &mut WalkReport,
-    mark_seen: bool,
-    on_progress: &mut dyn FnMut(u64, u64),
-) -> Result<()> {
-    db::begin_batch(conn)?;
-    let mut in_batch = 0u64;
-
-    let walker = WalkDir::new(start)
-        .follow_links(false)
-        .into_iter()
-        .filter_entry(|entry| !is_skipped_dir(paths, entry));
-
-    for entry in walker {
-        let entry = match entry {
-            Ok(entry) => entry,
-            // An unreadable directory is worth continuing past, not aborting
-            // an index of 300GB over.
-            Err(err) => {
-                eprintln!("skipping unreadable entry: {err}");
-                continue;
-            }
-        };
-
-        if entry.file_type().is_dir() {
-            let rel = paths.to_rel(entry.path())?;
-            if folder_ids.contains_key(&rel) {
-                continue; // the root (index) or start (index_subtree), already inserted
-            }
-            let title = entry.file_name().to_string_lossy().to_string();
-            let id = db::folders::upsert(conn, &rel, &title)?;
-            folder_ids.insert(rel, id);
-            report.folders += 1;
-        } else if entry.file_type().is_file() {
-            let name = entry.file_name().to_string_lossy().to_string();
-            if IGNORED_FILES.contains(&name.to_lowercase().as_str()) {
-                continue;
-            }
-
-            let parent_rel = entry
-                .path()
-                .parent()
-                .map(|p| paths.to_rel(p))
-                .transpose()?
-                .unwrap_or_default();
-            let folder_id = match folder_ids.get(&parent_rel) {
-                Some(id) => *id,
-                None => continue, // parent was skipped, so this file is too
-            };
-
-            let Ok(meta) = entry.metadata() else {
-                continue;
-            };
-            report.files += 1;
-
-            if mark_seen {
-                db::items::mark_seen(conn, folder_id, &name)?;
-            }
-            if queue_file(paths, conn, folder_id, &name, &meta)? {
-                report.queued += 1;
-            }
-
-            in_batch += 1;
-            if in_batch >= BATCH {
-                db::commit_batch(conn)?;
-                db::begin_batch(conn)?;
-                in_batch = 0;
-                on_progress(report.folders, report.files);
-            }
-        }
-    }
-
-    db::commit_batch(conn)?;
-    on_progress(report.folders, report.files);
-    Ok(())
-}
-
-/// Enqueue work for one file, or nothing if it is already indexed and
-/// unchanged. Returns whether a job was queued.
-///
-/// `pub(crate)` — the filesystem watcher calls this directly for a single
-/// settled file, the same way this walk calls it for every file it visits,
-/// so a modified file is re-hashed through the identical path that indexes a
-/// new one rather than the watcher growing its own copy.
-pub(crate) fn queue_file(
-    paths: &LibraryPaths,
-    conn: &Connection,
-    folder_id: i64,
-    name: &str,
-    meta: &Metadata,
-) -> Result<bool> {
-    let size = meta.len() as i64;
-    let mtime = mtime_secs(meta);
-
-    if let Some(existing) = db::items::existing(conn, folder_id, name)? {
-        let unchanged = !existing.deleted && existing.size_bytes == size && existing.mtime == mtime;
-        if unchanged {
-            // Still worth a thumbnail if the cache was cleared or the last run
-            // was interrupted — the cache is explicitly safe to delete.
-            if !paths.thumb_path(&existing.uuid).exists() {
-                jobs::enqueue_thumb(conn, existing.id)?;
-                return Ok(true);
-            }
-            return Ok(false);
-        }
-    }
-
-    jobs::enqueue_hash(conn, folder_id, name)?;
-    Ok(true)
-}
-
-/// `.gallery` is the app's own storage, and dot-directories are not library
-/// content. Everything else under the root is fair game.
-///
-/// `pub(crate)` for the same reason as `IGNORED_FILES` above.
-pub(crate) fn is_skipped_dir(paths: &LibraryPaths, entry: &DirEntry) -> bool {
-    if !entry.file_type().is_dir() {
-        return false;
-    }
-    if paths.is_gallery_dir(entry.path()) {
-        return true;
-    }
-    entry.depth() > 0 && entry.file_name().to_string_lossy().starts_with('.')
 }
 
 pub fn mtime_secs(meta: &Metadata) -> i64 {
@@ -256,13 +191,149 @@ pub fn mtime_secs(meta: &Metadata) -> i64 {
 /// The filesystem's own creation time — NTFS always records one, unlike the
 /// POSIX systems `Metadata::created()` is also defined for. This is the
 /// fallback `captured_at` uses (`media::probe`) when a file carries no EXIF
-/// or container date: the moment the file actually came to exist, not the
-/// moment it was last touched, which is what `mtime_secs` above answers
-/// instead and is a worse stand-in for "when was this taken".
+/// or container date.
 pub fn created_secs(meta: &Metadata, fallback: i64) -> i64 {
     meta.created()
         .ok()
         .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
         .map(|d| d.as_secs() as i64)
         .unwrap_or(fallback)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::items::NewItem;
+
+    fn scratch(name: &str) -> std::path::PathBuf {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("test-libraries")
+            .join(name);
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).expect("create scratch library");
+        root
+    }
+
+    fn open_db(root: &std::path::Path) -> (LibraryPaths, Connection) {
+        let paths = LibraryPaths::new(root);
+        paths.ensure_dirs().unwrap();
+        let mut conn = db::open(&paths.db_path()).unwrap();
+        db::migrate(&mut conn).unwrap();
+        (paths, conn)
+    }
+
+    fn seed_item(conn: &Connection, uuid: &str, ext: &str) -> i64 {
+        db::items::upsert(
+            conn,
+            &NewItem {
+                uuid: uuid.to_string(),
+                folder_id: None,
+                disk_name: format!("{uuid}.{ext}"),
+                ext: ext.to_string(),
+                orig_name: "a.jpg".to_string(),
+                hash: "h".to_string(),
+                size_bytes: 1,
+                mtime: 0,
+                kind: "image".to_string(),
+                width: None,
+                height: None,
+                duration_ms: None,
+                codec: None,
+                bitrate: None,
+                captured_at: None,
+                captured_src: None,
+            },
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn reconcile_retires_an_item_whose_shard_file_is_gone() {
+        let root = scratch("walk-reconcile-vanished");
+        let (paths, conn) = open_db(&root);
+        seed_item(&conn, "a3f2c1d4-e29b-41d4-a716-446655440000", "jpg");
+        // Never actually written to `files/` — simulates a file removed
+        // outside the app.
+
+        let report = reconcile(&paths, &conn, &mut |_, _| {}).unwrap();
+        assert_eq!(report.vanished, 1);
+        assert_eq!(db::items::count(&conn).unwrap(), 0);
+    }
+
+    #[test]
+    fn reconcile_leaves_a_present_shard_file_alone() {
+        let root = scratch("walk-reconcile-present");
+        let (paths, conn) = open_db(&root);
+        let uuid = "a3f2c1d4-e29b-41d4-a716-446655440000";
+        seed_item(&conn, uuid, "jpg");
+        let dest = paths.item_path(uuid, "jpg");
+        std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+        std::fs::write(&dest, b"bytes").unwrap();
+
+        let report = reconcile(&paths, &conn, &mut |_, _| {}).unwrap();
+        assert_eq!(report.vanished, 0);
+        assert_eq!(report.items_checked, 1);
+        assert_eq!(db::items::count(&conn).unwrap(), 1);
+    }
+
+    #[test]
+    fn reconcile_queues_whatever_is_waiting_in_inbox() {
+        let root = scratch("walk-reconcile-inbox");
+        let (paths, conn) = open_db(&root);
+        std::fs::write(paths.inbox_dir().join("photo.jpg"), b"bytes").unwrap();
+        std::fs::write(paths.inbox_dir().join("Thumbs.db"), b"litter").unwrap();
+
+        let report = reconcile(&paths, &conn, &mut |_, _| {}).unwrap();
+        assert_eq!(report.queued, 1, "Thumbs.db is not library content");
+        assert_eq!(db::jobs::counts(&conn).unwrap().pending, 1);
+    }
+
+    #[test]
+    fn reconcile_does_not_double_queue_an_already_pending_arrival() {
+        let root = scratch("walk-reconcile-no-dup");
+        let (paths, conn) = open_db(&root);
+        std::fs::write(paths.inbox_dir().join("photo.jpg"), b"bytes").unwrap();
+
+        reconcile(&paths, &conn, &mut |_, _| {}).unwrap();
+        let second = reconcile(&paths, &conn, &mut |_, _| {}).unwrap();
+        assert_eq!(second.queued, 0);
+        assert_eq!(db::jobs::counts(&conn).unwrap().pending, 1);
+    }
+
+    /// PLAN.md decision 20: verified at scale before this ever runs against
+    /// the real library. `cargo test --release scale_check_reconcile --
+    /// --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn scale_check_reconcile() {
+        const N: i64 = 100_000;
+        let root = scratch("walk-reconcile-scale");
+        let (paths, conn) = open_db(&root);
+
+        let setup_start = std::time::Instant::now();
+        db::begin_batch(&conn).unwrap();
+        for i in 0..N {
+            if i % 5000 == 0 && i > 0 {
+                db::commit_batch(&conn).unwrap();
+                db::begin_batch(&conn).unwrap();
+            }
+            let uuid = uuid::Uuid::new_v4().to_string();
+            let id = seed_item(&conn, &uuid, "bin");
+            let _ = id;
+            let dest = paths.item_path(&uuid, "bin");
+            std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+            std::fs::write(&dest, b"x").unwrap();
+        }
+        db::commit_batch(&conn).unwrap();
+        println!("setup: {:?} for {N} items", setup_start.elapsed());
+
+        let start = std::time::Instant::now();
+        let report = reconcile(&paths, &conn, &mut |_, _| {}).unwrap();
+        let elapsed = start.elapsed();
+        println!("reconcile: {elapsed:?} for {N} items");
+        assert_eq!(report.items_checked, N as u64);
+        assert_eq!(report.vanished, 0);
+        assert!(elapsed < std::time::Duration::from_secs(30), "reconcile too slow: {elapsed:?}");
+    }
 }

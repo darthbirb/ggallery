@@ -64,6 +64,24 @@ impl LibraryPaths {
         self.gallery_dir().join("pending")
     }
 
+    pub fn backups_dir(&self) -> PathBuf {
+        self.gallery_dir().join("backups")
+    }
+
+    /// Every file in the library, sharded by uuid (PLAN.md decision 30).
+    /// Nothing outside `fs::shard` and this method should ever construct a
+    /// path beneath it directly.
+    pub fn files_dir(&self) -> PathBuf {
+        self.root.join("files")
+    }
+
+    /// The only place on disk a user is meant to put files by hand — watched,
+    /// and everything that settles there is renamed, sharded and indexed into
+    /// the Sorting Box. See `fs::watch`.
+    pub fn inbox_dir(&self) -> PathBuf {
+        self.root.join("inbox")
+    }
+
     /// Create the app-owned directory tree. Touches nothing else in the root.
     pub fn ensure_dirs(&self) -> Result<()> {
         for dir in [
@@ -73,6 +91,9 @@ impl LibraryPaths {
             self.sprites_dir(),
             self.trash_dir(),
             self.pending_dir(),
+            self.backups_dir(),
+            self.files_dir(),
+            self.inbox_dir(),
         ] {
             std::fs::create_dir_all(dir)?;
         }
@@ -104,13 +125,18 @@ impl LibraryPaths {
         Ok(self.root.join(candidate))
     }
 
-    /// Absolute path of the file backing an item.
-    ///
-    /// `disk_name` is whatever the user already had, until `fs::import`
-    /// renames it to `<uuid>.<ext>` — this function does not care which, it
-    /// just joins the folder and whatever name the row currently holds.
-    pub fn item_path(&self, folder_rel: &str, disk_name: &str) -> Result<PathBuf> {
-        Ok(self.to_abs(folder_rel)?.join(disk_name))
+    /// Absolute path of the file backing an item — a pure function of its own
+    /// uuid (PLAN.md decision 30). Delegates the actual sharding to
+    /// `fs::shard`, the one module that owns it.
+    pub fn item_path(&self, uuid: &str, ext: &str) -> PathBuf {
+        self.files_dir().join(crate::fs::shard::item_rel(uuid, ext))
+    }
+
+    /// Where a trashed item's file lives — same sharding as `item_path`, per
+    /// PLAN.md decision 30: "the old 'relative path preserved' no longer
+    /// describes anything."
+    pub fn trash_item_path(&self, uuid: &str, ext: &str) -> PathBuf {
+        self.trash_dir().join(crate::fs::shard::item_rel(uuid, ext))
     }
 
     pub fn thumb_path(&self, uuid: &str) -> PathBuf {
@@ -126,6 +152,15 @@ impl LibraryPaths {
     pub fn is_gallery_dir(&self, abs: &Path) -> bool {
         abs.starts_with(self.gallery_dir())
     }
+}
+
+/// True for a top-level library-root entry the app already owns — its own
+/// reserved directories, or anything hidden — shared by every piece of code
+/// that either scans the root's own top level or sweeps it into `inbox/`
+/// (`fs::import`, `fs::walk`, `fs::watch`), so the reserved set is defined
+/// exactly once.
+pub fn is_reserved_top_level(name: &str) -> bool {
+    name.starts_with('.') || name.eq_ignore_ascii_case("files") || name.eq_ignore_ascii_case("inbox")
 }
 
 /// `<uuid>` → `ab/cd/<uuid>.webp`. Two levels of 256-way sharding keeps any one
