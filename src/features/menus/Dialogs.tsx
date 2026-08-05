@@ -355,11 +355,16 @@ function NewFolderDialog({
   );
 }
 
-function FolderPickerDialog({
+/** Flat, filtered by title or path — the same shape DESIGN.md §2 *Folders
+ *  mode* specifies for its own bottom filter box, reused here as a modal for
+ *  every other "pick a folder" need (moving a folder or a selection, and
+ *  `GridMode`'s "show a different folder" control). */
+export function FolderPickerDialog({
   title,
   folders,
   exclude,
   allowTopLevel,
+  topLabel = "The top level",
   onClose,
   onPick,
 }: {
@@ -367,6 +372,10 @@ function FolderPickerDialog({
   folders: FolderNode[];
   exclude?: Set<number>;
   allowTopLevel?: boolean;
+  /** What the `allowTopLevel` row reads — "The top level" (moving something
+   *  to the root) and "Everything" (picking a scope to view) mean different
+   *  things even though both resolve to `dest: null`. */
+  topLabel?: string;
   onClose: () => void;
   onPick: (dest: FolderNode | null) => void;
 }) {
@@ -406,7 +415,7 @@ function FolderPickerDialog({
             }}
             className="flex h-9 w-full items-center gap-2 border-b border-line-soft px-2.5 text-left text-fg-mid hover:bg-hover hover:text-fg focus-visible:-outline-offset-2"
           >
-            The top level
+            {topLabel}
           </button>
         )}
 

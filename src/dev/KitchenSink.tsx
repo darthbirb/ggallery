@@ -14,12 +14,15 @@
 import {
   ArrowLeftToLine,
   ChevronRight,
+  Folder as FolderIcon,
+  FolderOpen as FolderOpenIcon,
   FolderTree,
   Image as ImageIcon,
   LayoutGrid,
   Minus,
   PanelRightClose,
   PanelRightOpen,
+  Plus as PlusIcon,
   Square,
   Star,
   X,
@@ -291,6 +294,64 @@ export function KitchenSink() {
           </div>
         </Section>
 
+        <Section title="Drops — accepting tree row, spring-loaded open">
+          <p className="text-fg-dim">
+            Every drop target — a tree row, a folder tile, the pane's Grid mode background —
+            shows the same accent outline while a drag it can accept hovers over it.
+            Spring-loading (opening the target after a dwell) has no visual of its own beyond
+            that outline; the "roo" tile hides the fact that the open already fired.
+          </p>
+          <div className="flex max-w-[280px] flex-col gap-0.5 rounded-[6px] border border-line bg-panel p-1">
+            <div className="flex h-8 items-center rounded-[4px] px-2.5 text-fg-mid">Idle row</div>
+            <div className="flex h-8 items-center rounded-[4px] px-2.5 text-fg-mid outline outline-2 -outline-offset-2 outline-accent">
+              Accepting a drop
+            </div>
+          </div>
+        </Section>
+
+        <Section title="Folders mode — tiles, inline creation, count preview">
+          <p className="text-fg-dim">
+            One flat field per level — no sections, no sorting by recency. The ＋ tile is
+            always present and turns into a text field in place rather than opening a modal;
+            a tile mid-drag previews the destination's count.
+          </p>
+          <div className="grid max-w-[560px] grid-cols-4 gap-2">
+            <FolderTileDemo title="ana" count="2,481" />
+            <FolderTileDemo title="trips" count="12" previewCount="18" accepting />
+            <div className="flex aspect-square flex-col items-stretch justify-center gap-1.5 rounded-[6px] border border-accent-d bg-panel p-2">
+              <Input defaultValue="beach" placeholder="Folder name" />
+              <Button size="sm">Create</Button>
+            </div>
+            <div className="flex aspect-square flex-col items-center justify-center gap-1.5 rounded-[6px] border border-dashed border-line p-2 text-center text-fg-dim">
+              <PlusIcon aria-hidden className="size-6" />
+              <span className="text-[12px] leading-tight">New folder in trips</span>
+            </div>
+          </div>
+        </Section>
+
+        <Section title="Grid mode — header and tile-size footer">
+          <div className="max-w-[420px] overflow-hidden rounded-[6px] border border-line">
+            <div className="flex h-11 items-center gap-1 border-b border-line bg-panel px-2">
+              <button
+                type="button"
+                className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-[4px] px-1.5 text-left"
+              >
+                <FolderOpenIcon aria-hidden className="size-4 shrink-0 text-fg-dim" />
+                <Breadcrumb titles={["people", "ana"]} />
+              </button>
+            </div>
+            <div className="flex h-24 items-center justify-center bg-ground text-fg-dim">
+              second grid
+            </div>
+            <div className="flex h-9 items-center gap-2 border-t border-line bg-panel px-2">
+              <span className="text-fg-dim">Tile size</span>
+              <Slider className="w-24" defaultValue={[1]} min={0} max={4} />
+              <Square aria-hidden fill="currentColor" className="size-4 shrink-0 text-fg-dim" />
+              <span className="ml-auto font-mono tabular-nums text-fg-dim">240 items</span>
+            </div>
+          </div>
+        </Section>
+
         <Section title="Grid footer — the selection bar">
           <p className="text-fg-dim">
             Status, not instruction: the live count is right-aligned, the
@@ -434,6 +495,44 @@ export function KitchenSink() {
           </div>
         </Section>
       </div>
+    </div>
+  );
+}
+
+/** `FoldersMode.tsx`'s `FolderTile`, reproduced statically — cover-or-icon,
+ *  title, and the count line that swaps to a "before → after" preview while
+ *  a compatible drag hovers over it. */
+function FolderTileDemo({
+  title,
+  count,
+  previewCount,
+  accepting,
+}: {
+  title: string;
+  count: string;
+  previewCount?: string;
+  accepting?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col items-stretch gap-1.5 rounded-[6px] border border-line bg-panel p-2 text-left",
+        accepting && "outline outline-2 -outline-offset-2 outline-accent",
+      )}
+    >
+      <div className="flex aspect-square items-center justify-center overflow-hidden rounded-[4px] bg-ground">
+        <FolderIcon className="size-8 text-fg-dim" />
+      </div>
+      <span className="truncate text-fg">{title}</span>
+      <span className="font-mono tabular-nums text-fg-dim">
+        {previewCount ? (
+          <>
+            {count} → <span className="text-accent">{previewCount}</span>
+          </>
+        ) : (
+          `${count} items`
+        )}
+      </span>
     </div>
   );
 }

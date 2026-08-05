@@ -48,7 +48,7 @@ beforeEach(() => {
   mocked.indexFailures.mockResolvedValue([]);
   mocked.startIndex.mockResolvedValue(undefined);
   mocked.cancelPreparedImport.mockResolvedValue(undefined);
-  mocked.executePreparedImport.mockResolvedValue({ moved: 23, errors: [] });
+  mocked.executePreparedImport.mockResolvedValue({ moved: 23, folders: 4, errors: [] });
   // A fresh import: nothing was indexed at the moment the library opened.
   mocked.openLibrary.mockResolvedValue({ ...libraryInfo(), itemCount: 0 });
 });
@@ -60,6 +60,7 @@ async function reachIndexing() {
     byKind: [],
     totalItems: 23,
     totalBytes: 1000,
+    folderCount: 4,
     unreadable: 0,
   });
 
@@ -121,6 +122,7 @@ describe("opening a library that needs no import", () => {
       byKind: [],
       totalItems: 0,
       totalBytes: 0,
+      folderCount: 0,
       unreadable: 0,
     });
     mocked.indexProgress.mockResolvedValue(progress());

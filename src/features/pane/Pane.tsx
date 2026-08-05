@@ -15,8 +15,10 @@ import { PanelRightOpen } from "lucide-react";
 
 import { Tooltip } from "../../components/Tooltip";
 import { IconButton } from "../../components/ui/button";
-import type { GridItem } from "../../lib/types";
+import type { FolderNode, GridItem } from "../../lib/types";
 import { AVAILABLE_PANE_MODES, PANE_MODES, type PaneMode } from "../../state/ui";
+import { FoldersMode } from "./FoldersMode";
+import { GridMode } from "./GridMode";
 import { PANE_MODE_ICONS } from "./modeIcons";
 import { PreviewMode, type PreviewSlot } from "./PreviewMode";
 
@@ -30,6 +32,7 @@ export interface PaneProps {
   slots: PreviewSlot[];
   items: GridItem[];
   thumbsDir: string;
+  spritesDir: string;
   onStep: (delta: number) => void;
   onPick: (itemId: number) => void;
   detailsExpanded: boolean;
@@ -38,11 +41,46 @@ export interface PaneProps {
   onFilmstripHeightChange: (height: number) => void;
   onResetFilmstripHeight: () => void;
   refreshToken: number;
+
+  /** Grid and Folders modes need the whole tree — Preview does not. */
+  folders: FolderNode[];
+  /** Folders mode's double-click — the one gesture that moves the main
+   *  grid, per DESIGN.md §2 *Folders mode*. */
+  onOpenInMain: (folder: FolderNode) => void;
 }
 
-export function Pane({ mode, ...rest }: PaneProps) {
-  // Grid and Folders are M2.5b's; each will render its own `PaneFrame`.
-  if (mode !== "preview") return null;
+export function Pane({ mode, folders, onOpenInMain, spritesDir, ...rest }: PaneProps) {
+  if (mode === "grid") {
+    return (
+      <GridMode
+        mode={mode}
+        onModeChange={rest.onModeChange}
+        onClose={rest.onClose}
+        maximised={rest.maximised}
+        onMaximisedChange={rest.onMaximisedChange}
+        folders={folders}
+        refreshToken={rest.refreshToken}
+        thumbsDir={rest.thumbsDir}
+        spritesDir={spritesDir}
+        onPreview={rest.onPick}
+      />
+    );
+  }
+  if (mode === "folders") {
+    return (
+      <FoldersMode
+        mode={mode}
+        onModeChange={rest.onModeChange}
+        onClose={rest.onClose}
+        maximised={rest.maximised}
+        onMaximisedChange={rest.onMaximisedChange}
+        folders={folders}
+        refreshToken={rest.refreshToken}
+        thumbsDir={rest.thumbsDir}
+        onOpenInMain={onOpenInMain}
+      />
+    );
+  }
   return <PreviewMode mode={mode} {...rest} />;
 }
 
