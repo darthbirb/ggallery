@@ -27,9 +27,8 @@ import { Breadcrumb } from "../../components/Breadcrumb";
 import { Chip } from "../../components/Chip";
 import { PillInput } from "../../components/ui/input";
 import { formatBytes, formatDateTime, formatDuration } from "../../lib/format";
-import { ancestorTitles } from "../../lib/folders";
 import * as ipc from "../../lib/ipc";
-import type { EffectiveTag, FolderNode, ItemDetail } from "../../lib/types";
+import type { EffectiveTag, ItemDetail } from "../../lib/types";
 import { cn } from "../../lib/utils";
 import { useOperations } from "../menus/operations";
 
@@ -87,11 +86,9 @@ export function DetailsHeader({
 
 export function DetailsBody({
   item,
-  folders,
   refreshToken,
 }: {
   item: ItemDetail;
-  folders: FolderNode[];
   refreshToken: number;
 }) {
   const ops = useOperations();
@@ -130,10 +127,7 @@ export function DetailsBody({
   const fileName = item.diskName;
   const originalName = item.origName ?? item.diskName;
 
-  const crumbs = useMemo(
-    () => ancestorTitles(folders, item.folderId),
-    [folders, item.folderId],
-  );
+  const crumbs = useMemo(() => item.folderBreadcrumb.map((crumb) => crumb.title), [item.folderBreadcrumb]);
 
   // Every folder auto-tags itself with its own title (DATA-MODEL's "tag
   // resolution"), which would otherwise repeat every crumb above as a

@@ -50,7 +50,6 @@ export function SettingsPanel({
   libraryRoot,
   onChooseLibrary,
   onClose,
-  onNormaliseFilenames,
   onArchetypesChanged,
   onStatusesChanged,
   onTagsChanged,
@@ -58,7 +57,6 @@ export function SettingsPanel({
   libraryRoot: string;
   onChooseLibrary: () => void;
   onClose: () => void;
-  onNormaliseFilenames: () => void;
   onArchetypesChanged: () => void;
   onStatusesChanged: () => void;
   onTagsChanged: () => void;
@@ -89,11 +87,7 @@ export function SettingsPanel({
 
         <div className="min-w-0 flex-1 overflow-y-auto">
           {section === "general" && (
-            <GeneralSection
-              libraryRoot={libraryRoot}
-              onChooseLibrary={onChooseLibrary}
-              onNormaliseFilenames={onNormaliseFilenames}
-            />
+            <GeneralSection libraryRoot={libraryRoot} onChooseLibrary={onChooseLibrary} />
           )}
           {section === "archetypes" && (
             <ArchetypesSection onChanged={onArchetypesChanged} />
@@ -109,11 +103,9 @@ export function SettingsPanel({
 function GeneralSection({
   libraryRoot,
   onChooseLibrary,
-  onNormaliseFilenames,
 }: {
   libraryRoot: string;
   onChooseLibrary: () => void;
-  onNormaliseFilenames: () => void;
 }) {
   const ui = useUi();
 
@@ -126,11 +118,6 @@ function GeneralSection({
           body={libraryRoot}
           mono
           onClick={onChooseLibrary}
-        />
-        <Action
-          title="Normalise filenames"
-          body="Rename anything that lost its UUID name."
-          onClick={onNormaliseFilenames}
         />
       </div>
 

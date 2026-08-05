@@ -16,10 +16,14 @@ interface ReviewScreenProps {
 }
 
 /**
- * The startup flow's one substantive screen — counts, one sentence, a
- * five-row sample, one checkbox. Everything the old six-step wizard asked
- * across scan / dry run / backup collapses into this, per
- * docs/DESIGN.md#first-import.
+ * The startup flow's one substantive screen — counts, one sentence, one
+ * checkbox. Everything the old six-step wizard asked across scan / dry run /
+ * backup collapses into this, per docs/DESIGN.md#first-import.
+ *
+ * PLAN.md §M2.6: every file lands in the Sorting Box, not wherever its
+ * existing directory implied — the existing tree stops meaning anything the
+ * moment folders become database rows rather than directories, so there is
+ * no folder count or before/after rename sample left worth showing here.
  */
 export function ReviewScreen({
   path,
@@ -43,13 +47,12 @@ export function ReviewScreen({
 
         <p className="leading-relaxed text-fg-mid">
           <span className="font-semibold text-fg">
-            {formatCount(report.toRename)}
+            {formatCount(report.totalItems)}
           </span>{" "}
-          file{report.toRename === 1 ? "" : "s"} will be renamed to a UUID.
-          The original name is kept and shown in each file's details.
-          {report.alreadyRenamed > 0 && (
-            <> {formatCount(report.alreadyRenamed)} already carry one.</>
-          )}
+          file{report.totalItems === 1 ? "" : "s"} will be brought in. Each
+          one is renamed to a UUID as it's indexed — the original name is
+          kept and shown in its details — and lands in the Sorting Box, ready
+          to be filed into folders.
         </p>
 
         <table className="w-full border-collapse text-left font-mono">
@@ -65,12 +68,6 @@ export function ReviewScreen({
                 </td>
               </tr>
             ))}
-            <tr>
-              <td className="py-1 pr-3 text-fg-dim">folders</td>
-              <td className="py-1 tabular-nums text-fg" colSpan={2}>
-                {formatCount(report.folderCount)}
-              </td>
-            </tr>
           </tbody>
         </table>
 
@@ -79,34 +76,6 @@ export function ReviewScreen({
             {formatCount(report.unreadable)} entr
             {report.unreadable === 1 ? "y" : "ies"} could not be read and
             will be left as they are.
-          </p>
-        )}
-
-        <div className="overflow-hidden rounded-[5px] border border-line-soft">
-          <table className="w-full border-collapse text-left font-mono">
-            <tbody>
-              {report.sample.map((row, i) => (
-                <tr
-                  key={i}
-                  className="border-b border-line-soft/60 last:border-0"
-                >
-                  <td className="max-w-0 truncate px-2 py-1 text-fg-dim">
-                    {row.folder ? `${row.folder}/` : ""}
-                    {row.oldName}
-                  </td>
-                  <td className="px-1 py-1 text-fg-dim">→</td>
-                  <td className="max-w-0 truncate px-2 py-1 text-fg">
-                    {row.newName}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {report.toRename > report.sample.length && (
-          <p className="-mt-3 text-[13px] text-fg-dim">
-            …and {formatCount(report.toRename - report.sample.length)} more,
-            shown the same way.
           </p>
         )}
 

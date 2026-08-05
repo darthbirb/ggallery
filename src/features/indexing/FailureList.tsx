@@ -62,9 +62,6 @@ export function FailureList({ failures, onRetry, onClose }: FailureListProps) {
             {failures.slice(0, MAX_ROWS).map((failure) => (
               <tr key={failure.jobId} className="border-b border-line-soft/60">
                 <td className="max-w-0 truncate px-3 py-1 font-mono text-fg">
-                  <span className="text-fg-dim">
-                    {failure.folder ? `${failure.folder}/` : ""}
-                  </span>
                   {failure.name}
                 </td>
                 <td className="whitespace-nowrap px-2 py-1 font-mono text-fg-dim">

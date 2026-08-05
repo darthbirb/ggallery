@@ -25,8 +25,8 @@ const mocked = vi.mocked(ipc);
 function progress(over: Partial<Progress> = {}): Progress {
   return {
     phase: "idle",
-    folders: 1,
-    filesSeen: 23,
+    itemsChecked: 23,
+    queued: 0,
     items: 23,
     pending: 0,
     running: 0,
@@ -48,14 +48,7 @@ beforeEach(() => {
   mocked.indexFailures.mockResolvedValue([]);
   mocked.startIndex.mockResolvedValue(undefined);
   mocked.cancelPreparedImport.mockResolvedValue(undefined);
-  mocked.executePreparedImport.mockResolvedValue({ renamed: 23, errors: [] });
-  mocked.verifyImport.mockResolvedValue({
-    sampleChecked: 23,
-    mismatches: [],
-    missing: [],
-    countTotal: 23,
-    countRenamed: 23,
-  });
+  mocked.executePreparedImport.mockResolvedValue({ moved: 23, errors: [] });
   // A fresh import: nothing was indexed at the moment the library opened.
   mocked.openLibrary.mockResolvedValue({ ...libraryInfo(), itemCount: 0 });
 });
@@ -67,11 +60,7 @@ async function reachIndexing() {
     byKind: [],
     totalItems: 23,
     totalBytes: 1000,
-    folderCount: 1,
     unreadable: 0,
-    alreadyRenamed: 0,
-    toRename: 23,
-    sample: [],
   });
 
   const { result } = renderHook(() => useLibrary());
@@ -96,10 +85,9 @@ describe("the import flow's Progress screen", () => {
 
     const result = await reachIndexing();
 
-    await waitFor(() => expect(mocked.verifyImport).toHaveBeenCalled(), {
+    await waitFor(() => expect(result.current.flowPhase).toBe("idle"), {
       timeout: 3000,
     });
-    await waitFor(() => expect(result.current.flowPhase).toBe("idle"));
   });
 
   it("stays up while the queue is still working, then leaves", async () => {
@@ -123,39 +111,6 @@ describe("the import flow's Progress screen", () => {
 
     await waitFor(() => expect(result.current.info).not.toBeNull(), { timeout: 3000 });
     await waitFor(() => expect(result.current.flowPhase).toBe("idle"));
-    // It gave up on the queue rather than pretending the import verified.
-    expect(mocked.verifyImport).not.toHaveBeenCalled();
-  });
-
-  it("reaches the gallery even when verification itself fails", async () => {
-    mocked.indexProgress.mockResolvedValue(progress({ phase: "idle" }));
-    mocked.verifyImport.mockRejectedValue(new Error("nope"));
-
-    const result = await reachIndexing();
-
-    await waitFor(() => expect(mocked.verifyImport).toHaveBeenCalled(), {
-      timeout: 3000,
-    });
-    await waitFor(() => expect(result.current.flowPhase).toBe("idle"));
-    expect(result.current.verifyIssue).toBeNull();
-  });
-
-  it("surfaces a verification that came back dirty, without blocking", async () => {
-    mocked.indexProgress.mockResolvedValue(progress({ phase: "idle" }));
-    mocked.verifyImport.mockResolvedValue({
-      sampleChecked: 23,
-      mismatches: [{ itemId: 1, folder: "", name: "a.jpg" }],
-      missing: [],
-      countTotal: 23,
-      countRenamed: 22,
-    });
-
-    const result = await reachIndexing();
-
-    await waitFor(() => expect(result.current.verifyIssue).not.toBeNull(), {
-      timeout: 3000,
-    });
-    await waitFor(() => expect(result.current.flowPhase).toBe("idle"));
   });
 });
 
@@ -166,11 +121,7 @@ describe("opening a library that needs no import", () => {
       byKind: [],
       totalItems: 0,
       totalBytes: 0,
-      folderCount: 0,
       unreadable: 0,
-      alreadyRenamed: 0,
-      toRename: 0,
-      sample: [],
     });
     mocked.indexProgress.mockResolvedValue(progress());
 

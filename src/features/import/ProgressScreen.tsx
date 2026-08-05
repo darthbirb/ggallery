@@ -69,8 +69,8 @@ function IndexBar({ progress }: { progress: Progress | null }) {
   return (
     <div className="flex flex-col gap-1 font-mono tabular-nums text-fg-dim">
       <p>
-        {formatCount(progress?.folders ?? 0)} folders ·{" "}
-        {formatCount(progress?.filesSeen ?? 0)} files seen
+        {formatCount(progress?.itemsChecked ?? 0)} checked ·{" "}
+        {formatCount(progress?.queued ?? 0)} queued from inbox
       </p>
       <p>
         {formatCount(progress?.items ?? 0)} indexed

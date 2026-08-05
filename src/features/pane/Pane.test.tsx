@@ -12,14 +12,7 @@
 import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  fakeLibrary,
-  folderNode,
-  gridItem,
-  itemDetail,
-  renderWithProviders,
-  rootNode,
-} from "../../test/harness";
+import { fakeLibrary, gridItem, itemDetail, renderWithProviders } from "../../test/harness";
 import { Pane } from "./Pane";
 
 vi.mock("../../lib/ipc");
@@ -47,7 +40,6 @@ function renderPane(over: Partial<React.ComponentProps<typeof Pane>> = {}) {
       onMaximisedChange={vi.fn()}
       slots={[{ key: "primary", itemId: 7 }]}
       items={items}
-      folders={[rootNode(), folderNode()]}
       thumbsDir="D:/thumbs"
       onStep={vi.fn()}
       onPick={vi.fn()}

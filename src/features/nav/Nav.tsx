@@ -76,19 +76,19 @@ const ROOTS: Root[] = [
     key: "everything",
     label: "Everything",
     icon: LayoutGrid,
-    scope: { kind: "everything", folder: null, recursive: true },
+    scope: { kind: "everything", folderId: null, recursive: true },
   },
   {
     key: "sorting",
     label: "Sorting Box",
     icon: Inbox,
-    scope: { kind: "sorting", folder: null, recursive: false },
+    scope: { kind: "sorting", folderId: null, recursive: false },
   },
   {
     key: "favourites",
     label: "Favourites",
     icon: Star,
-    scope: { kind: "favourites", folder: null, recursive: true },
+    scope: { kind: "favourites", folderId: null, recursive: true },
   },
 ];
 
@@ -248,12 +248,15 @@ function ExpandedNav({
 }: NavProps) {
   const [collapsed, setCollapsed] = useState<Set<number>>(() => new Set());
 
-  const { root, childrenOf } = useMemo(() => {
+  // There is no library-root row any more (PLAN.md decision 30) — every
+  // folder with `parentId === null` is itself a real top-level tree node,
+  // not a child of one.
+  const { topLevel, childrenOf } = useMemo(() => {
     const childrenOf = new Map<number, FolderNode[]>();
-    let root: FolderNode | null = null;
+    const topLevel: FolderNode[] = [];
     for (const folder of folders) {
       if (folder.parentId === null) {
-        root = folder;
+        topLevel.push(folder);
         continue;
       }
       const siblings = childrenOf.get(folder.parentId) ?? [];
@@ -261,23 +264,24 @@ function ExpandedNav({
       childrenOf.set(folder.parentId, siblings);
     }
     // Sorted by title and nothing else. Pinning must never move a row.
+    topLevel.sort((a, b) => a.title.localeCompare(b.title));
     for (const siblings of childrenOf.values()) {
       siblings.sort((a, b) => a.title.localeCompare(b.title));
     }
-    return { root, childrenOf };
+    return { topLevel, childrenOf };
   }, [folders]);
 
-  const pinned = folders.filter((folder) => folder.parentId !== null && folder.favorite);
+  const pinned = folders.filter((folder) => folder.favorite);
 
   const openFolder = (folder: FolderNode) =>
-    onScope({ kind: "folder", folder: folder.relPath, recursive: true });
+    onScope({ kind: "folder", folderId: folder.id, recursive: true });
 
   const rowFor = (folder: FolderNode, depth: number, key: string) => (
     <FolderRow
       key={key}
       folder={folder}
       depth={depth}
-      selected={scope.kind === "folder" && scope.folder === folder.relPath}
+      selected={scope.kind === "folder" && scope.folderId === folder.id}
       expandable={(childrenOf.get(folder.id) ?? []).length > 0}
       expanded={!collapsed.has(folder.id)}
       statuses={statuses}
@@ -323,7 +327,7 @@ function ExpandedNav({
       </div>
     );
   };
-  const tree = root ? (childrenOf.get(root.id) ?? []).map((child) => renderNode(child, 0)) : [];
+  const tree = topLevel.map((child) => renderNode(child, 0));
 
   return (
     <nav
@@ -378,7 +382,7 @@ function ExpandedNav({
           </>
         )}
 
-        <ContextMenu menu={<FolderTreeBackgroundMenu root={root} />}>
+        <ContextMenu menu={<FolderTreeBackgroundMenu />}>
           <div className="min-h-[44px]">
             <GroupLabel>Folders</GroupLabel>
             {tree}

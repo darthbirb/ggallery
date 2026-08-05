@@ -46,7 +46,6 @@ export interface LibraryStatus {
 
 export interface FolderNode {
   id: number;
-  relPath: string;
   title: string;
   parentId: number | null;
   depth: number;
@@ -74,17 +73,20 @@ export type Phase = "idle" | "walking" | "working";
 
 export interface Progress {
   phase: Phase;
-  folders: number;
-  filesSeen: number;
+  /** Existing items whose shard file the current reconcile has confirmed
+   *  present, so far. */
+  itemsChecked: number;
+  /** Inbox arrivals the current reconcile has queued for hashing. */
+  queued: number;
   items: number;
   pending: number;
   running: number;
   failed: number;
   completed: number;
   lastError: string | null;
-  /** True while the current walk is a full reconcile the filesystem watcher
+  /** True while the current pass is a reconcile the filesystem watcher
    *  triggered after an overflow or error, rather than the ordinary startup
-   *  index — see docs/DESIGN.md §10 "The library is live". */
+   *  pass — see docs/DESIGN.md §10 "The library is live". */
   rescanning: boolean;
 }
 
@@ -93,8 +95,6 @@ export interface IndexFailure {
   jobId: number;
   /** What was being attempted: hash, thumb or sprite. */
   stage: string;
-  /** Library-relative folder; empty at the root. */
-  folder: string;
   name: string;
   error: string;
   attempts: number;
@@ -104,57 +104,12 @@ export interface IndexFailure {
 export interface AppError {
   kind: string;
   message: string;
-  /** Set when `kind === "folder-missing"` — which folder's directory has
-   *  gone missing from disk, and its title, so the frontend can name it and
-   *  offer to remove it without re-deriving either from local state. */
-  folderId: number | null;
-  folderTitle: string | null;
 }
-
-// --- M1.5 import wizard ------------------------------------------------
 
 export interface KindTotal {
   kind: string;
   count: number;
   bytes: number;
-}
-
-export interface ScanReport {
-  byKind: KindTotal[];
-  totalItems: number;
-  totalBytes: number;
-  folderCount: number;
-  /** Files M1 could not read at all. */
-  unreadable: number;
-  alreadyRenamed: number;
-  toRename: number;
-  /** `null` until the wizard (or "Normalise filenames") has completed once —
-   *  what decides whether the wizard is offered when a library is opened. */
-  importedAt: number | null;
-}
-
-export interface RenamePreview {
-  folder: string;
-  oldName: string;
-  newName: string;
-}
-
-export interface DryRunReport {
-  toRename: number;
-  sample: RenamePreview[];
-}
-
-export interface RenameError {
-  itemId: number;
-  folder: string;
-  name: string;
-  error: string;
-}
-
-export interface ExecuteReport {
-  renamed: number;
-  alreadyDone: number;
-  errors: RenameError[];
 }
 
 export interface ImportProgress {
@@ -163,53 +118,33 @@ export interface ImportProgress {
   errors: number;
 }
 
-export interface VerifyItem {
-  itemId: number;
-  folder: string;
-  name: string;
-}
-
-export interface VerifyReport {
-  sampleChecked: number;
-  mismatches: VerifyItem[];
-  missing: VerifyItem[];
-  countTotal: number;
-  countRenamed: number;
-}
-
 // --- M1.7 startup flow ---------------------------------------------------
 //
 // Filesystem-only: these run before a library is ever opened, so the report
-// shape below only exists as `RenameFsError`/`FsExecuteReport` — see
+// shape below only exists as `FsMoveError`/`FsExecuteReport` — see
 // src-tauri/src/fs/import.rs.
 
 /** What `prepareImport` found — the Review screen's whole content. */
 export interface ReviewReport {
   /** True when this library needs no ceremony at all — already imported, or
-   *  nothing to rename. The caller skips Review and Progress and opens
-   *  straight into the gallery. */
+   *  empty. The caller skips Review and Progress and opens straight into the
+   *  gallery. */
   alreadyImported: boolean;
   byKind: KindTotal[];
   totalItems: number;
   totalBytes: number;
-  folderCount: number;
   /** Entries the scan could not read at all. */
   unreadable: number;
-  alreadyRenamed: number;
-  toRename: number;
-  /** Five rows, not a full manifest. */
-  sample: RenamePreview[];
 }
 
-export interface FsRenameError {
-  folder: string;
+export interface FsMoveError {
   name: string;
   error: string;
 }
 
 export interface FsExecuteReport {
-  renamed: number;
-  errors: FsRenameError[];
+  moved: number;
+  errors: FsMoveError[];
 }
 
 // --- M2: folders as entities ---------------------------------------------
@@ -227,7 +162,6 @@ export interface FolderFlag {
 
 export interface FolderDetail {
   id: number;
-  relPath: string;
   title: string;
   parentId: number | null;
   status: string;
@@ -283,7 +217,6 @@ export interface EffectiveTag {
  *  named in the confirmation before `removeArchetypeField` deletes it. */
 export interface ArchetypeFieldUsage {
   folderId: number;
-  relPath: string;
   title: string;
   value: string;
 }
@@ -315,6 +248,12 @@ export interface TrashItemsReport {
 
 // --- M2.5a: the pane, and the undo behind the toast ----------------------
 
+/** One crumb of a folder ancestry chain, root-first. */
+export interface BreadcrumbCrumb {
+  id: number;
+  title: string;
+}
+
 /** One item in full — the pane's Preview mode. Wider than `GridItem` on
  *  purpose: this is fetched one row at a time, not 100k. */
 export interface ItemDetail {
@@ -328,9 +267,10 @@ export interface ItemDetail {
   thumb: string;
   diskName: string;
   origName: string | null;
-  folderId: number;
-  folderRel: string;
-  folderTitle: string;
+  /** `null` for an item in the Sorting Box (PLAN.md decision 30). */
+  folderId: number | null;
+  /** Root-first ancestry, empty for the Sorting Box. */
+  folderBreadcrumb: BreadcrumbCrumb[];
   sizeBytes: number;
   width: number | null;
   height: number | null;
@@ -352,4 +292,65 @@ export interface ItemDetail {
 export interface UndoReport {
   reversed: number;
   errors: string[];
+}
+
+// --- M2.6: storage migration ----------------------------------------------
+//
+// Folders are data now (PLAN.md decision 30): every file moves to
+// `files/<xx>/<uuid>.<ext>`. `openLibrary` fails with `kind ===
+// "needs-storage-migration"` for a real pre-existing library that has not
+// been through this yet; the frontend switches to this flow instead of
+// opening the gallery. See src-tauri/src/commands/storage_migration.rs.
+
+export interface StorageMigrationCollision {
+  uuid: string;
+  oldPath: string;
+  newPath: string;
+}
+
+export interface StorageMigrationDryRun {
+  totalItems: number;
+  totalBytes: number;
+  unreadable: number;
+  collisions: StorageMigrationCollision[];
+  alreadyDone: number;
+  toMove: number;
+}
+
+export interface StorageMigrationReview {
+  /** Sibling-title collisions left over from before decision 31's
+   *  write-time fold shipped, resolved before the dry run below was ever
+   *  computed — surfaced so a real repair isn't silent. */
+  foldersMerged: FolderMerge[];
+  dryRun: StorageMigrationDryRun;
+}
+
+export interface StorageMigrationMoveError {
+  itemId: number;
+  uuid: string;
+  error: string;
+}
+
+export interface StorageMigrationExecuteReport {
+  moved: number;
+  alreadyDone: number;
+  errors: StorageMigrationMoveError[];
+}
+
+export interface StorageMigrationProgress {
+  done: number;
+  total: number;
+  errors: number;
+}
+
+export interface StorageMigrationMissing {
+  itemId: number;
+  uuid: string;
+}
+
+export interface StorageMigrationVerifyReport {
+  countTotal: number;
+  countAtDestination: number;
+  missing: StorageMigrationMissing[];
+  hashMismatches: StorageMigrationMissing[];
 }

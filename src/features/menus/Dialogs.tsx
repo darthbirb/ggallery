@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
+import { ancestorTitles } from "../../lib/folders";
 import * as ipc from "../../lib/ipc";
 import type { ArchetypeInfo, FolderNode } from "../../lib/types";
 import { useOperations } from "./operations";
@@ -178,15 +179,25 @@ export function useDialogs(): Dialogs {
   return value;
 }
 
-/** A folder and everything under it, by `relPath` prefix. */
+/** A folder and everything under it, walked by `parentId` — there is no
+ *  `rel_path` prefix left to match on (PLAN.md decision 30). */
 function descendants(folders: FolderNode[], folder: FolderNode): Set<number> {
-  const ids = new Set<number>([folder.id]);
+  const childrenOf = new Map<number, FolderNode[]>();
   for (const candidate of folders) {
-    if (
-      candidate.relPath === folder.relPath ||
-      candidate.relPath.startsWith(`${folder.relPath}/`)
-    ) {
-      ids.add(candidate.id);
+    if (candidate.parentId === null) continue;
+    const siblings = childrenOf.get(candidate.parentId) ?? [];
+    siblings.push(candidate);
+    childrenOf.set(candidate.parentId, siblings);
+  }
+  const ids = new Set<number>([folder.id]);
+  const stack = [folder.id];
+  while (stack.length > 0) {
+    const id = stack.pop()!;
+    for (const child of childrenOf.get(id) ?? []) {
+      if (!ids.has(child.id)) {
+        ids.add(child.id);
+        stack.push(child.id);
+      }
     }
   }
   return ids;
@@ -362,16 +373,17 @@ function FolderPickerDialog({
   const [filter, setFilter] = useState("");
   const needle = filter.trim().toLowerCase();
 
-  // The library root is not a folder in the interface (DESIGN.md §2), so it
-  // is never a row here; "the top level" is offered as its own choice.
+  // A folder's path is its ancestry, by title (PLAN.md decision 30 — there
+  // is no `rel_path` left to filter or display).
+  const pathFor = (folder: FolderNode) => ancestorTitles(folders, folder.id).join("/");
+
   const rows = folders
-    .filter((folder) => folder.parentId !== null)
     .filter((folder) => !exclude?.has(folder.id))
     .filter(
       (folder) =>
         !needle ||
         folder.title.toLowerCase().includes(needle) ||
-        folder.relPath.includes(needle),
+        pathFor(folder).toLowerCase().includes(needle),
     );
 
   return (
@@ -411,16 +423,14 @@ function FolderPickerDialog({
           >
             <span className="truncate text-fg">{folder.title}</span>
             <span className="ml-auto shrink-0 truncate font-mono text-fg-dim">
-              {folder.relPath}
+              {pathFor(folder)}
             </span>
           </button>
         ))}
 
         {rows.length === 0 && (
           <p className="px-2 py-3 text-center text-fg-dim">
-            {folders.length <= 1
-              ? "There are no folders yet."
-              : "Nothing matches that."}
+            {folders.length === 0 ? "There are no folders yet." : "Nothing matches that."}
           </p>
         )}
       </div>

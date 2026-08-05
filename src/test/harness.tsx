@@ -12,6 +12,7 @@ import { TooltipProvider } from "../components/Tooltip";
 import { DialogsProvider } from "../features/menus/Dialogs";
 import { OperationsProvider } from "../features/menus/operations";
 import type {
+  BreadcrumbCrumb,
   FolderNode,
   GridItem,
   ItemDetail,
@@ -24,14 +25,16 @@ import { UiProvider } from "../state/ui";
 
 export const EVERYTHING_SCOPE: Scope = {
   kind: "everything",
-  folder: null,
+  folderId: null,
   recursive: true,
 };
 
+/** A top-level folder — PLAN.md decision 30 dropped the library-root row
+ *  that `parentId: null` used to be reserved for; every folder with no
+ *  parent is a real top-level tree node now. */
 export function folderNode(over: Partial<FolderNode> = {}): FolderNode {
   return {
     id: 1,
-    relPath: "trips",
     title: "Trips",
     parentId: 100,
     depth: 1,
@@ -43,10 +46,12 @@ export function folderNode(over: Partial<FolderNode> = {}): FolderNode {
   };
 }
 
-export function rootNode(): FolderNode {
+/** A top-level folder, distinct from `folderNode()`'s default nested one —
+ *  useful as the parent in tests that build a small tree. Not "the root":
+ *  there is no such thing any more. */
+export function topLevelNode(over: Partial<FolderNode> = {}): FolderNode {
   return {
     id: 100,
-    relPath: "",
     title: "Library",
     parentId: null,
     depth: 0,
@@ -54,6 +59,7 @@ export function rootNode(): FolderNode {
     totalCount: 12,
     status: "active",
     favorite: false,
+    ...over,
   };
 }
 
@@ -72,6 +78,8 @@ export function gridItem(over: Partial<GridItem> = {}): GridItem {
   };
 }
 
+const DEFAULT_BREADCRUMB: BreadcrumbCrumb[] = [{ id: 1, title: "Trips" }];
+
 export function itemDetail(over: Partial<ItemDetail> = {}): ItemDetail {
   return {
     id: 7,
@@ -81,8 +89,7 @@ export function itemDetail(over: Partial<ItemDetail> = {}): ItemDetail {
     diskName: "uuid.jpg",
     origName: "beach.jpg",
     folderId: 1,
-    folderRel: "trips",
-    folderTitle: "Trips",
+    folderBreadcrumb: DEFAULT_BREADCRUMB,
     sizeBytes: 2_400_000,
     width: 1200,
     height: 800,
@@ -118,8 +125,9 @@ export function fakeLibrary(over: Partial<LibraryController> = {}): LibraryContr
   return {
     info: libraryInfo(),
     remembered: null,
-    folders: [rootNode(), folderNode()],
+    folders: [topLevelNode(), folderNode()],
     items: [gridItem()],
+    unsortedCount: 0,
     progress: null,
     failures: [],
     loading: false,
@@ -129,16 +137,14 @@ export function fakeLibrary(over: Partial<LibraryController> = {}): LibraryContr
     pendingReview: null,
     flowPhase: "idle",
     renameProgress: null,
-    verifyIssue: null,
-    folderMissing: null,
+    storageMigration: null,
     lowercaseMergeReport: null,
     choose: vi.fn(),
     open: vi.fn(),
     confirmImport: vi.fn(),
     cancelImport: vi.fn(),
-    dismissVerifyIssue: vi.fn(),
-    reportFolderMissing: vi.fn(),
-    dismissFolderMissing: vi.fn(),
+    confirmStorageMigration: vi.fn(),
+    cancelStorageMigration: vi.fn(),
     dismissLowercaseMergeReport: vi.fn(),
     retry: vi.fn(),
     setScope: vi.fn(),

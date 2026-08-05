@@ -11,9 +11,7 @@ import type {
   ArchetypeFieldUsage,
   ArchetypeInfo,
   AppError,
-  DryRunReport,
   EffectiveTag,
-  ExecuteReport,
   FolderDetail,
   FolderNode,
   FolderStatusDef,
@@ -27,15 +25,18 @@ import type {
   MoveItemsReport,
   Progress,
   ReviewReport,
-  ScanReport,
+  StorageMigrationExecuteReport,
+  StorageMigrationProgress,
+  StorageMigrationReview,
+  StorageMigrationVerifyReport,
   TagSummary,
   TrashItemsReport,
   UndoReport,
-  VerifyReport,
 } from "./types";
 
 const PROGRESS_EVENT = "job-progress";
 const IMPORT_PROGRESS_EVENT = "import-progress";
+const STORAGE_MIGRATION_PROGRESS_EVENT = "storage-migration-progress";
 
 export async function pickLibraryFolder(): Promise<string | null> {
   const picked = await open({
@@ -62,11 +63,22 @@ export function folderTree(): Promise<FolderNode[]> {
   return invoke<FolderNode[]>("folder_tree");
 }
 
+/** `folderId`/`unsorted` together pick the scope (PLAN.md decision 30 — there
+ *  is no "root folder" any more): `unsorted: true` is the Sorting Box,
+ *  `folderId: <id>` is that folder (optionally recursive), and neither set is
+ *  Everything. */
 export function listItems(
-  folder: string | null,
+  folderId: number | null,
+  unsorted: boolean,
   recursive: boolean,
 ): Promise<GridItem[]> {
-  return invoke<GridItem[]>("list_items", { folder, recursive });
+  return invoke<GridItem[]>("list_items", { folderId, unsorted, recursive });
+}
+
+/** Items in the Sorting Box — the sidebar badge's count. There is no folder
+ *  row to read this off any more (PLAN.md decision 30). */
+export function unsortedCount(): Promise<number> {
+  return invoke<number>("unsorted_count");
 }
 
 /** One item in full — what the pane's Preview mode renders. */
@@ -120,30 +132,6 @@ export function onProgress(
   return listen<Progress>(PROGRESS_EVENT, (event) => handler(event.payload));
 }
 
-// --- M1.5 import wizard ------------------------------------------------
-
-export function scanImport(): Promise<ScanReport> {
-  return invoke<ScanReport>("scan_import");
-}
-
-export function dryRunImport(sampleSize: number): Promise<DryRunReport> {
-  return invoke<DryRunReport>("dry_run_import", { sampleSize });
-}
-
-export function executeImport(confirmedBackup: boolean): Promise<ExecuteReport> {
-  return invoke<ExecuteReport>("execute_import", { confirmedBackup });
-}
-
-export function verifyImport(sampleSize: number): Promise<VerifyReport> {
-  return invoke<VerifyReport>("verify_import", { sampleSize });
-}
-
-/** For a library with nothing to rename — stamps it imported without ever
- *  showing the wizard. Not gated: nothing destructive happens. */
-export function markImported(): Promise<void> {
-  return invoke<void>("mark_imported");
-}
-
 export function onImportProgress(
   handler: (progress: ImportProgress) => void,
 ): Promise<UnlistenFn> {
@@ -172,15 +160,71 @@ export function cancelPreparedImport(): Promise<void> {
   return invoke<void>("cancel_prepared_import");
 }
 
+// --- M2.6: storage migration --------------------------------------------
+//
+// A real pre-existing library that has not yet moved every file to
+// `files/<xx>/<uuid>.<ext>`. `openLibrary` fails with `kind ===
+// "needs-storage-migration"`; the frontend switches to these instead.
+
+export function needsStorageMigration(path: string): Promise<boolean> {
+  return invoke<boolean>("needs_storage_migration", { path });
+}
+
+/** Resolves any leftover pre-decision-31 directory collision, writes the
+ *  complete `library.jsonl` manifest, then reports the dry run. Nothing is
+ *  written to `files/` yet. */
+export function prepareStorageMigration(path: string): Promise<StorageMigrationReview> {
+  return invoke<StorageMigrationReview>("prepare_storage_migration", { path });
+}
+
+/** Moves every file to its shard destination. Refuses without an explicit
+ *  backup acknowledgement. */
+export function executeStorageMigration(
+  path: string,
+  confirmedBackup: boolean,
+): Promise<StorageMigrationExecuteReport> {
+  return invoke<StorageMigrationExecuteReport>("execute_storage_migration", {
+    path,
+    confirmedBackup,
+  });
+}
+
+/** Confirms every item resolves to a file at its shard destination and, only
+ *  on a clean result, marks the migration verified — what `openLibrary`'s
+ *  gate checks before it will open the library for real. */
+export function verifyStorageMigration(
+  path: string,
+  fullHashSweep: boolean,
+): Promise<StorageMigrationVerifyReport> {
+  return invoke<StorageMigrationVerifyReport>("verify_storage_migration", {
+    path,
+    fullHashSweep,
+  });
+}
+
+/** How many now-empty directories the migration left behind — report-only,
+ *  offered once verification has passed. Removal is a separate, explicit
+ *  action; nothing here deletes anything. */
+export function countEmptyDirectories(path: string): Promise<number> {
+  return invoke<number>("count_empty_directories", { path });
+}
+
+export function onStorageMigrationProgress(
+  handler: (progress: StorageMigrationProgress) => void,
+): Promise<UnlistenFn> {
+  return listen<StorageMigrationProgress>(STORAGE_MIGRATION_PROGRESS_EVENT, (event) =>
+    handler(event.payload),
+  );
+}
+
 // --- M2: folders as entities ------------------------------------------
 
 export function getFolder(id: number): Promise<FolderDetail> {
   return invoke<FolderDetail>("get_folder", { id });
 }
 
-/** A folder has one name — this renames the directory to match whenever the
- *  sanitised title differs from what's on disk. There is no separate
- *  rename-directory call. */
+/** A folder has one name — one column, nothing on disk to keep in step with
+ *  it (PLAN.md decision 30). */
 export function setFolderTitle(id: number, title: string): Promise<string> {
   return invoke<string>("set_folder_title", { id, title });
 }
@@ -277,10 +321,6 @@ export function moveFolder(
   newParentId: number | null,
 ): Promise<string> {
   return invoke<string>("move_folder", { id, newParentId });
-}
-
-export function revealFolder(id: number): Promise<void> {
-  return invoke<void>("reveal_folder", { id });
 }
 
 export function deleteFolder(id: number): Promise<string> {
@@ -423,14 +463,14 @@ export function errorMessage(error: unknown): string {
   return "Something went wrong.";
 }
 
-/** The folder a `"folder-missing"` error names, so a caller can offer
- *  removing the broken record — `null` for every other kind of failure. */
-export function errorMissingFolder(error: unknown): { id: number; title: string } | null {
-  if (error && typeof error === "object" && "folderId" in error) {
-    const { folderId, folderTitle } = error as AppError;
-    if (typeof folderId === "number" && typeof folderTitle === "string") {
-      return { id: folderId, title: folderTitle };
-    }
-  }
-  return null;
+/** Whether a command failed specifically because this library still needs
+ *  `fs::shard`'s storage migration — `openLibrary`'s one distinguishable
+ *  failure kind, per PLAN.md §M2.6. */
+export function errorNeedsStorageMigration(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "kind" in error &&
+    (error as AppError).kind === "needs-storage-migration"
+  );
 }

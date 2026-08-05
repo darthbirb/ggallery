@@ -12,14 +12,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  fakeLibrary,
-  folderNode,
-  gridItem,
-  itemDetail,
-  renderWithProviders,
-  rootNode,
-} from "../../test/harness";
+import { fakeLibrary, gridItem, itemDetail, renderWithProviders } from "../../test/harness";
 import { PreviewMode, paneGrid } from "./PreviewMode";
 
 vi.mock("../../lib/ipc");
@@ -63,7 +56,6 @@ function renderPreview(over: Partial<React.ComponentProps<typeof PreviewMode>> =
       thumbsDir="D:/thumbs"
       onStep={onStep}
       onPick={onPick}
-      folders={[rootNode(), folderNode()]}
       detailsExpanded={false}
       onDetailsExpandedChange={vi.fn()}
       filmstripHeight={64}

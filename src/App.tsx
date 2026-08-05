@@ -19,12 +19,12 @@ import { FolderBand } from "./features/folder/FolderBand";
 import { Grid } from "./features/grid/Grid";
 import { SCRUBBER_WIDTH } from "./features/grid/Scrubber";
 import { FailureList } from "./features/indexing/FailureList";
-import { NormaliseFilenamesModal } from "./features/import/NormaliseFilenamesModal";
 import { ProgressScreen } from "./features/import/ProgressScreen";
 import { ReviewScreen } from "./features/import/ReviewScreen";
+import { StorageMigrationScreen } from "./features/import/StorageMigrationScreen";
 import { DialogsProvider, useDialogs } from "./features/menus/Dialogs";
 import { EmptyMenu, ItemMenu } from "./features/menus/ItemMenu";
-import { OperationsProvider, useOperations, type Operations } from "./features/menus/operations";
+import { OperationsProvider, useOperations } from "./features/menus/operations";
 import { Nav } from "./features/nav/Nav";
 import { Pane, PaneStrip } from "./features/pane/Pane";
 import type { PreviewSlot } from "./features/pane/PreviewMode";
@@ -111,8 +111,18 @@ function Shell() {
   let content: ReactNode;
 
   // Choose folder → Review → Progress → Gallery, as full-window screens —
-  // see docs/DESIGN.md#first-import.
-  if (library.flowPhase !== "idle") {
+  // see docs/DESIGN.md#first-import. A real pre-existing library can also
+  // need PLAN.md §M2.6's storage migration first — its own, deliberately
+  // smaller, screen.
+  if (library.storageMigration) {
+    content = (
+      <StorageMigrationScreen
+        state={library.storageMigration}
+        onCancel={library.cancelStorageMigration}
+        onConfirm={library.confirmStorageMigration}
+      />
+    );
+  } else if (library.flowPhase !== "idle") {
     content = (
       <ProgressScreen
         phase={library.flowPhase}
@@ -174,7 +184,6 @@ function Gallery({
 
   const [showFailures, setShowFailures] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showNormalise, setShowNormalise] = useState(false);
   const [maximised, setMaximised] = useState(false);
 
   const [statuses, setStatuses] = useState<FolderStatusDef[]>([]);
@@ -212,7 +221,7 @@ function Gallery({
   const folder = useMemo(
     () =>
       scope.kind === "folder"
-        ? (library.folders.find((node) => node.relPath === scope.folder) ?? null)
+        ? (library.folders.find((node) => node.id === scope.folderId) ?? null)
         : null,
     [scope, library.folders],
   );
@@ -233,16 +242,9 @@ function Gallery({
     [library.items],
   );
 
-  // The Sorting Box *is* the library root (DESIGN.md §2 and §4), so its count
-  // is the root folder's own items — not a subfolder's, and not a walk.
-  const sortingCount = useMemo(
-    () => library.folders.find((node) => node.parentId === null)?.directCount ?? 0,
-    [library.folders],
-  );
-
   const openFolder = useCallback(
     (node: FolderNode) =>
-      library.setScope({ kind: "folder", folder: node.relPath, recursive: true }),
+      library.setScope({ kind: "folder", folderId: node.id, recursive: true }),
     [library],
   );
 
@@ -371,7 +373,6 @@ function Gallery({
       onMaximisedChange={setMaximised}
       slots={slots}
       items={library.items}
-      folders={library.folders}
       thumbsDir={info.thumbsDir}
       onStep={(delta) => selection.step(delta)}
       onPick={(itemId) => selection.focus(itemId)}
@@ -427,7 +428,7 @@ function Gallery({
               onFoldedChange={(folded) => ui.set("navFolded", folded)}
               onEditDetails={editFolderDetails}
               favouriteCount={favouriteCount}
-              sortingCount={sortingCount}
+              sortingCount={library.unsortedCount}
               progress={library.progress}
               failureCount={library.failures.length}
               showingFailures={showFailures}
@@ -466,14 +467,13 @@ function Gallery({
               recursive={scope.kind === "folder" ? scope.recursive : true}
               onRecursiveChange={(recursive) => {
                 if (scope.kind === "folder") {
-                  library.setScope({ kind: "folder", folder: scope.folder, recursive });
+                  library.setScope({ kind: "folder", folderId: scope.folderId, recursive });
                 }
               }}
             />
 
             <Banners
               library={library}
-              ops={ops}
               showFailures={showFailures}
               onCloseFailures={() => setShowFailures(false)}
             />
@@ -639,10 +639,6 @@ function Gallery({
           libraryRoot={info.root}
           onChooseLibrary={library.choose}
           onClose={() => setShowSettings(false)}
-          onNormaliseFilenames={() => {
-            setShowSettings(false);
-            setShowNormalise(true);
-          }}
           onArchetypesChanged={() => {
             loadVocabulary();
             library.refreshFolders();
@@ -653,10 +649,6 @@ function Gallery({
           }}
           onTagsChanged={library.reload}
         />
-      )}
-
-      {showNormalise && (
-        <NormaliseFilenamesModal onClose={() => setShowNormalise(false)} />
       )}
     </div>
   );
@@ -675,15 +667,13 @@ function emptyLabel(scope: Scope): string {
   }
 }
 
-/** Index errors, verification problems and the missing-ffmpeg notice. */
+/** Index errors and the missing-ffmpeg notice. */
 function Banners({
   library,
-  ops,
   showFailures,
   onCloseFailures,
 }: {
   library: LibraryController;
-  ops: Operations;
   showFailures: boolean;
   onCloseFailures: () => void;
 }) {
@@ -699,65 +689,9 @@ function Banners({
         </div>
       )}
 
-      {/* A folder record whose directory has gone missing from disk — moved
-          or deleted outside the app (docs/DESIGN.md §M2.5d). Named rather
-          than left as the raw "cannot find the path" every action on it used
-          to report, with a real way out: removing the broken record, since
-          M2.6 is what actually removes the cause. Reactive only — this
-          appears because an operation just failed, never from a scan. */}
-      {library.folderMissing && (
-        <div className="flex items-center gap-3 border-b border-line bg-raised px-3 py-2 text-danger">
-          <span className="min-w-0 truncate">
-            &ldquo;{library.folderMissing.title}&rdquo; is missing from disk — it may
-            have been moved or deleted outside the app.
-          </span>
-          <Button
-            size="sm"
-            className="ml-auto shrink-0"
-            onClick={async () => {
-              const folder = library.folderMissing;
-              if (!folder) return;
-              await ops.deleteFolder(folder);
-              library.dismissFolderMissing();
-            }}
-          >
-            Remove this folder
-          </Button>
-          <Button size="sm" className="shrink-0" onClick={library.dismissFolderMissing}>
-            Dismiss
-          </Button>
-        </div>
-      )}
-
-      {library.verifyIssue && (
-        <div className="flex items-center gap-3 border-b border-line bg-raised px-3 py-2 text-danger">
-          Import verification found a problem:{" "}
-          {formatCount(library.verifyIssue.countRenamed)} of{" "}
-          {formatCount(library.verifyIssue.countTotal)} items carry a UUID name
-          {library.verifyIssue.mismatches.length > 0 && (
-            <>
-              , {formatCount(library.verifyIssue.mismatches.length)} sampled file
-              {library.verifyIssue.mismatches.length === 1 ? "" : "s"} did not match
-              its recorded hash
-            </>
-          )}
-          {library.verifyIssue.missing.length > 0 && (
-            <>
-              , {formatCount(library.verifyIssue.missing.length)} sampled file
-              {library.verifyIssue.missing.length === 1 ? "" : "s"} could not be found
-              at its new path
-            </>
-          )}
-          .
-          <Button size="sm" className="ml-auto" onClick={library.dismissVerifyIssue}>
-            Dismiss
-          </Button>
-        </div>
-      )}
-
       {/* Decision 31's one-time fold — surfaced once, on the open that ran
-          it, exactly like verifyIssue above. Reported rather than done
-          silently: every entry names what collapsed into what. */}
+          it. Reported rather than done silently: every entry names what
+          collapsed into what. */}
       {library.lowercaseMergeReport && (
         <div className="flex items-start gap-3 border-b border-line bg-raised px-3 py-2 text-fg-mid">
           <div className="min-w-0">

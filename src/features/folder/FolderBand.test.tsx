@@ -9,7 +9,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fakeLibrary, folderNode, renderWithProviders, rootNode } from "../../test/harness";
+import { fakeLibrary, folderNode, renderWithProviders, topLevelNode } from "../../test/harness";
 import type { FolderDetail } from "../../lib/types";
 import { FolderBand } from "./FolderBand";
 
@@ -22,7 +22,6 @@ const mocked = vi.mocked(ipc);
 function detail(over: Partial<FolderDetail> = {}): FolderDetail {
   return {
     id: 1,
-    relPath: "trips",
     title: "Trips",
     parentId: 100,
     status: "wip",
@@ -62,7 +61,7 @@ function renderBand(over: Partial<React.ComponentProps<typeof FolderBand>> = {})
   const result = renderWithProviders(
     <FolderBand
       folder={folder}
-      folders={[rootNode(), folder]}
+      folders={[topLevelNode(), folder]}
       scopeLabel="Everything"
       itemCount={0}
       statuses={[
@@ -238,9 +237,9 @@ describe("expanded, with no archetype", () => {
 
 describe("ancestry", () => {
   it("shows the same breadcrumb the item details panel uses, folder itself last", async () => {
-    const people = folderNode({ id: 2, relPath: "people", title: "People", parentId: 100 });
-    const trip = folderNode({ id: 1, relPath: "people/trips", title: "Trips", parentId: 2 });
-    renderBand({ folder: trip, folders: [rootNode(), people, trip], expanded: true });
+    const people = folderNode({ id: 2, title: "People", parentId: null });
+    const trip = folderNode({ id: 1, title: "Trips", parentId: 2 });
+    renderBand({ folder: trip, folders: [people, trip], expanded: true });
 
     expect(await screen.findByText("People")).toBeInTheDocument();
     // "Trips" is both the header title and the breadcrumb's last crumb.
@@ -248,7 +247,8 @@ describe("ancestry", () => {
   });
 
   it("shows no breadcrumb for a top-level folder — nothing sits above itself", async () => {
-    renderBand({ expanded: true });
+    const folder = folderNode({ parentId: null });
+    renderBand({ folder, folders: [folder], expanded: true });
     await screen.findByText(/add label/);
     expect(screen.getAllByText("Trips")).toHaveLength(1);
   });

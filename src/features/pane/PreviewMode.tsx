@@ -22,7 +22,7 @@ import { Resizer } from "../../components/Resizer";
 import { Tooltip } from "../../components/Tooltip";
 import { IconButton } from "../../components/ui/button";
 import * as ipc from "../../lib/ipc";
-import type { FolderNode, GridItem, ItemDetail } from "../../lib/types";
+import type { GridItem, ItemDetail } from "../../lib/types";
 import { cn } from "../../lib/utils";
 import { FILMSTRIP_MAX, FILMSTRIP_MIN, type PaneMode } from "../../state/ui";
 import { DetailsBody, DetailsHeader } from "./Details";
@@ -58,8 +58,6 @@ export interface PreviewModeProps {
   /** Move the current item by ±1 through `items`. */
   onStep: (delta: number) => void;
   onPick: (itemId: number) => void;
-  /** For the expanded details' folder-hierarchy breadcrumb. */
-  folders: FolderNode[];
   detailsExpanded: boolean;
   onDetailsExpandedChange: (expanded: boolean) => void;
   filmstripHeight: number;
@@ -80,7 +78,6 @@ export function PreviewMode({
   thumbsDir,
   onStep,
   onPick,
-  folders,
   detailsExpanded,
   onDetailsExpandedChange,
   filmstripHeight,
@@ -127,7 +124,7 @@ export function PreviewMode({
           {/* Opened from the header, and growing **downwards** from it — the
               media gives way, and the filmstrip never moves. */}
           {lead && detailsExpanded && (
-            <DetailsBody item={lead} folders={folders} refreshToken={refreshToken} />
+            <DetailsBody item={lead} refreshToken={refreshToken} />
           )}
 
           <div

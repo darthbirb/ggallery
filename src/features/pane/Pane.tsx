@@ -15,7 +15,7 @@ import { PanelRightOpen } from "lucide-react";
 
 import { Tooltip } from "../../components/Tooltip";
 import { IconButton } from "../../components/ui/button";
-import type { FolderNode, GridItem } from "../../lib/types";
+import type { GridItem } from "../../lib/types";
 import { AVAILABLE_PANE_MODES, PANE_MODES, type PaneMode } from "../../state/ui";
 import { PANE_MODE_ICONS } from "./modeIcons";
 import { PreviewMode, type PreviewSlot } from "./PreviewMode";
@@ -29,10 +29,6 @@ export interface PaneProps {
 
   slots: PreviewSlot[];
   items: GridItem[];
-  /** The whole tree, so Preview's details can read an item's ancestor
-   *  folders by title rather than by `folderRel`, which is normalised and
-   *  does not carry the display casing a breadcrumb needs. */
-  folders: FolderNode[];
   thumbsDir: string;
   onStep: (delta: number) => void;
   onPick: (itemId: number) => void;

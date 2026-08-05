@@ -96,8 +96,8 @@ describe("archetypes", () => {
 
   it("names the folders a removed field would empty", async () => {
     mocked.archetypeFieldUsage.mockResolvedValue([
-      { folderId: 1, relPath: "alps", title: "Alps", value: "chamonix" },
-      { folderId: 2, relPath: "borneo", title: "Borneo", value: "kuching" },
+      { folderId: 1, title: "Alps", value: "chamonix" },
+      { folderId: 2, title: "Borneo", value: "kuching" },
     ]);
     await open();
 

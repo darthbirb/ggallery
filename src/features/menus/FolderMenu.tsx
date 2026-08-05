@@ -89,12 +89,6 @@ export function FolderMenu({
 
       <MenuSeparator />
 
-      <MenuItem onSelect={() => ops.revealFolder(folder.id)}>
-        Reveal in Explorer
-      </MenuItem>
-
-      <MenuSeparator />
-
       <MenuItem variant="destructive" onSelect={() => dialogs.deleteFolder(folder)}>
         Delete…
       </MenuItem>
@@ -103,13 +97,14 @@ export function FolderMenu({
 }
 
 /** The same menu opened from a surface where no folder is under the pointer —
- *  the empty part of the navigation panel. */
-export function FolderTreeBackgroundMenu({ root }: { root: FolderNode | null }) {
+ *  the empty part of the navigation panel. `null` is the top level (PLAN.md
+ *  decision 30 — there is no library-root row standing in for it any more). */
+export function FolderTreeBackgroundMenu() {
   const dialogs = useDialogs();
   return (
     <>
       <MenuLabel>Folders</MenuLabel>
-      <MenuItem onSelect={() => dialogs.newFolder(root)}>
+      <MenuItem onSelect={() => dialogs.newFolder(null)}>
         New folder at the top level
       </MenuItem>
     </>

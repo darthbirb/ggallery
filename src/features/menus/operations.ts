@@ -55,7 +55,6 @@ export interface Operations {
   removeFolderTag: (folderId: number, tagId: number) => Promise<void>;
   applyArchetype: (folderId: number, archetypeId: number, name: string) => Promise<void>;
   removeArchetype: (folderId: number) => Promise<void>;
-  revealFolder: (folderId: number) => Promise<void>;
 }
 
 interface Deps {
@@ -64,14 +63,9 @@ interface Deps {
   toasts: ToastQueue;
 }
 
-/** Report a failure the same way as a success: in the strip, not a dialog.
- *  A `"folder-missing"` failure also names the folder to `library`, which is
- *  what lets `Banners` (App.tsx) offer removing the broken record — the
- *  toast alone says what happened; it has nowhere to put a way out. */
+/** Report a failure the same way as a success: in the strip, not a dialog. */
 function fail(deps: Deps, what: string, err: unknown) {
   deps.toasts.push({ message: `${what}: ${ipc.errorMessage(err)}`, tone: "danger" });
-  const missing = ipc.errorMissingFolder(err);
-  if (missing) deps.library.reportFolderMissing(missing);
 }
 
 /** Undo for one journal batch, wired to the toast that names the operation. */
@@ -349,13 +343,6 @@ export function buildOperations(deps: Deps): Operations {
       }
     },
 
-    async revealFolder(folderId) {
-      try {
-        await ipc.revealFolder(folderId);
-      } catch (err) {
-        fail(deps, "Could not open Explorer", err);
-      }
-    },
   };
 }
 

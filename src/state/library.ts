@@ -11,48 +11,48 @@ import type {
   LowercaseMergeReport,
   Progress,
   ReviewReport,
-  VerifyReport,
+  StorageMigrationExecuteReport,
+  StorageMigrationProgress,
+  StorageMigrationReview,
 } from "../lib/types";
 
 /**
  * The navigation roots docs/DESIGN.md §2 requires are distinct things, not
  * three shapes of one folder query: *Everything* ignores folder structure,
- * the *Sorting Box* is the top level and nothing beneath it, and a folder is
- * a folder. Favourites is a fourth root, filtered from Everything.
+ * the *Sorting Box* is `folder_id IS NULL` and nothing beneath it, and a
+ * folder is a folder. Favourites is a fourth root, filtered from Everything.
  *
- * **The library root is the Sorting Box.** There is no `Sorting Box/`
- * directory — anything sitting loose at the top level is unfiled by
- * definition, which is the same statement (DESIGN.md §2 and §4). The root is
- * never presented as a folder either; see `features/nav`.
+ * **The Sorting Box is "no folder", not a place** (PLAN.md decision 30).
+ * There is no folder row standing in for it — an unfiled item simply has no
+ * `folderId`. The root is never presented as a folder either; see
+ * `features/nav`.
  */
 export type ViewKind = "everything" | "sorting" | "favourites" | "folder";
 
 export interface Scope {
   kind: ViewKind;
-  /** Folder rel_path when `kind` is "folder"; null otherwise. */
-  folder: string | null;
+  /** Set only when `kind === "folder"`. */
+  folderId: number | null;
   /** Folder views are recursive by default — PLAN.md decision 10. */
   recursive: boolean;
 }
 
 export const EVERYTHING: Scope = {
   kind: "everything",
-  folder: null,
+  folderId: null,
   recursive: true,
 };
 
 /** What `listItems` is asked for, per root. */
-function query(scope: Scope): { folder: string | null; recursive: boolean } {
+function query(scope: Scope): { folderId: number | null; unsorted: boolean; recursive: boolean } {
   switch (scope.kind) {
     case "everything":
     case "favourites":
-      return { folder: null, recursive: true };
+      return { folderId: null, unsorted: false, recursive: true };
     case "sorting":
-      // `Some("")` and non-recursive: the root folder's own items — the
-      // Sorting Box. Distinct from `None`, which is the whole library.
-      return { folder: "", recursive: false };
+      return { folderId: null, unsorted: true, recursive: false };
     case "folder":
-      return { folder: scope.folder, recursive: scope.recursive };
+      return { folderId: scope.folderId, unsorted: false, recursive: scope.recursive };
   }
 }
 
@@ -68,11 +68,30 @@ export interface PendingReview {
  *  else — nothing pending, or an already-imported library opening normally. */
 export type FlowPhase = "idle" | "renaming" | "indexing";
 
+/** Where the M2.6 storage-migration flow is, once opening a real
+ *  pre-existing library has turned out to need it — see
+ *  `ipc.errorNeedsStorageMigration`. Deliberately minimal next to the
+ *  polished M1.7 Review/Progress screens: the safety this reuses
+ *  (`fs::shard`) is the point of this milestone, not a new multi-screen
+ *  flow. */
+export type StorageMigrationPhase = "review" | "executing" | "verifying";
+
+export interface StorageMigrationState {
+  path: string;
+  phase: StorageMigrationPhase;
+  review: StorageMigrationReview | null;
+  progress: StorageMigrationProgress | null;
+  error: string | null;
+}
+
 export interface LibraryController {
   info: LibraryInfo | null;
   remembered: string | null;
   folders: FolderNode[];
   items: GridItem[];
+  /** Items with no folder at all — the Sorting Box's badge (PLAN.md decision
+   *  30: there is no folder row to read this off any more). */
+  unsortedCount: number;
   progress: Progress | null;
   /** Failures from the current index run, per file. */
   failures: IndexFailure[];
@@ -86,16 +105,13 @@ export interface LibraryController {
   flowPhase: FlowPhase;
   /** Progress events during the "renaming" phase only. */
   renameProgress: ImportProgress | null;
-  /** Set only if the post-import verification found a problem — surfaced
-   *  once, silently absent otherwise, per docs/DESIGN.md#first-import. */
-  verifyIssue: VerifyReport | null;
-  /** Set when an operation fails because a folder's directory has gone
-   *  missing from disk (docs/DESIGN.md §M2.5d) — named so the banner can
-   *  offer removing the broken record as a way out. `null` otherwise. */
-  folderMissing: { id: number; title: string } | null;
+  /** Set once a chosen (real, pre-existing) library turns out to need
+   *  `fs::shard`'s storage migration before it can be opened. `null` the
+   *  rest of the time. */
+  storageMigration: StorageMigrationState | null;
   /** What the one-time lowercase fold merged, if this `open` was the one
    *  that ran it and it merged something (PLAN.md decision 31) — surfaced
-   *  once, silently absent otherwise, like `verifyIssue`. */
+   *  once, silently absent otherwise. */
   lowercaseMergeReport: LowercaseMergeReport | null;
   /** Pick a library folder — the first one, or a different one later. */
   choose: () => void;
@@ -104,12 +120,10 @@ export interface LibraryController {
   confirmImport: (confirmedBackup: boolean) => void;
   /** Review → Cancel. Back to the picker; nothing on disk has changed. */
   cancelImport: () => void;
-  dismissVerifyIssue: () => void;
-  /** Record that an operation just failed because a folder's directory is
-   *  missing — called from `operations.ts`'s shared failure handler, not
-   *  from a scan; nothing here goes looking for one. */
-  reportFolderMissing: (folder: { id: number; title: string }) => void;
-  dismissFolderMissing: () => void;
+  /** Storage-migration Review → Migrate. */
+  confirmStorageMigration: (confirmedBackup: boolean) => void;
+  /** Storage-migration Review → Cancel. Nothing on disk has changed yet. */
+  cancelStorageMigration: () => void;
   dismissLowercaseMergeReport: () => void;
   retry: () => void;
   setScope: (scope: Scope) => void;
@@ -130,7 +144,6 @@ export interface LibraryController {
  */
 const RELOAD_INTERVAL_MS = 4000;
 const RELOAD_WHILE_UNDER = 20000;
-const VERIFY_SAMPLE = 50;
 /** How often the Progress screen re-asks the queue whether it has settled. */
 const SETTLE_POLL_MS = 400;
 
@@ -139,6 +152,7 @@ export function useLibrary(): LibraryController {
   const [remembered, setRemembered] = useState<string | null>(null);
   const [folders, setFolders] = useState<FolderNode[]>([]);
   const [items, setItems] = useState<GridItem[]>([]);
+  const [unsortedCount, setUnsortedCount] = useState(0);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -148,8 +162,7 @@ export function useLibrary(): LibraryController {
   const [pendingReview, setPendingReview] = useState<PendingReview | null>(null);
   const [flowPhase, setFlowPhase] = useState<FlowPhase>("idle");
   const [renameProgress, setRenameProgress] = useState<ImportProgress | null>(null);
-  const [verifyIssue, setVerifyIssue] = useState<VerifyReport | null>(null);
-  const [folderMissing, setFolderMissing] = useState<{ id: number; title: string } | null>(null);
+  const [storageMigration, setStorageMigration] = useState<StorageMigrationState | null>(null);
   const [lowercaseMergeReport, setLowercaseMergeReport] = useState<LowercaseMergeReport | null>(
     null,
   );
@@ -183,9 +196,10 @@ export function useLibrary(): LibraryController {
   const load = useCallback(async (next: Scope) => {
     try {
       const asked = query(next);
-      const [rows, tree] = await Promise.all([
-        ipc.listItems(asked.folder, asked.recursive),
+      const [rows, tree, unsorted] = await Promise.all([
+        ipc.listItems(asked.folderId, asked.unsorted, asked.recursive),
         ipc.folderTree(),
+        ipc.unsortedCount(),
       ]);
       // Favourites is filtered here rather than in SQL on purpose: the grid
       // already takes the whole manifest in one call (see `list_items`), so
@@ -193,15 +207,16 @@ export function useLibrary(): LibraryController {
       // 100k, and no index to maintain.
       setItems(next.kind === "favourites" ? rows.filter((row) => row.favorite) : rows);
       setFolders(tree);
+      setUnsortedCount(unsorted);
       lastReload.current = Date.now();
     } catch (err) {
       setError(ipc.errorMessage(err));
     }
   }, []);
 
-  /** The actual open: assumes the library has already been imported (or
-   *  never needed to be) — no Review, no Progress, just load and, for a
-   *  library with nothing indexed yet, start the walk. */
+  /** The actual open: assumes the library has already been imported and
+   *  storage-migrated (or never needed to be) — no Review, no Progress, just
+   *  load and, for a library with nothing indexed yet, start the walk. */
   const openReal = useCallback(
     async (path: string) => {
       setItems([]);
@@ -230,15 +245,41 @@ export function useLibrary(): LibraryController {
     [load, syncFailures],
   );
 
+  const beginStorageMigration = useCallback(async (path: string) => {
+    setStorageMigration({ path, phase: "review", review: null, progress: null, error: null });
+    try {
+      const review = await ipc.prepareStorageMigration(path);
+      setStorageMigration((current) =>
+        current && current.path === path ? { ...current, review } : current,
+      );
+    } catch (err) {
+      setStorageMigration((current) =>
+        current && current.path === path
+          ? { ...current, error: ipc.errorMessage(err) }
+          : current,
+      );
+    }
+  }, []);
+
   const open = useCallback(
     async (path: string) => {
       setLoading(true);
       setError(null);
       setPendingReview(null);
+      setStorageMigration(null);
       try {
         const report = await ipc.prepareImport(path);
         if (report.alreadyImported) {
-          await openReal(path);
+          try {
+            await openReal(path);
+          } catch (err) {
+            if (ipc.errorNeedsStorageMigration(err)) {
+              setLoading(false);
+              await beginStorageMigration(path);
+              return;
+            }
+            throw err;
+          }
         } else {
           setPendingReview({ path, report });
         }
@@ -248,7 +289,7 @@ export function useLibrary(): LibraryController {
         setLoading(false);
       }
     },
-    [openReal],
+    [openReal, beginStorageMigration],
   );
 
   const choose = useCallback(async () => {
@@ -306,6 +347,73 @@ export function useLibrary(): LibraryController {
     } catch {
       // Best-effort — there is nothing on disk to undo either way.
     }
+  }, []);
+
+  const confirmStorageMigration = useCallback(
+    async (confirmedBackup: boolean) => {
+      if (!storageMigration) return;
+      const { path } = storageMigration;
+
+      setStorageMigration((current) =>
+        current ? { ...current, phase: "executing", progress: null, error: null } : current,
+      );
+      const unlisten = await ipc.onStorageMigrationProgress((next) =>
+        setStorageMigration((current) => (current ? { ...current, progress: next } : current)),
+      );
+
+      let executed: StorageMigrationExecuteReport;
+      try {
+        executed = await ipc.executeStorageMigration(path, confirmedBackup);
+      } catch (err) {
+        unlisten();
+        setStorageMigration((current) =>
+          current ? { ...current, phase: "review", error: ipc.errorMessage(err) } : current,
+        );
+        return;
+      }
+      unlisten();
+      if (executed.errors.length > 0) {
+        // Not fatal to the flow — reported implicitly by a subsequent verify
+        // finding the same items missing, which does block moving on.
+      }
+
+      setStorageMigration((current) => (current ? { ...current, phase: "verifying" } : current));
+      try {
+        const verified = await ipc.verifyStorageMigration(path, false);
+        if (verified.missing.length > 0 || verified.hashMismatches.length > 0) {
+          setStorageMigration((current) =>
+            current
+              ? {
+                  ...current,
+                  phase: "review",
+                  error: `Verification found ${verified.missing.length + verified.hashMismatches.length} item(s) that did not move cleanly — safe to run again.`,
+                }
+              : current,
+          );
+          return;
+        }
+      } catch (err) {
+        setStorageMigration((current) =>
+          current ? { ...current, phase: "review", error: ipc.errorMessage(err) } : current,
+        );
+        return;
+      }
+
+      setStorageMigration(null);
+      setLoading(true);
+      try {
+        await openReal(path);
+      } catch (err) {
+        setError(ipc.errorMessage(err));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [storageMigration, openReal],
+  );
+
+  const cancelStorageMigration = useCallback(() => {
+    setStorageMigration(null);
   }, []);
 
   const retry = useCallback(async () => {
@@ -400,8 +508,7 @@ export function useLibrary(): LibraryController {
   }, [load, syncFailures]);
 
   // The "indexing" leg of the Progress screen: wait for the walk+hash+thumb
-  // queue to genuinely settle, run verification silently, then hand off to
-  // the gallery. Verification surfaces only on failure — DESIGN.md#first-import.
+  // queue to genuinely settle, then hand off to the gallery.
   //
   // This **asks** the queue rather than waiting to be told. Progress events are
   // emitted only when the numbers change, so a library small enough to finish
@@ -437,20 +544,7 @@ export function useLibrary(): LibraryController {
         timer = window.setTimeout(() => void settle(), SETTLE_POLL_MS);
         return;
       }
-
-      try {
-        const verify = await ipc.verifyImport(VERIFY_SAMPLE);
-        const clean =
-          verify.mismatches.length === 0 &&
-          verify.missing.length === 0 &&
-          verify.countRenamed === verify.countTotal;
-        if (!cancelled && !clean) setVerifyIssue(verify);
-      } catch {
-        // Best-effort — a failed check here should not block reaching the
-        // gallery, only a failed verification should.
-      } finally {
-        if (!cancelled) setFlowPhase("idle");
-      }
+      if (!cancelled) setFlowPhase("idle");
     };
 
     void settle();
@@ -465,6 +559,7 @@ export function useLibrary(): LibraryController {
     remembered,
     folders,
     items,
+    unsortedCount,
     progress,
     failures,
     loading,
@@ -474,16 +569,14 @@ export function useLibrary(): LibraryController {
     pendingReview,
     flowPhase,
     renameProgress,
-    verifyIssue,
-    folderMissing,
+    storageMigration,
     lowercaseMergeReport,
     choose,
     open,
     confirmImport,
     cancelImport,
-    dismissVerifyIssue: () => setVerifyIssue(null),
-    reportFolderMissing: (folder) => setFolderMissing(folder),
-    dismissFolderMissing: () => setFolderMissing(null),
+    confirmStorageMigration,
+    cancelStorageMigration,
     dismissLowercaseMergeReport: () => setLowercaseMergeReport(null),
     retry,
     setScope,

@@ -1,6 +1,8 @@
 /**
  * The navigation panel's two hard requirements, from docs/DESIGN.md §2:
- * the library root is not a node in the tree, and the tree never reorders.
+ * the library root is not a node in the tree — since PLAN.md decision 30
+ * there is no row it even could be, every folder is a real one — and the
+ * tree never reorders.
  */
 
 import { screen, within } from "@testing-library/react";
@@ -12,7 +14,7 @@ import {
   fakeLibrary,
   folderNode,
   renderWithProviders,
-  rootNode,
+  topLevelNode,
 } from "../../test/harness";
 import { Nav } from "./Nav";
 
@@ -30,9 +32,9 @@ beforeEach(() => {
 function renderNav(over: Partial<React.ComponentProps<typeof Nav>> = {}) {
   const onScope = vi.fn();
   const folders = over.folders ?? [
-    rootNode(),
-    folderNode({ id: 1, relPath: "alps", title: "Alps" }),
-    folderNode({ id: 2, relPath: "borneo", title: "Borneo" }),
+    topLevelNode(),
+    folderNode({ id: 1, title: "Alps" }),
+    folderNode({ id: 2, title: "Borneo" }),
   ];
   const result = renderWithProviders(
     <Nav
@@ -67,21 +69,12 @@ describe("navigation roots", () => {
     expect(within(nav).getByRole("button", { name: /Favourites/ })).toBeInTheDocument();
   });
 
-  it("never shows the library root as a folder row", () => {
-    renderNav();
-    // The root's title exists in the data; it must not be a row.
-    expect(screen.queryByRole("button", { name: /^Library/ })).toBeNull();
-  });
-
-  it("has no Sorting Box folder in the tree — the root is the Sorting Box", () => {
-    // A real directory of that name would be a second way of saying the same
+  it("has no Sorting Box folder in the tree — an unfiled item just has no folder", () => {
+    // A real folder of that name would be a second way of saying the same
     // thing (DESIGN.md §2 and §4), so it is an ordinary folder and nothing
     // promotes it into a queue group of its own.
     renderNav({
-      folders: [
-        rootNode(),
-        folderNode({ id: 1, relPath: "sorting box", title: "Sorting Box" }),
-      ],
+      folders: [topLevelNode(), folderNode({ id: 1, title: "Sorting Box" })],
     });
     expect(screen.queryByText("Queues")).toBeNull();
     // Two: the navigation root, and the ordinary folder row.
@@ -94,20 +87,22 @@ describe("navigation roots", () => {
     await userEvent.click(screen.getByRole("button", { name: /Sorting Box/ }));
     expect(onScope).toHaveBeenCalledWith({
       kind: "sorting",
-      folder: null,
+      folderId: null,
       recursive: false,
     });
 
     await userEvent.click(screen.getByRole("button", { name: /Favourites/ }));
     expect(onScope).toHaveBeenCalledWith({
       kind: "favourites",
-      folder: null,
+      folderId: null,
       recursive: true,
     });
   });
 
   it("renders an empty tree as empty, not as a root node", () => {
-    renderNav({ folders: [rootNode()] });
+    // There is no library-root row to filter out any more (PLAN.md decision
+    // 30) — an empty tree is just an empty `folders` array.
+    renderNav({ folders: [] });
     expect(screen.getByText(/No folders yet/)).toBeInTheDocument();
   });
 });
@@ -115,9 +110,9 @@ describe("navigation roots", () => {
 describe("the tree", () => {
   it("does not reorder when a folder is pinned", () => {
     const folders = [
-      rootNode(),
-      folderNode({ id: 1, relPath: "alps", title: "Alps" }),
-      folderNode({ id: 2, relPath: "borneo", title: "Borneo", favorite: true }),
+      topLevelNode(),
+      folderNode({ id: 1, title: "Alps" }),
+      folderNode({ id: 2, title: "Borneo", favorite: true }),
     ];
     renderNav({ folders });
 
@@ -137,9 +132,9 @@ describe("the tree", () => {
   it("marks WIP with one dot and marks nothing else", () => {
     renderNav({
       folders: [
-        rootNode(),
-        folderNode({ id: 1, relPath: "alps", title: "Alps", status: "wip" }),
-        folderNode({ id: 2, relPath: "borneo", title: "Borneo", status: "done" }),
+        topLevelNode(),
+        folderNode({ id: 1, title: "Alps", status: "wip" }),
+        folderNode({ id: 2, title: "Borneo", status: "done" }),
       ],
     });
 
@@ -151,7 +146,7 @@ describe("the tree", () => {
     await userEvent.click(screen.getByRole("button", { name: /Alps/ }));
     expect(onScope).toHaveBeenCalledWith({
       kind: "folder",
-      folder: "alps",
+      folderId: 1,
       recursive: true,
     });
   });

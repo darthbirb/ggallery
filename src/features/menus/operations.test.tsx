@@ -168,32 +168,4 @@ describe("non-destructive operations", () => {
       await screen.findByText("Could not delete: the file is locked"),
     ).toBeInTheDocument();
   });
-
-  it("names the folder to `library` when a failure is folder-missing, for the banner to act on", async () => {
-    mocked.errorMissingFolder.mockReturnValue({ id: 1, title: "Trips" });
-    mocked.setFolderTitle.mockRejectedValue({
-      kind: "folder-missing",
-      message: '"Trips" is missing from disk',
-      folderId: 1,
-      folderTitle: "Trips",
-    });
-    const { library } = setup();
-
-    await userEvent.click(screen.getByText("rename folder"));
-
-    await waitFor(() =>
-      expect(library.reportFolderMissing).toHaveBeenCalledWith({ id: 1, title: "Trips" }),
-    );
-  });
-
-  it("does not name a folder for an ordinary failure", async () => {
-    mocked.errorMissingFolder.mockReturnValue(null);
-    mocked.deleteItems.mockRejectedValue(new Error("the file is locked"));
-    const { library } = setup();
-
-    await userEvent.click(screen.getByText("delete"));
-
-    await screen.findByText("Could not delete: the file is locked");
-    expect(library.reportFolderMissing).not.toHaveBeenCalled();
-  });
 });
