@@ -80,7 +80,7 @@ undoable, and incapable of leaving the database describing something the disk co
 - **Move** — dragging a folder onto another, or a menu action: `parent_id`, plus an
   effective-tag rebuild for the subtree, because inherited tags are recomputed from the
   new ancestry.
-- **Delete** — the folder's record goes, and its items go to `.gallery/trash/`. Never a
+- **Delete** — the folder's record goes, and its items go to `.ggallery/trash/`. Never a
   hard delete.
 
 Items move between folders the same way: drag onto a sidebar folder, a menu action, or a
@@ -109,7 +109,7 @@ costs nothing to honour.)*
 Beyond moving and tagging, the operations any file manager is expected to have, and which
 this one needs because filenames on disk are opaque UUIDs:
 
-- **Delete** the selection to `.gallery/trash/`. Available from the grid, not only from
+- **Delete** the selection to `.ggallery/trash/`. Available from the grid, not only from
   triage and theatre view.
 - **Reveal in Explorer** — opens the containing folder with the file selected. The single
   most useful escape hatch in an app that renames everything to a UUID.
@@ -679,7 +679,7 @@ Items appear from:
   rather than like a place.
 
 **The library root is a hot zone, and that has to be said plainly.** Anything appearing at
-the top level that is not `.gallery/`, `files/`, `inbox/` or a dotfile is moved into
+the top level that is not `.ggallery/`, `files/`, `inbox/` or a dotfile is moved into
 `inbox/` — by the watcher while the app runs, and at startup for anything that arrived
 while it was closed. A directory dropped there is taken in whole: its files are renamed
 to uuids, and **it is not preserved as a folder**, because only a first import reads
@@ -742,7 +742,7 @@ The point is reclaiming storage, so the interface leads with numbers.
 editable, wrapping HandBrakeCLI arguments for video and encoder settings for images.
 Ship sensible defaults; the settings screen exposes the raw arguments for tuning.
 
-Compressed output is written to `.gallery/pending/`. The original is untouched until you
+Compressed output is written to `.ggallery/pending/`. The original is untouched until you
 decide. Every result goes to **Pending Review** — nothing is ever replaced automatically.
 
 ### Pending Review
@@ -829,7 +829,7 @@ operation as one step. This is what makes fast triage comfortable.
 
 **Command palette** — `Ctrl+K`. Folders, saved searches, settings, and every action.
 
-**Trash** — soft delete. Files move to `.gallery/trash/` preserving their relative path;
+**Trash** — soft delete. Files move to `.ggallery/trash/` preserving their relative path;
 the database row keeps a `deleted_at`. Restorable until purged.
 
 **Nothing is keyboard-only.** Every action has a visible control; keys are a second path to
@@ -853,7 +853,7 @@ Rose, Moss, Amber. Fixed rather than free so every value is contrast-checked aga
 same greys. Green and red are reserved for meaning — kept, saved, deleted, failed — and are
 never the accent. Locked decision 24.
 
-**Single instance** — a lock file in `.gallery/` prevents two copies opening the same
+**Single instance** — a lock file in `.ggallery/` prevents two copies opening the same
 library.
 
 **Blur toggle** — one key blurs every thumbnail and preview instantly, and un-blurs on
@@ -917,7 +917,7 @@ collide once folded are merged rather than suffixed.
 **It is part of the startup flow, not a dialog over the app.** The sequence is full-window
 screens, in the same visual language as the folder picker — no modal floating above a grid
 that is already loading thumbnails of files about to be renamed. Nothing is indexed, no
-thumbnail is generated, and no `.gallery/` content is written until the rename has run.
+thumbnail is generated, and no `.ggallery/` content is written until the rename has run.
 The library is normalised first, then opened.
 
 ```
@@ -1003,7 +1003,7 @@ reflected in the grid without a refresh:
 Progress surfaces as a transient readout — *Indexing 42 items…* — that goes away on its
 own. It never blocks, and it never needs dismissing.
 
-`.gallery/` is excluded from watching, and paths the app is itself mid-write on are
+`.ggallery/` is excluded from watching, and paths the app is itself mid-write on are
 suppressed so its own work does not feed back in.
 
 **Files still being written are left alone.** A large video copied in from Explorer

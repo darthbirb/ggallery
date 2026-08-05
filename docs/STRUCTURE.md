@@ -83,7 +83,7 @@ db/
   journal.rs          undo stack. M1.6 adds the one writer renames need;
                       M4 adds the rest (move, trash, tag) and the replayer behind Ctrl+Z
   settings.rs         M1.6 — the generic `setting` table's first real use: `imported_at`
-  backup.rs           M2.6 — rolling copies of library.db into .gallery/backups/.
+  backup.rs           M2.6 — rolling copies of library.db into .ggallery/backups/.
                       Load-bearing since decision 30: the database is the only
                       structured copy of the organisation, `library.jsonl` the only
                       other copy of any kind

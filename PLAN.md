@@ -235,7 +235,7 @@ folder holds everything, so backup is "copy the folder".
     **What this gives up is the redundant copy.** A lost database used to leave the
     directory tree behind as a readable record of the organisation. Two things buy that
     back, and they are load-bearing rather than nice to have: `library.jsonl` becomes the
-    rebuild path rather than a convenience, and `.gallery/backups/` keeps rolling copies
+    rebuild path rather than a convenience, and `.ggallery/backups/` keeps rolling copies
     of the database. This is a net improvement, because a corrupt database today loses
     every tag while the folders survive — the tree was never a backup of the *whole*
     organisation, only of its skeleton.
@@ -307,7 +307,7 @@ alive.
 
 ```
 <root>/
-  .gallery/
+  .ggallery/
     library.db            ← SQLite, WAL, checkpointed on exit
     library.jsonl         ← plaintext export, and the rebuild path
     backups/              ← rolling copies of library.db
@@ -336,7 +336,7 @@ relocates it; it is safe to delete at any time.
 folder path, title, tags and labels, plus one record per folder. **It is the rebuild
 path, not a convenience** — since rule 30 the database is the only structured copy of
 the organisation, so the plaintext one has to be complete enough to reconstruct it, and
-readable in Notepad when it matters. `.gallery/backups/` keeps rolling copies of the
+readable in Notepad when it matters. `.ggallery/backups/` keeps rolling copies of the
 database itself for the same reason.
 
 ---
@@ -363,7 +363,7 @@ Root picker, filesystem walk, BLAKE3 hashing, metadata extraction, thumbnail and
 generation, persistent job queue, folder tree, the real grid.
 
 **M1 must not modify a single file inside the library root.** It reads, indexes, and
-writes only into `.gallery/`. Files keep whatever names they already have — content hash
+writes only into `.ggallery/`. Files keep whatever names they already have — content hash
 is identity, so the rename can happen later and everything re-links by hash. This means
 the first version can be pointed at a real 300GB library with zero risk, and any bug
 found in indexing costs nothing.
@@ -417,7 +417,7 @@ revised [docs/DESIGN.md](docs/DESIGN.md#first-import) §10:
 - **Full-window screens, not a modal.** Choose folder → Review → Progress → Gallery, in
   the picker's visual language. The import currently renders over a gallery that is already
   indexing and generating thumbnails for files it is about to rename.
-- **Nothing is written before the rename.** No indexing, no thumbnails, no `.gallery/`
+- **Nothing is written before the rename.** No indexing, no thumbnails, no `.ggallery/`
   content until the library has been normalised. The order becomes rename, then index.
 - **Two screens, one checkbox.** Scan, dry run, backup prompt, execute and verify collapse
   into a single Review screen — counts, a five-row before/after sample, one backup
@@ -447,8 +447,8 @@ The parts that need care, none of which are the watching itself:
 - **Settling.** A file copied in from Explorer emits events long before it is complete.
   Wait for size and mtime to stop changing before hashing. Indexing a half-copied file
   records a hash for something that will not exist a second later.
-- **Self-suppression.** The app renames files and writes into `.gallery/`. Exclude
-  `.gallery/` from the watch, and suppress paths the app is mid-write on, or the watcher
+- **Self-suppression.** The app renames files and writes into `.ggallery/`. Exclude
+  `.ggallery/` from the watch, and suppress paths the app is mid-write on, or the watcher
   feeds its own work back to itself.
 - **Overflow.** Windows drops notifications when too many arrive at once and reports the
   overflow. On overflow or watcher error, run a full reconcile walk and say so in the
@@ -569,7 +569,7 @@ Specified in [docs/DESIGN.md](docs/DESIGN.md) §1 *Folder operations*, *Item ope
   subtree because inherited tags are recomputed from the new ancestry.
 - **Move items** between folders — real file move, `folder_id` update, tag-cache rebuild.
   *(M2.6 drops the file move; the location is derived from the uuid.)*
-- **Delete** to `.gallery/trash/` with relative paths preserved. Never a hard delete; this
+- **Delete** to `.ggallery/trash/` with relative paths preserved. Never a hard delete; this
   pulls `fs/trash.rs` forward from M4.
 - **Delete items** from the grid, not only from triage and theatre view.
 - **Reveal in Explorer** and **open with the default application** — the escape hatches an
@@ -705,7 +705,7 @@ and which would otherwise have been built against paths and then rebuilt.
   again and should reuse M1.5's shape.
 - **`inbox/`**, watched, replacing the watched library root.
 - **`library.jsonl` becomes the rebuild path** — complete enough to reconstruct the
-  database, folders included, not just items. Plus rolling `.gallery/backups/`.
+  database, folders included, not just items. Plus rolling `.ggallery/backups/`.
 - **Repair the records the old model broke**, including folders left pointing at
   directories that no longer exist after a move.
 
@@ -730,7 +730,7 @@ siblings colliding once folded are merged rather than suffixed. Specified in
 carrying that title, and nothing is inferred from how the title is written.
 
 **The library root is a hot zone**, and M2.6 made it one without writing it down. Anything
-appearing at the top level that is not `.gallery/`, `files/`, `inbox/` or a dotfile is
+appearing at the top level that is not `.ggallery/`, `files/`, `inbox/` or a dotfile is
 swept into `inbox/` and taken in — by the watcher while running, at startup otherwise.
 A directory dropped there is dissolved into its files; only a first import reads structure
 out of directories. There is no undo. It is the right default, because a file rotting

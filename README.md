@@ -42,7 +42,7 @@ registry, nothing to `%APPDATA%`, and runs from a USB stick if you want it to.
 
 **The library** — a folder somewhere else on your disk that holds all your media, chosen
 by you the first time you run the app. Everything the app knows lives inside it, in a
-`.gallery/` subfolder: the database, the thumbnail cache, the trash, the plaintext
+`.ggallery/` subfolder: the database, the thumbnail cache, the trash, the plaintext
 backup export. Backing up is copying that one folder.
 
 Moving to a new machine is therefore: download the exe, copy your library folder, point
@@ -56,7 +56,7 @@ GGallery/                     ← this repo, anywhere
   tools/                      ← ffmpeg, HandBrakeCLI, yt-dlp, gallery-dl
 
 D:\MyMedia\                   ← your library, anywhere else, chosen on first run
-  .gallery/                   ← database, cache, trash, backups — all app state
+  .ggallery/                   ← database, cache, trash, backups — all app state
   files/                      ← every file, flat, sharded by uuid
     a3/a3f2c1d4-….jpg
   inbox/                      ← drop files here from Explorer
@@ -65,7 +65,7 @@ D:\MyMedia\                   ← your library, anywhere else, chosen on first r
 **There are no folders on disk.** Your folder hierarchy is data in the database, not
 directories — which is what makes moving and renaming folders instant and undoable, and
 what frees folder names from everything Windows forbids in a path. `library.jsonl` in
-`.gallery/` is the plaintext copy of that structure, readable in Notepad, and the
+`.ggallery/` is the plaintext copy of that structure, readable in Notepad, and the
 database can be rebuilt from it.
 
 ---
@@ -128,7 +128,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 ### First run
 
-Launch the exe and choose your library folder. The app creates `.gallery/` inside it,
+Launch the exe and choose your library folder. The app creates `.ggallery/` inside it,
 walks the tree, and starts indexing: hashing each file, reading its dimensions and
 capture date, and generating a thumbnail. The grid fills in as it goes, and the folder
 tree and counts appear alongside it. Re-running the index later is incremental —

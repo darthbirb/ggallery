@@ -1,7 +1,7 @@
 # Data model
 
 SQLite, WAL mode, checkpointed to a single file on clean exit. Lives at
-`<root>/.gallery/library.db`.
+`<root>/.ggallery/library.db`.
 
 **All paths are relative to root, forward slashes, normalised case.** No absolute path
 ever enters the database.
@@ -81,7 +81,7 @@ CREATE TABLE item (
   favorite     INTEGER NOT NULL DEFAULT 0,
   notes        TEXT,
   phash        BLOB,
-  deleted_at   INTEGER,                     -- soft delete → .gallery/trash
+  deleted_at   INTEGER,                     -- soft delete → .ggallery/trash
   derived_from INTEGER REFERENCES item(id), -- compression lineage
   download_id  INTEGER REFERENCES download(id)
 );
@@ -218,7 +218,7 @@ CREATE TABLE compression (
   id             INTEGER PRIMARY KEY,
   item_id        INTEGER NOT NULL REFERENCES item(id),
   preset         TEXT    NOT NULL,
-  pending_path   TEXT,               -- under .gallery/pending
+  pending_path   TEXT,               -- under .ggallery/pending
   orig_size      INTEGER NOT NULL,
   new_size       INTEGER,
   status         TEXT    NOT NULL,   -- running | pending_review | kept | rejected
@@ -379,5 +379,5 @@ bar stays directly editable, and it is always the reason the grid holds what it 
   so it must be sufficient to rebuild the database rather than merely helpful — folders
   included, not just items. It doubles as the disaster-recovery record of what the
   first-import rename did; see docs/DESIGN.md#first-import.
-- **`.gallery/backups/`** keeps rolling copies of `library.db`, for the same reason.
+- **`.ggallery/backups/`** keeps rolling copies of `library.db`, for the same reason.
   Cheap: the database is small next to the media it describes.
