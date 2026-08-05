@@ -12,7 +12,12 @@ use crate::error::{AppError, Result};
 
 /// Name of the app-owned directory inside the library root. The only place
 /// M1 is allowed to write.
-pub const GALLERY_DIR: &str = ".gallery";
+pub const GGALLERY_DIR: &str = ".ggallery";
+
+/// The name this directory carried before the app had one of its own —
+/// `gallery` was a placeholder. Referenced only by [`LibraryPaths::migrate_legacy_dir`],
+/// the one-time rename that catches up a library created before this change.
+const LEGACY_GALLERY_DIR: &str = ".gallery";
 
 #[derive(Debug, Clone)]
 pub struct LibraryPaths {
@@ -28,24 +33,55 @@ impl LibraryPaths {
         &self.root
     }
 
-    pub fn gallery_dir(&self) -> PathBuf {
-        self.root.join(GALLERY_DIR)
+    pub fn ggallery_dir(&self) -> PathBuf {
+        self.root.join(GGALLERY_DIR)
+    }
+
+    fn legacy_gallery_dir(&self) -> PathBuf {
+        self.root.join(LEGACY_GALLERY_DIR)
+    }
+
+    /// Catches up a library created before the app-owned directory was named
+    /// after the app: renames `.gallery/` to `.ggallery/` in one atomic,
+    /// same-volume move. Must run before anything else touches the root —
+    /// in particular before [`ensure_dirs`](Self::ensure_dirs), which would
+    /// otherwise create a fresh, empty `.ggallery/` and strand the real one.
+    ///
+    /// A library carrying both directories is a state that should never
+    /// exist — this refuses to guess which one is current rather than
+    /// silently opening one and stranding the other's tags and folders.
+    pub fn migrate_legacy_dir(&self) -> Result<()> {
+        let legacy = self.legacy_gallery_dir();
+        let current = self.ggallery_dir();
+        match (legacy.is_dir(), current.is_dir()) {
+            (true, true) => Err(AppError::invalid(format!(
+                "{} has both {} and {} — remove or merge one by hand before opening it",
+                self.root.display(),
+                LEGACY_GALLERY_DIR,
+                GGALLERY_DIR
+            ))),
+            (true, false) => {
+                std::fs::rename(&legacy, &current)?;
+                Ok(())
+            }
+            (false, _) => Ok(()),
+        }
     }
 
     pub fn db_path(&self) -> PathBuf {
-        self.gallery_dir().join("library.db")
+        self.ggallery_dir().join("library.db")
     }
 
     pub fn lock_path(&self) -> PathBuf {
-        self.gallery_dir().join("lock")
+        self.ggallery_dir().join("lock")
     }
 
     pub fn jsonl_path(&self) -> PathBuf {
-        self.gallery_dir().join("library.jsonl")
+        self.ggallery_dir().join("library.jsonl")
     }
 
     pub fn cache_dir(&self) -> PathBuf {
-        self.gallery_dir().join("cache")
+        self.ggallery_dir().join("cache")
     }
 
     pub fn thumbs_dir(&self) -> PathBuf {
@@ -57,15 +93,15 @@ impl LibraryPaths {
     }
 
     pub fn trash_dir(&self) -> PathBuf {
-        self.gallery_dir().join("trash")
+        self.ggallery_dir().join("trash")
     }
 
     pub fn pending_dir(&self) -> PathBuf {
-        self.gallery_dir().join("pending")
+        self.ggallery_dir().join("pending")
     }
 
     pub fn backups_dir(&self) -> PathBuf {
-        self.gallery_dir().join("backups")
+        self.ggallery_dir().join("backups")
     }
 
     /// Every file in the library, sharded by uuid (PLAN.md decision 30).
@@ -85,7 +121,7 @@ impl LibraryPaths {
     /// Create the app-owned directory tree. Touches nothing else in the root.
     pub fn ensure_dirs(&self) -> Result<()> {
         for dir in [
-            self.gallery_dir(),
+            self.ggallery_dir(),
             self.cache_dir(),
             self.thumbs_dir(),
             self.sprites_dir(),
@@ -147,10 +183,10 @@ impl LibraryPaths {
         self.sprites_dir().join(shard(uuid))
     }
 
-    /// True for anything under `<root>/.gallery` — the app's own storage,
+    /// True for anything under `<root>/.ggallery` — the app's own storage,
     /// never indexed as library content.
-    pub fn is_gallery_dir(&self, abs: &Path) -> bool {
-        abs.starts_with(self.gallery_dir())
+    pub fn is_ggallery_dir(&self, abs: &Path) -> bool {
+        abs.starts_with(self.ggallery_dir())
     }
 }
 
@@ -249,6 +285,56 @@ pub fn parse_uuid_disk_name(name: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn scratch(name: &str) -> PathBuf {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("test-libraries")
+            .join(name);
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).expect("create scratch library");
+        root
+    }
+
+    #[test]
+    fn migrate_legacy_dir_renames_gallery_to_ggallery() {
+        let root = scratch("paths-migrate-legacy");
+        std::fs::create_dir_all(root.join(".gallery")).unwrap();
+        std::fs::write(root.join(".gallery/library.db"), b"db bytes").unwrap();
+
+        let paths = LibraryPaths::new(&root);
+        paths.migrate_legacy_dir().unwrap();
+
+        assert!(!root.join(".gallery").exists());
+        assert!(paths.ggallery_dir().is_dir());
+        assert!(paths.db_path().is_file());
+    }
+
+    #[test]
+    fn migrate_legacy_dir_is_a_no_op_with_nothing_or_already_migrated() {
+        let root = scratch("paths-migrate-legacy-noop");
+        let paths = LibraryPaths::new(&root);
+        paths.migrate_legacy_dir().unwrap();
+        assert!(!paths.ggallery_dir().exists());
+
+        std::fs::create_dir_all(paths.ggallery_dir()).unwrap();
+        paths.migrate_legacy_dir().unwrap();
+        assert!(paths.ggallery_dir().is_dir());
+    }
+
+    #[test]
+    fn migrate_legacy_dir_refuses_to_guess_when_both_exist() {
+        let root = scratch("paths-migrate-legacy-both");
+        std::fs::create_dir_all(root.join(".gallery")).unwrap();
+        std::fs::create_dir_all(root.join(".ggallery")).unwrap();
+
+        let paths = LibraryPaths::new(&root);
+        let err = paths.migrate_legacy_dir().unwrap_err();
+        assert!(err.to_string().contains(".gallery"));
+        // Neither directory is touched — the caller has to resolve this by hand.
+        assert!(root.join(".gallery").is_dir());
+        assert!(root.join(".ggallery").is_dir());
+    }
 
     #[test]
     fn normalises_separators_and_case() {

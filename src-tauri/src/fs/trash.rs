@@ -1,5 +1,5 @@
 //! Soft delete. Deleting a folder or a selection of items never hard-deletes:
-//! the file moves into `.gallery/trash/`, and the database row is
+//! the file moves into `.ggallery/trash/`, and the database row is
 //! soft-deleted (`deleted_at`) rather than removed.
 //!
 //! **Shard-based since PLAN.md §M2.6** — keyed by uuid, not by a mirrored

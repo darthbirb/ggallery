@@ -63,6 +63,7 @@ impl Library {
         }
 
         let paths = LibraryPaths::new(root);
+        paths.migrate_legacy_dir()?;
         paths.ensure_dirs()?;
 
         // Single instance per library, per DESIGN.md. Two copies of the app
@@ -176,7 +177,7 @@ impl Library {
     }
 }
 
-/// `.gallery/lock`, held open with no sharing. The file's existence means
+/// `.ggallery/lock`, held open with no sharing. The file's existence means
 /// nothing; the exclusive handle is the lock, so a crash releases it.
 struct LockFile {
     _file: std::fs::File,
@@ -417,6 +418,15 @@ fn build_window(app: &AppHandle) -> Result<()> {
         // (tauri-apps/tauri#12285) — not a guaranteed fix, the best
         // available lever.
         .shadow(true)
+        // WebView2 intercepts drag events for its own OS file-drop handling
+        // by default, which silently swallows the frontend's HTML5
+        // `draggable`/`dragover`/`drop` — the mechanism M2.5b's tile → folder
+        // drags need. Tauri's own doc comment on this method: "required to
+        // use HTML5 drag and drop APIs on the frontend on Windows." Nothing
+        // in this app depends on the native OS drop handler it disables —
+        // files arrive through the watched `inbox/`, not a webview drop
+        // event — so there is no behaviour to lose.
+        .disable_drag_drop_handler()
         // Kept invisible until the decorations toggle below has run, so the
         // trick never flashes a titlebar into view on the way up.
         .visible(false);

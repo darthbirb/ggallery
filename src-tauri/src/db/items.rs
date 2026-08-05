@@ -418,7 +418,7 @@ pub fn set_folder(conn: &Connection, id: i64, folder_id: Option<i64>) -> Result<
 
 /// The delete operation's DB half — reuses the same soft-delete column the
 /// reconcile sweep already uses for a file that vanished from disk.
-/// `fs::trash` has already moved the file into `.gallery/trash/` by the time
+/// `fs::trash` has already moved the file into `.ggallery/trash/` by the time
 /// this runs.
 pub fn trash_one(conn: &Connection, id: i64) -> Result<()> {
     conn.execute(
@@ -429,7 +429,7 @@ pub fn trash_one(conn: &Connection, id: i64) -> Result<()> {
 }
 
 /// Undo's half of `trash_one` — `fs::undo` has already moved the file back
-/// out of `.gallery/trash/` by the time this runs.
+/// out of `.ggallery/trash/` by the time this runs.
 pub fn restore_one(conn: &Connection, id: i64) -> Result<()> {
     conn.execute("UPDATE item SET deleted_at = NULL WHERE id = ?1", params![id])?;
     Ok(())

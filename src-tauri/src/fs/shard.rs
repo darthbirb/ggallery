@@ -68,7 +68,7 @@ fn shard_dir(uuid: &str) -> &str {
 }
 
 /// `<uuid>, <ext>` → `<xx>/<uuid>.<ext>`, relative to whichever root
-/// (`files/` or `.gallery/trash/`) the caller joins it against.
+/// (`files/` or `.ggallery/trash/`) the caller joins it against.
 pub fn item_rel(uuid: &str, ext: &str) -> String {
     format!("{}/{uuid}.{ext}", shard_dir(uuid))
 }
@@ -484,14 +484,14 @@ pub fn verify(paths: &LibraryPaths, conn: &Connection, full_hash_sweep: bool) ->
 
 // --- old directories, left alone -------------------------------------------
 
-/// Every directory under the root that is now empty, except `.gallery/`,
+/// Every directory under the root that is now empty, except `.ggallery/`,
 /// `files/` and `inbox/` themselves. Report-only — nothing here deletes
 /// anything. Walked deepest-first so a directory that is empty only because
 /// its own now-empty children were already counted is still recognised
 /// correctly by a caller that removes bottom-up.
 pub fn count_empty_dirs(paths: &LibraryPaths) -> Result<i64> {
     let mut keep: HashSet<PathBuf> = HashSet::new();
-    keep.insert(paths.gallery_dir());
+    keep.insert(paths.ggallery_dir());
     keep.insert(paths.files_dir());
     keep.insert(paths.inbox_dir());
 
@@ -507,7 +507,7 @@ pub fn count_empty_dirs(paths: &LibraryPaths) -> Result<i64> {
     // (skip descending by intercepting a directory *before* its contents are
     // visited), which does not compose with `contents_first`'s post-order
     // traversal — by the time a filtered directory would be yielded, walkdir
-    // has already descended into it. `.gallery`/`files`/`inbox` are excluded
+    // has already descended into it. `.ggallery`/`files`/`inbox` are excluded
     // inside the loop instead.
     let walker = walkdir::WalkDir::new(paths.root()).min_depth(1).contents_first(true);
 

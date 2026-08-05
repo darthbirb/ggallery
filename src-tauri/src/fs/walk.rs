@@ -58,7 +58,7 @@ pub struct RootSweepReport {
 }
 
 /// Move every top-level entry in the library root — apart from the app's own
-/// `.gallery`, `files` and `inbox` — into `inbox/`. One `rename` per entry,
+/// `.ggallery`, `files` and `inbox` — into `inbox/`. One `rename` per entry,
 /// so a whole pre-existing directory tree moves in a single atomic step
 /// regardless of how many files are nested inside it. Idempotent for free:
 /// an entry no longer at the root (already swept by an earlier pass) is

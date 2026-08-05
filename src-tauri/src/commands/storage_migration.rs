@@ -40,6 +40,7 @@ fn open_pre_migration(path: &str) -> Result<(LibraryPaths, rusqlite::Connection)
         return Err(AppError::invalid(format!("{} is not a folder", root.display())));
     }
     let paths = LibraryPaths::new(root);
+    paths.migrate_legacy_dir()?;
     let conn = db::open(&paths.db_path())?;
     Ok((paths, conn))
 }

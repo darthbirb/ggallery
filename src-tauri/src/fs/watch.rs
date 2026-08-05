@@ -162,7 +162,7 @@ impl Pending {
 
 /// Which of the two watched trees `path` belongs to, or `None` for something
 /// neither side cares about — OS litter, a hidden entry, or the app's own
-/// `.gallery`/`files`/`inbox` showing up in the *root*'s shallow watch (the
+/// `.ggallery`/`files`/`inbox` showing up in the *root*'s shallow watch (the
 /// same names are legitimate content once they are nested under `inbox/`
 /// instead, which is why this is not just a name check on its own).
 fn classify(paths: &LibraryPaths, path: &Path) -> Option<PendingKind> {
@@ -474,7 +474,7 @@ mod tests {
         let root = scratch("watch-classify-reserved");
         let (paths, _conn) = open_db(&root);
 
-        assert_eq!(classify(&paths, &paths.gallery_dir()), None);
+        assert_eq!(classify(&paths, &paths.ggallery_dir()), None);
         assert_eq!(classify(&paths, &paths.files_dir()), None);
         assert_eq!(classify(&paths, &paths.inbox_dir()), None);
     }

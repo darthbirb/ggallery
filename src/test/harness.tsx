@@ -13,11 +13,13 @@ import { DialogsProvider } from "../features/menus/Dialogs";
 import { OperationsProvider } from "../features/menus/operations";
 import type {
   BreadcrumbCrumb,
+  FolderDetail,
   FolderNode,
   GridItem,
   ItemDetail,
   LibraryInfo,
 } from "../lib/types";
+import { DndProvider } from "../state/dnd";
 import type { LibraryController, Scope } from "../state/library";
 import type { SelectionController } from "../state/selection";
 import { ToastProvider } from "../state/toasts";
@@ -107,12 +109,34 @@ export function itemDetail(over: Partial<ItemDetail> = {}): ItemDetail {
   };
 }
 
+export function folderDetail(over: Partial<FolderDetail> = {}): FolderDetail {
+  return {
+    id: 1,
+    title: "Trips",
+    parentId: 100,
+    status: "active",
+    favorite: false,
+    notes: null,
+    lastAddedAt: null,
+    directCount: 4,
+    totalCount: 12,
+    subfolderCount: 2,
+    archetypeId: null,
+    archetypeName: null,
+    fields: [],
+    flags: [],
+    coverThumb: null,
+    coverItemId: null,
+    ...over,
+  };
+}
+
 export function libraryInfo(): LibraryInfo {
   return {
     root: "D:/Library",
     name: "Library",
-    thumbsDir: "D:/Library/.gallery/cache/thumbs",
-    spritesDir: "D:/Library/.gallery/cache/sprites",
+    thumbsDir: "D:/Library/.ggallery/cache/thumbs",
+    spritesDir: "D:/Library/.ggallery/cache/sprites",
     itemCount: 12,
     folderCount: 2,
     ffmpeg: "ffmpeg",
@@ -193,7 +217,9 @@ export function renderWithProviders(
         <TooltipProvider>
           <ToastProviderRoot>
             <OperationsProvider library={library} selection={selection}>
-              <DialogsProvider folders={library.folders}>{ui}</DialogsProvider>
+              <DialogsProvider folders={library.folders}>
+                <DndProvider>{ui}</DndProvider>
+              </DialogsProvider>
             </OperationsProvider>
           </ToastProviderRoot>
         </TooltipProvider>

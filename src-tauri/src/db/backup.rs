@@ -13,7 +13,7 @@ use crate::fs::paths::LibraryPaths;
 /// snapshots, not a full history.
 const KEEP: usize = 5;
 
-/// Copy the (already checkpointed) `library.db` into `.gallery/backups/`,
+/// Copy the (already checkpointed) `library.db` into `.ggallery/backups/`,
 /// timestamped, then prune down to the `KEEP` most recent. Called from
 /// `Library::close`, after `db::checkpoint` has collapsed the WAL — a
 /// mid-WAL copy would not be a single, restorable file.
