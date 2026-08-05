@@ -393,7 +393,9 @@ Two things M1.5 left in the wrong shape:
 - The wizard is a permanent "First import" button. It should be a step in opening a
   library that has never been imported — detected from the absence of an `imported_at`
   marker plus non-UUID filenames — and then gone from the interface. Settings keeps a
-  **Normalise filenames** action for the repair case.
+  **Normalise filenames** action for the repair case. *(M2.6 removed that action: an
+  item's location is now derived from its uuid, so "not yet renamed" stopped being a
+  state that can exist.)*
 - Nothing renames files that arrive *after* the import. Pull the wizard's per-file rename
   out of `fs/import.rs` so the indexer and watcher use it too: anything entering an
   imported library gets a UUID name as part of being indexed, silently, journalled, with
@@ -688,9 +690,9 @@ decisions 28 and 29, and DESIGN §2:
 - **Clicking an item while the pane is folded must open it**, once, and the grid's
   scrollbar must not paint over the folded strip.
 
-**M2.6 — folders as data.** Decision 30. Runs **before** M2.5b, which builds drag-to-move
-and inline folder creation — the exact operations whose meaning this changes, and which
-would otherwise be built against paths and then rebuilt.
+**M2.6 — folders as data. Built.** Decision 30. Ran **before** M2.5b, which builds
+drag-to-move and inline folder creation — the exact operations whose meaning this changes,
+and which would otherwise have been built against paths and then rebuilt.
 
 - **Schema.** `folder.rel_path` is dropped; identity is `id` and hierarchy is `parent_id`.
   `UNIQUE(parent_id, title)` replaces the path's uniqueness. `item.folder_id` becomes
@@ -710,6 +712,30 @@ would otherwise be built against paths and then rebuilt.
 Everything the filesystem used to enforce — forbidden characters, reserved device names,
 `MAX_PATH`, sibling collisions — leaves the codebase with it. M2.2 exists only as
 history after this.
+
+**M2.6a — import mirrors the tree.** The one thing M2.6 got wrong, found in use. Deleting
+the tree-walker left first import with nothing to discover, and the fix taken was to sweep
+every top-level entry into `inbox/` and let everything land in the Sorting Box — correct
+for a drop, wrong for an import. It discards, irreversibly and at the door, the entire
+organisation the user built before the app existed, and rebuilding it by hand afterwards
+is precisely the tedium the product exists to remove.
+
+A first import reads the directory tree once and turns it into folder records with the
+matching parentage, filing each file into the folder it was already in; only genuinely
+loose files reach the Sorting Box. Titles lowercase like any other (decision 31), and
+siblings colliding once folded are merged rather than suffixed. Specified in
+[docs/DESIGN.md](docs/DESIGN.md) §10.
+
+**This is not folder-name parsing**, which stays a non-goal: a directory becomes a folder
+carrying that title, and nothing is inferred from how the title is written.
+
+**The library root is a hot zone**, and M2.6 made it one without writing it down. Anything
+appearing at the top level that is not `.gallery/`, `files/`, `inbox/` or a dotfile is
+swept into `inbox/` and taken in — by the watcher while running, at startup otherwise.
+A directory dropped there is dissolved into its files; only a first import reads structure
+out of directories. There is no undo. It is the right default, because a file rotting
+unnoticed at the root is the worse failure, but it is a rule a person has to know and it
+now appears in DESIGN §4.
 
 **M2.5b — the sorting surfaces.** The pane's **Grid** and **Folders** modes, all three drop
 targets, spring-loading, and inline folder creation in the folder pane. **Depends on M2.6**:

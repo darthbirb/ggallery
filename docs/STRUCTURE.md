@@ -59,6 +59,9 @@ commands/             every #[tauri::command] lives here and nowhere else
                       not the library
   items.rs            paged queries, item metadata
   import.rs           M1.5 — scan, dry run, execute, verify for the UUID rename
+  storage_migration.rs
+                      M2.6 — the wizard for a library still in the old directory
+                      layout: manifest, dry run, resumable execute, verify
   folders.rs          CRUD, tags, archetypes, status, cover
   tags.rs             create, rename, merge, alias
   search.rs           run a parsed query
@@ -80,6 +83,10 @@ db/
   journal.rs          undo stack. M1.6 adds the one writer renames need;
                       M4 adds the rest (move, trash, tag) and the replayer behind Ctrl+Z
   settings.rs         M1.6 — the generic `setting` table's first real use: `imported_at`
+  backup.rs           M2.6 — rolling copies of library.db into .gallery/backups/.
+                      Load-bearing since decision 30: the database is the only
+                      structured copy of the organisation, `library.jsonl` the only
+                      other copy of any kind
 
 media/
   mod.rs              Kind, and extension classification
@@ -96,12 +103,18 @@ jobs/
 fs/
   mod.rs
   paths.rs            relative-path normalisation — see below
-  walk.rs             library indexer
-  import.rs           M1.5 — the UUID rename: scan, dry run, batched execute, verify.
-                      M1.6 adds `rename_on_arrival`, the per-file version the indexer
-                      (and, once M4 builds it, the watcher) calls for anything arriving
-                      after the library is marked imported
-  watch.rs            filesystem watcher
+  walk.rs             library indexer, the inbox drain, and `sweep_root_into_inbox` —
+                      the one function the watcher, reconcile and first import all
+                      call to move a stray top-level entry where it belongs
+  import.rs           first import only, since M2.6: read the directory tree into
+                      folder records, then hand every file to the inbox pipeline.
+                      Its other half — the database-backed rename repair behind
+                      Settings → Normalise filenames — is gone, because an item's
+                      location is now a function of its uuid and cannot fall behind
+  jsonl.rs            M2.6 — `library.jsonl`, debounced: every folder and every live
+                      item, written atomically. The rebuild path, not an export
+  watch.rs            filesystem watcher — `inbox/` recursively, plus the library
+                      root non-recursively for the sweep above
   relocate.rs         M2.1 — folder create/rename/move and item move. Was disk,
                       then database, then journal; M2.6 removes the disk half
                       entirely (decision 30), leaving row updates and the journal
@@ -199,10 +212,10 @@ features/             one folder per surface in DESIGN.md
   nav/                the navigation panel — roots, pinned, tree, searches, queues
   indexing/           index progress readout and the per-file failure list
   import/             M1.7 — the startup flow's full-window Review and Progress
-                      screens (Choose folder is the picker itself, in App.tsx),
-                      plus the Settings → Normalise filenames repair modal that
-                      reuses the same one-screen-review shape against an
-                      already-open library
+                      screens (Choose folder is the picker itself, in App.tsx).
+                      M2.6 adds `StorageMigrationScreen`, the same shape for a
+                      library still in the old directory layout, and removes the
+                      Normalise filenames modal along with the state it repaired
   settings/           ONE dialog with a left-hand section list — never one dialog
                       per subject. `SettingsPanel.tsx` owns the frame and the
                       switcher; `ArchetypesSection`, `StatusesSection` and
@@ -312,6 +325,9 @@ functions, so a backend signature change breaks at compile time in one place.
 | M2.1 | `fs/trash.rs` (pulled forward from M4), folder/item move and rename in `fs/`, `commands/folders` and `commands/items` extensions |
 | M2.5a | `features/nav`, `features/menus`, `features/pane` (Preview only), folder band in `features/folder`, `components/`, `state/toasts`, accent tokens, `fs/undo.rs`, `commands/triage::undo_batch`, `vitest` + `@testing-library/react` |
 | M2.5a.3 | `dev/KitchenSink.tsx` |
+| M2.5c | `components/{WindowBar,Mark}`, `features/pane/modeIcons` |
+| M2.5d | `components/Breadcrumb`, `lib/folders`, `fs/lowercase_migration.rs` |
+| M2.6 | `fs/shard.rs`, `fs/jsonl.rs`, `db/backup.rs`, `commands/storage_migration.rs`, `features/import/StorageMigrationScreen` — removes `features/import/NormaliseFilenamesModal`, `AppError::FolderMissing`, and every name-sanitising path in `fs/` |
 | M2.5b | `features/pane` Grid and Folders modes, drop targets, spring-loading |
 | M3 | `query/`, `commands/search`, `features/search` |
 | M4 | `commands/triage`, `db/journal` (move/trash/tag writers, the Ctrl+Z replayer), `fs/trash`, `features/triage` |

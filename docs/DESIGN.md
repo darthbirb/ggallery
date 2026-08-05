@@ -670,9 +670,22 @@ Items appear from:
 - **Dragging from Explorer** onto the window
 - **Downloads** (M5)
 - **Dropping files into `<root>/inbox/`** in Explorer — the watcher picks them up,
-  renames and shards them, and the file leaves `inbox/` as it is indexed. This is the one
+  renames and shards them, and the file leaves `inbox/` as it is indexed. This is the
   place on disk the user is meant to put things: `files/` is sharded by uuid, so putting
   something there by hand means nothing.
+- **Dropping files at the library root**, which is swept into `inbox/` and then treated
+  identically. Muscle memory says the library folder is where media goes, and a file that
+  sits at the root doing nothing is a silent failure — so the root behaves like the inbox
+  rather than like a place.
+
+**The library root is a hot zone, and that has to be said plainly.** Anything appearing at
+the top level that is not `.gallery/`, `files/`, `inbox/` or a dotfile is moved into
+`inbox/` — by the watcher while the app runs, and at startup for anything that arrived
+while it was closed. A directory dropped there is taken in whole: its files are renamed
+to uuids, and **it is not preserved as a folder**, because only a first import reads
+structure out of directories. There is no undo for this. It is the right default — the
+alternative is files quietly rotting at the root — but it means the library folder is not
+somewhere to park something temporarily.
 
 Files arriving at the root are renamed to UUIDs, hashed, thumbnailed, and checked against
 existing content hashes. Exact duplicates of something already in the library are flagged on
@@ -882,8 +895,24 @@ clean, or on a schedule if you are feeling careful.
 
 <a id="first-import"></a>
 
-Pointing the app at a library it has never seen renames every file to a UUID. It happens
-once, before the library is ever shown.
+Pointing the app at a library it has never seen renames every file to a UUID and moves it
+into `files/`. It happens once, before the library is ever shown.
+
+**The directory tree is read once, and becomes folders.** A first import is not simply a
+bulk `inbox/` drop: every directory in the imported tree becomes a folder record with the
+matching parentage, and each file is filed into the folder it was already in. Only files
+that were loose at the top level land in the Sorting Box.
+
+This is the one moment the app ever reads meaning out of a directory structure, and it is
+worth doing because it is the only moment the meaning still exists. Sweeping everything
+into the Sorting Box instead would discard, in a single irreversible step, the entire
+organisation the user built before the app existed — and asking them to rebuild it by
+hand afterwards is exactly the tedium the product exists to remove. *(This is not
+folder-name **parsing**, which stays a non-goal: a directory becomes a folder with that
+title, and nothing is inferred from how the title is written.)*
+
+Directory names arrive lowercased like every other title (decision 31), and siblings that
+collide once folded are merged rather than suffixed.
 
 **It is part of the startup flow, not a dialog over the app.** The sequence is full-window
 screens, in the same visual language as the folder picker — no modal floating above a grid
@@ -902,16 +931,16 @@ The library is normalised first, then opened.
 
 **Review** — one screen, and the only one that asks anything:
 
-- What was found: file count, total size, anything unreadable.
-- What will happen, in one sentence: files are renamed to UUIDs, original names are kept
-  and shown in each file's details.
-- A short before/after sample — five rows, not a full manifest.
+- What was found: file count, total size, folder count, anything unreadable.
+- What will happen, in one sentence: files are renamed to UUIDs and stored flat, the
+  folder structure is kept as folders, and original names are kept and shown in each
+  file's details.
 - One checkbox: *I have a backup of this folder.* Nothing proceeds without it.
 - **Cancel** returns to the folder picker. **Import** starts.
 
-**Progress** — rename, then index, then thumbnails, as one continuous readout. Verification
-runs here silently: a random sample is re-hashed and counts are confirmed, surfaced only if
-it fails.
+**Progress** — build the folders, then move and rename, then index, then thumbnails, as
+one continuous readout. Verification runs here silently: a random sample is re-hashed and
+counts are confirmed, surfaced only if it fails.
 
 Then the gallery opens.
 
@@ -937,9 +966,12 @@ This is why the backup checkbox is the one confirmation that stays.
 
 ### Repairing later
 
-Settings keeps a **Normalise filenames** action: it finds anything in the library that is
-not UUID-named and renames it, through the same single confirmation. That is for when
-something has drifted, not the normal path — see below.
+**There is no *Normalise filenames* action any more.** It existed because an item's name
+on disk could fall behind `<uuid>.<ext>` and need catching up. Since M2.6 an item's
+location *is* a function of its uuid — it is sharded the moment it is indexed — so "not
+yet renamed" is not a state that can exist. What is left is a different question: a file
+in `files/` with no row, or a row whose file has gone missing. That is a reconcile pass,
+not a rename, and it belongs with the integrity screen in M8.
 
 ### After the first import
 

@@ -190,8 +190,9 @@ docs/
 | M2.5a.2 | The rest of the finish — motion, cursors, one Settings dialog | Built |
 | M2.5a.3 | Build versus adopt — audited, nothing adopted, kitchen-sink route added | Built |
 | M2.5c | The shell decided — own window bar, the mark, nav footer, band rework | Built |
-| M2.5d | Follow-ups — lowercase, cursor zoom, footer count, folder breadcrumb | Next |
-| M2.6 | Folders as data — flat sharded storage, DB hierarchy, inbox | |
+| M2.5d | Follow-ups — lowercase, cursor zoom, footer count, folder breadcrumb | Built |
+| M2.6 | Folders as data — flat sharded storage, DB hierarchy, inbox | Built |
+| M2.6a | Import mirrors the tree — directories become folders, not Sorting Box | Next |
 | M2.5b | The sorting surfaces — pane grid and folder modes, drops | |
 | M2.9 | The nitpick pass — the whole interface reviewed in use, then fixed | |
 | M3 | Search — query parser, sectioned results | |
