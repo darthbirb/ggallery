@@ -1,6 +1,8 @@
 //! Job execution. Everything here runs on a worker thread with its own
 //! database connection — never on the Tauri command thread.
 
+use std::path::Path;
+
 use rusqlite::Connection;
 
 use crate::db;
@@ -52,51 +54,49 @@ fn run_index(ctx: &QueueInner, conn: &mut Connection) -> Result<()> {
     result.map(|_| ())
 }
 
-/// Read a settled file out of `inbox/`: hash it, probe it, create its row —
-/// always in the Sorting Box, since nothing in `inbox/` carries any
-/// organisational information worth keeping (PLAN.md decision 30) — and
-/// shard it into `files/`. An item never exists in a half-known state, and
-/// once this returns it never exists un-sharded either: there is no
-/// "renamed later" step any more, arrival and sharding are the same moment.
-pub fn run_hash(
+/// Hash, probe, insert and shard one file already sitting somewhere on
+/// disk — the whole of "arriving" distilled into a single step, whichever
+/// door the file came through: `inbox/` (`run_hash`, below) or a
+/// first-import tree walk (`fs::import::execute_prepared`). An item never
+/// exists in a half-known state, and once this returns it is sharded too —
+/// there is no separate "renamed later" step. `folder_id` is `None` for an
+/// inbox arrival (nothing in `inbox/` carries any organisational
+/// information worth keeping, PLAN.md decision 30) and whatever the caller
+/// resolved from the source tree for a first import (PLAN.md §M2.6a).
+pub fn index_file(
     paths: &LibraryPaths,
     tools: &Tools,
     conn: &mut Connection,
-    payload: HashPayload,
-) -> Result<()> {
-    let inbox_abs = paths.inbox_dir().join(&payload.inbox_rel);
-    let name = inbox_abs
-        .file_name()
-        .and_then(|n| n.to_str())
-        .ok_or_else(|| AppError::invalid("inbox arrival has no file name"))?
-        .to_string();
-
-    let meta = std::fs::metadata(&inbox_abs)?;
+    src: &Path,
+    orig_name: String,
+    folder_id: Option<i64>,
+) -> Result<i64> {
+    let meta = std::fs::metadata(src)?;
     let size = meta.len() as i64;
     let mtime = walk::mtime_secs(&meta);
     let created = walk::created_secs(&meta, mtime);
 
-    let ext = extension_of(&name);
-    let kind = Kind::classify(&inbox_abs, &ext);
+    let ext = extension_of(&orig_name);
+    let kind = Kind::classify(src, &ext);
 
-    let content_hash = hash::blake3_file(&inbox_abs)?;
-    let probed = probe::probe(&inbox_abs, kind, created, tools.ffmpeg.as_ref());
+    let content_hash = hash::blake3_file(src)?;
+    let probed = probe::probe(src, kind, created, tools.ffmpeg.as_ref());
 
-    // A file dropped into `inbox/` already carrying a `<uuid>.<ext>` name —
-    // most likely a leftover from an interrupted previous run — keeps its
-    // embedded identity rather than being issued a fresh one, so it re-links
-    // to whatever thumbnail or sprite may already exist for it.
-    let uuid = parse_uuid_disk_name(&name).unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    // A file that already carries a `<uuid>.<ext>` name — most likely a
+    // leftover from an interrupted previous run — keeps its embedded
+    // identity rather than being issued a fresh one, so it re-links to
+    // whatever thumbnail or sprite may already exist for it.
+    let uuid = parse_uuid_disk_name(&orig_name).unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
     let disk_name = format!("{uuid}.{ext}");
 
     let item_id = db::items::upsert(
         conn,
         &NewItem {
             uuid: uuid.clone(),
-            folder_id: None,
+            folder_id,
             disk_name,
             ext: ext.clone(),
-            orig_name: name,
+            orig_name,
             hash: content_hash,
             size_bytes: size,
             mtime,
@@ -112,7 +112,7 @@ pub fn run_hash(
     )?;
     db::tags::rebuild_item(conn, item_id)?;
 
-    shard::move_into_shard(paths, &inbox_abs, &uuid, &ext)?;
+    shard::move_into_shard(paths, src, &uuid, &ext)?;
 
     if kind != Kind::Other {
         crate::jobs::enqueue_thumb(conn, item_id)?;
@@ -120,6 +120,24 @@ pub fn run_hash(
     if kind == Kind::Video && probed.duration_ms.unwrap_or(0) > 0 {
         crate::jobs::enqueue_sprite(conn, item_id)?;
     }
+    Ok(item_id)
+}
+
+/// Read a settled file out of `inbox/` and index it into the Sorting Box.
+pub fn run_hash(
+    paths: &LibraryPaths,
+    tools: &Tools,
+    conn: &mut Connection,
+    payload: HashPayload,
+) -> Result<()> {
+    let inbox_abs = paths.inbox_dir().join(&payload.inbox_rel);
+    let name = inbox_abs
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| AppError::invalid("inbox arrival has no file name"))?
+        .to_string();
+
+    index_file(paths, tools, conn, &inbox_abs, name, None)?;
     Ok(())
 }
 

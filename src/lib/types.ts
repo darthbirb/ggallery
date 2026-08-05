@@ -133,6 +133,9 @@ export interface ReviewReport {
   byKind: KindTotal[];
   totalItems: number;
   totalBytes: number;
+  /** Directories that will become folder records — PLAN.md §M2.6a: the
+   *  directory tree is read once and mirrored into folders. */
+  folderCount: number;
   /** Entries the scan could not read at all. */
   unreadable: number;
 }
@@ -144,6 +147,7 @@ export interface FsMoveError {
 
 export interface FsExecuteReport {
   moved: number;
+  folders: number;
   errors: FsMoveError[];
 }
 

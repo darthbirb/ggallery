@@ -20,10 +20,8 @@ interface ReviewScreenProps {
  * checkbox. Everything the old six-step wizard asked across scan / dry run /
  * backup collapses into this, per docs/DESIGN.md#first-import.
  *
- * PLAN.md §M2.6: every file lands in the Sorting Box, not wherever its
- * existing directory implied — the existing tree stops meaning anything the
- * moment folders become database rows rather than directories, so there is
- * no folder count or before/after rename sample left worth showing here.
+ * PLAN.md §M2.6a: the directory tree is read once and mirrored into
+ * folders, so the folder count is real again and worth showing.
  */
 export function ReviewScreen({
   path,
@@ -49,10 +47,20 @@ export function ReviewScreen({
           <span className="font-semibold text-fg">
             {formatCount(report.totalItems)}
           </span>{" "}
-          file{report.totalItems === 1 ? "" : "s"} will be brought in. Each
-          one is renamed to a UUID as it's indexed — the original name is
-          kept and shown in its details — and lands in the Sorting Box, ready
-          to be filed into folders.
+          file{report.totalItems === 1 ? "" : "s"} will be brought in
+          {report.folderCount > 0 && (
+            <>
+              , kept in{" "}
+              <span className="font-semibold text-fg">
+                {formatCount(report.folderCount)}
+              </span>{" "}
+              folder{report.folderCount === 1 ? "" : "s"} matching the
+              existing directory structure
+            </>
+          )}
+          . Each one is renamed to a UUID as it's indexed — the original name
+          is kept and shown in its details. Anything loose at the top level
+          lands in the Sorting Box, ready to be filed.
         </p>
 
         <table className="w-full border-collapse text-left font-mono">

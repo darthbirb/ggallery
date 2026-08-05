@@ -21,9 +21,9 @@ use crate::AppState;
 const PROGRESS_EVENT: &str = "import-progress";
 
 /// The Choose-folder step's follow-through. Scans the picked folder directly
-/// — no job queue, no thumbnail, nothing written into `.gallery/` beyond the
-/// two trivial cases `fs::import::prepare` resolves on the spot (already
-/// imported, or nothing to rename).
+/// — no job queue, no thumbnail — beyond the two trivial cases
+/// `fs::import::prepare` resolves on the spot (already imported, or nothing
+/// found to import).
 #[tauri::command]
 pub async fn prepare_import(state: State<'_, AppState>, path: String) -> Result<ReviewReport> {
     let root = PathBuf::from(path);
@@ -35,10 +35,10 @@ pub async fn prepare_import(state: State<'_, AppState>, path: String) -> Result<
     Ok(report)
 }
 
-/// Rename everything `prepare_import` staged, then mark the library imported.
-/// Refuses to run without an explicit backup acknowledgement — the one
-/// interruption that stays, now that there is no reversal tooling to fall
-/// back on. See docs/DESIGN.md#first-import.
+/// Mirror the tree `prepare_import` staged into folder records and indexed
+/// items, then mark the library imported. Refuses to run without an explicit
+/// backup acknowledgement — the one interruption that stays, now that there
+/// is no reversal tooling to fall back on. See docs/DESIGN.md#first-import.
 #[tauri::command]
 pub async fn execute_prepared_import(
     app: AppHandle,
