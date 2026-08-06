@@ -202,16 +202,12 @@ export interface HarnessOptions {
   selection?: SelectionController;
 }
 
-/** Render inside the providers, so components under test get the real
- *  operations, dialogs and toast queue rather than mocks of them. */
-export function renderWithProviders(
+function wrapWithProviders(
   ui: ReactNode,
-  options: HarnessOptions = {},
-): RenderResult & { library: LibraryController; selection: SelectionController } {
-  const library = options.library ?? fakeLibrary();
-  const selection = options.selection ?? fakeSelection();
-
-  const result = render(
+  library: LibraryController,
+  selection: SelectionController,
+): ReactNode {
+  return (
     <UiProvider>
       <ToastProvider>
         <TooltipProvider>
@@ -224,8 +220,37 @@ export function renderWithProviders(
           </ToastProviderRoot>
         </TooltipProvider>
       </ToastProvider>
-    </UiProvider>,
+    </UiProvider>
   );
+}
 
-  return { ...result, library, selection };
+/** Render inside the providers, so components under test get the real
+ *  operations, dialogs and toast queue rather than mocks of them.
+ *
+ *  `rerenderWithProviders` re-renders new `ui` through the very same
+ *  providers rather than replacing them — needed for a test that simulates
+ *  a prop change (e.g. `refreshToken` bumping) and expects context-reading
+ *  components underneath to keep working. `RenderResult.rerender` on its
+ *  own would swap the whole tree, providers included, and every
+ *  `useOperations`-style hook below it would throw. */
+export function renderWithProviders(
+  ui: ReactNode,
+  options: HarnessOptions = {},
+): RenderResult & {
+  library: LibraryController;
+  selection: SelectionController;
+  rerenderWithProviders: (ui: ReactNode) => void;
+} {
+  const library = options.library ?? fakeLibrary();
+  const selection = options.selection ?? fakeSelection();
+
+  const result = render(wrapWithProviders(ui, library, selection));
+
+  return {
+    ...result,
+    library,
+    selection,
+    rerenderWithProviders: (next: ReactNode) =>
+      result.rerender(wrapWithProviders(next, library, selection)),
+  };
 }

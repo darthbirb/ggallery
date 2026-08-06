@@ -298,11 +298,23 @@ pub struct EffectiveTag {
     pub value: String,
     /// `None` for a manual tag; the contributing ancestor folder otherwise.
     pub origin_id: Option<i64>,
+    /// Whether the *contribution named by `origin_id`* is that folder's
+    /// title tag (`folder_tag.source = 'title'`) rather than a manual flag
+    /// or label — the same tag id can be one folder's title and another
+    /// folder's manual tag, so this is a fact about the contribution, not
+    /// about the tag. Always `false` for a manual tag. What a folder-name
+    /// tag is suppressed on, structurally, instead of comparing display
+    /// text against a breadcrumb.
+    pub origin_is_title: bool,
 }
 
 pub fn item_effective_tags(conn: &Connection, item_id: i64) -> Result<Vec<EffectiveTag>> {
     let mut stmt = conn.prepare(
-        "SELECT t.id, t.key, t.value, e.origin_id
+        "SELECT t.id, t.key, t.value, e.origin_id,
+                EXISTS(
+                  SELECT 1 FROM folder_tag ft
+                   WHERE ft.folder_id = e.origin_id AND ft.tag_id = e.tag_id AND ft.source = 'title'
+                ) AS origin_is_title
            FROM item_effective_tag e JOIN tag t ON t.id = e.tag_id
           WHERE e.item_id = ?1
           ORDER BY t.key IS NOT NULL, t.value COLLATE NOCASE",
@@ -314,6 +326,7 @@ pub fn item_effective_tags(conn: &Connection, item_id: i64) -> Result<Vec<Effect
                 key: r.get(1)?,
                 value: r.get(2)?,
                 origin_id: r.get(3)?,
+                origin_is_title: r.get(4)?,
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
@@ -341,11 +354,17 @@ pub fn folder_inherited_tags(conn: &Connection, folder_id: i64) -> Result<Vec<Ef
             params![tag_id],
             |r| Ok((r.get(0)?, r.get(1)?)),
         )?;
+        let source: String = conn.query_row(
+            "SELECT source FROM folder_tag WHERE folder_id = ?1 AND tag_id = ?2",
+            params![origin_id, tag_id],
+            |r| r.get(0),
+        )?;
         rows.push(EffectiveTag {
             tag_id,
             key,
             value,
             origin_id: Some(origin_id),
+            origin_is_title: source == "title",
         });
     }
     Ok(rows)
@@ -624,6 +643,67 @@ mod tests {
             .any(|t| t.key.as_deref() == Some("country")
                 && t.value == "portugal"
                 && t.origin_id == Some(people)));
+    }
+
+    #[test]
+    fn an_items_inherited_title_tag_is_marked_as_such() {
+        let conn = memory_conn();
+        let _people = folder(&conn, "people", "People");
+        let ana = folder(&conn, "people/ana", "Ana");
+        let item_id = item(&conn, ana, "photo.jpg");
+        rebuild_item(&conn, item_id).unwrap();
+
+        let tags = item_effective_tags(&conn, item_id).unwrap();
+        let ana_title = tags.iter().find(|t| t.value == "ana").unwrap();
+        assert!(ana_title.origin_is_title, "Ana's own title tag, inherited by its item");
+        assert!(ana_title.origin_id.is_some());
+    }
+
+    #[test]
+    fn a_closer_manual_duplicate_of_a_title_wins_and_is_not_marked_as_one() {
+        let conn = memory_conn();
+        let _people = folder(&conn, "people", "People");
+        let ana = folder(&conn, "people/ana", "Ana");
+        // A manual flag on Ana that happens to share People's own title text
+        // — a deliberate choice on Ana, not the ancestor's name leaking in.
+        // Item_effective_tag's `PRIMARY KEY (item_id, tag_id)` means only one
+        // contribution for this shared tag id can survive per item; the
+        // closer one (Ana's) does, same as `own_tag_wins_over_an_inherited_
+        // duplicate_of_the_same_value` above.
+        flag(&conn, ana, "people", "manual");
+
+        let item_id = item(&conn, ana, "photo.jpg");
+        rebuild_item(&conn, item_id).unwrap();
+
+        let tags = item_effective_tags(&conn, item_id).unwrap();
+        let surviving = tags.iter().find(|t| t.value == "people").unwrap();
+        assert_eq!(surviving.origin_id, Some(ana));
+        assert!(!surviving.origin_is_title, "the surviving contribution is Ana's manual flag, not People's title");
+    }
+
+    #[test]
+    fn a_folders_inherited_view_marks_a_title_contribution_but_not_a_same_text_manual_one() {
+        let conn = memory_conn();
+        let family = folder(&conn, "family", "Family");
+        let people = folder(&conn, "family/people", "People");
+        let ana = folder(&conn, "family/people/ana", "Ana");
+        // Unlike the item case, `folder_inherited_tags` does not collapse
+        // same-tag-id contributions from different ancestors — both stay
+        // visible, each correctly marked by its own origin.
+        flag(&conn, family, "people", "manual");
+
+        let inherited = folder_inherited_tags(&conn, ana).unwrap();
+        let title_contribution = inherited
+            .iter()
+            .find(|t| t.value == "people" && t.origin_id == Some(people))
+            .unwrap();
+        assert!(title_contribution.origin_is_title);
+
+        let manual_contribution = inherited
+            .iter()
+            .find(|t| t.value == "people" && t.origin_id == Some(family))
+            .unwrap();
+        assert!(!manual_contribution.origin_is_title);
     }
 
     #[test]

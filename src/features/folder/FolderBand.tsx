@@ -107,9 +107,9 @@ export function FolderBand({
   const [inherited, setInherited] = useState<EffectiveTag[]>([]);
 
   // The same breadcrumb the item details panel renders, the folder itself
-  // as the last crumb (docs/DESIGN.md §2). Only a real subfolder has
-  // ancestry above itself to show — a top-level folder's crumb would just
-  // repeat the title already set large in the header.
+  // as the last crumb (docs/DESIGN.md §2). A folder always shows where it
+  // sits, including a top-level one, where the answer is "at the top" — the
+  // crumb list there is just its own title, one entry.
   const crumbs = useMemo(
     () => (folder ? ancestorTitles(folders, folder.id) : []),
     [folders, folder],
@@ -278,10 +278,8 @@ export function FolderBand({
           <div className="min-w-0 flex-1">
             {/* Where this folder sits — and, since inherited labels below
                 come from these same ancestors, where they come from too.
-                A top-level folder has nothing above itself, so there is
-                nothing here to show beyond its own title, already large in
-                the header. */}
-            {crumbs.length > 1 && (
+                Always at least one entry: the folder itself. */}
+            {crumbs.length > 0 && (
               <div className="mb-1.5">
                 <Breadcrumb titles={crumbs} />
               </div>
@@ -441,7 +439,10 @@ function ChipRow({
   // the fixed, structural part reads first, ahead of whatever this folder
   // adds on top of it.
   const inheritedFields = inherited.filter((tag) => tag.key !== null);
-  const inheritedFlags = inherited.filter((tag) => tag.key === null);
+  // A folder-name tag never renders as a tag — same rule Details.tsx applies
+  // to an item, checked the same structural way (`originIsTitle`), not by
+  // comparing text against a breadcrumb.
+  const inheritedFlags = inherited.filter((tag) => tag.key === null && !tag.originIsTitle);
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">

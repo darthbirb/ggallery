@@ -411,7 +411,11 @@ mod tests {
             .into_iter()
             .map(|c| c.id)
             .collect();
-        assert_eq!(crumb, vec![people, ana], "parentage is preserved several levels deep");
+        assert_eq!(
+            crumb,
+            vec![people, ana, trip],
+            "parentage is preserved several levels deep, folder itself last"
+        );
 
         // Titles fold lowercase like any other (PLAN.md decision 31).
         let title: String = conn

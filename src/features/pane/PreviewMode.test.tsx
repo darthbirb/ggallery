@@ -175,10 +175,10 @@ describe("details", () => {
 
   it("expanded, adds the name, the dates, the source and the tags", async () => {
     mocked.itemEffectiveTags.mockResolvedValue([
-      { tagId: 1, key: null, value: "beach", originId: null },
+      { tagId: 1, key: null, value: "beach", originId: null, originIsTitle: false },
       // The folder's own auto title-tag, inherited — same as "Trips" showing
       // up as a real effective tag on every item inside it.
-      { tagId: 2, key: null, value: "Trips", originId: 5 },
+      { tagId: 2, key: null, value: "Trips", originId: 5, originIsTitle: true },
     ]);
     renderPreview({ detailsExpanded: true });
 
@@ -220,5 +220,22 @@ describe("details", () => {
     await waitFor(() =>
       expect(mocked.addItemTag).toHaveBeenCalledWith(7, "city", "lisbon"),
     );
+  });
+
+  it("ends the item's breadcrumb at its own folder, not the one above it", async () => {
+    mocked.getItem.mockResolvedValue(
+      itemDetail({
+        folderBreadcrumb: [
+          { id: 2, title: "People" },
+          { id: 1, title: "Trips" },
+        ],
+      }),
+    );
+    renderPreview({ detailsExpanded: true });
+
+    expect(await screen.findByText("People")).toBeInTheDocument();
+    // "Trips" is the item's own folder — the last crumb, not stopped short
+    // of it.
+    expect(await screen.findByText("Trips")).toBeInTheDocument();
   });
 });

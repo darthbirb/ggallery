@@ -129,17 +129,20 @@ export function DetailsBody({
 
   const crumbs = useMemo(() => item.folderBreadcrumb.map((crumb) => crumb.title), [item.folderBreadcrumb]);
 
-  // Every folder auto-tags itself with its own title (DATA-MODEL's "tag
-  // resolution"), which would otherwise repeat every crumb above as a
-  // second, tag-shaped copy of the same folder. Only an *inherited* flag is
-  // deduped against it — a manual one on this item that happens to share the
-  // text is a deliberate choice, not the folder leaking through, so it stays.
-  const crumbSet = useMemo(() => new Set(crumbs), [crumbs]);
   const fields = tags
     .filter((tag): tag is EffectiveTag & { key: string } => tag.key !== null)
     .sort((a, b) => compareInheritedFirst(a, b, (tag) => tag.key ?? ""));
+  // Every folder auto-tags itself with its own title (DATA-MODEL's "tag
+  // resolution"), which would otherwise repeat every crumb above as a
+  // second, tag-shaped copy of the same folder. Only an *inherited* flag is
+  // suppressed — a manual one on this item that happens to share the text is
+  // a deliberate choice, not the folder leaking through, so it stays. This is
+  // structural (`originIsTitle`, joined on the actual contribution), not a
+  // string comparison against the breadcrumb — the same tag id can be one
+  // folder's title and another folder's manual flag, and only the title
+  // contribution is suppressed.
   const flags = tags
-    .filter((tag) => tag.key === null && !(tag.originId !== null && crumbSet.has(tag.value)))
+    .filter((tag) => tag.key === null && !tag.originIsTitle)
     .sort((a, b) => compareInheritedFirst(a, b, (tag) => tag.value));
 
   return (

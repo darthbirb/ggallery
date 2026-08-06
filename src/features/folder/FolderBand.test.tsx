@@ -182,17 +182,34 @@ describe("expanded, with no archetype", () => {
 
   it("shows a parent folder's labels and flags, greyed and ahead of this folder's own", async () => {
     mocked.folderInheritedTags.mockResolvedValue([
-      { tagId: 9, key: null, value: "People", originId: 100 },
-      { tagId: 10, key: "country", value: "Portugal", originId: 100 },
+      { tagId: 9, key: null, value: "Family Trip", originId: 100, originIsTitle: false },
+      { tagId: 10, key: "country", value: "Portugal", originId: 100, originIsTitle: false },
     ]);
     renderBand({ expanded: true });
 
-    expect(await screen.findByText("People")).toBeInTheDocument();
+    expect(await screen.findByText("Family Trip")).toBeInTheDocument();
     expect(await screen.findByText("Portugal")).toBeInTheDocument();
     // Inherited, not this folder's own — there is nothing to remove or
     // rename here, so no aria-label offers to.
-    expect(screen.queryByRole("button", { name: "Remove People" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Remove Family Trip" })).toBeNull();
     expect(screen.queryByRole("button", { name: /country/ })).toBeNull();
+  });
+
+  it("never shows an ancestor's own folder-name tag as an inherited chip", async () => {
+    mocked.folderInheritedTags.mockResolvedValue([
+      // Folder 100's own title tag, inherited — must not render.
+      { tagId: 9, key: null, value: "People", originId: 100, originIsTitle: true },
+      // A different ancestor's manual flag that happens to say the same
+      // word — a deliberate choice, not the folder leaking through, so it
+      // stays.
+      { tagId: 9, key: null, value: "People", originId: 50, originIsTitle: false },
+    ]);
+    renderBand({ expanded: true });
+
+    await screen.findByText(/add label/);
+    // Only the manual contribution renders — the title contribution is
+    // suppressed structurally, not by comparing display text.
+    expect(screen.getAllByText("People")).toHaveLength(1);
   });
 
   it("edits an archetype field in place, as a chip beside the tags", async () => {
@@ -222,8 +239,11 @@ describe("expanded, with no archetype", () => {
     await waitFor(() => expect(mocked.addFolderFlag).toHaveBeenCalledWith(1, "summer"));
   });
 
-  it("commits a note typed into the growing line", async () => {
-    renderBand({ expanded: true });
+  it("keeps the note on screen after it is saved — a round trip, not just the write", async () => {
+    // Asserting only that `setFolderNotes` was called (the old shape of
+    // this test) passes even if the note is written but never re-read —
+    // exactly the bug this guards against.
+    const { rerenderWithProviders, library } = renderBand({ expanded: true });
 
     await userEvent.click(await screen.findByLabelText("Folder notes"));
     await userEvent.type(screen.getByLabelText("Folder notes"), "a real note");
@@ -232,6 +252,38 @@ describe("expanded, with no archetype", () => {
     await waitFor(() =>
       expect(mocked.setFolderNotes).toHaveBeenCalledWith(1, "a real note"),
     );
+    // The commit must ask the app to refetch, the same as every neighbouring
+    // folder operation already does.
+    expect(library.refreshFolders).toHaveBeenCalled();
+
+    // What that refetch produces in the real app: `refreshToken` bumps, and
+    // the next `getFolder` reflects the saved value.
+    mocked.getFolder.mockResolvedValueOnce(detail({ notes: "a real note" }));
+    const folder = folderNode({ status: "wip" });
+    rerenderWithProviders(
+      <FolderBand
+        folder={folder}
+        folders={[topLevelNode(), folder]}
+        scopeLabel="Everything"
+        itemCount={0}
+        statuses={[
+          { key: "active", label: "Active", colour: "#6b7280", ordinal: 0 },
+          { key: "wip", label: "WIP", colour: "#eab308", ordinal: 1 },
+        ]}
+        archetypes={[]}
+        expanded
+        onExpandedChange={vi.fn()}
+        thumbsDir="D:/thumbs"
+        refreshToken={1}
+        onOpen={vi.fn()}
+        tileHeight={132}
+        onTileHeightChange={vi.fn()}
+        recursive
+        onRecursiveChange={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText("a real note")).toBeInTheDocument();
   });
 });
 
@@ -246,11 +298,12 @@ describe("ancestry", () => {
     expect(screen.getAllByText("Trips")).toHaveLength(2);
   });
 
-  it("shows no breadcrumb for a top-level folder — nothing sits above itself", async () => {
+  it("shows its own crumb for a top-level folder — a folder always shows where it sits", async () => {
     const folder = folderNode({ parentId: null });
     renderBand({ folder, folders: [folder], expanded: true });
     await screen.findByText(/add label/);
-    expect(screen.getAllByText("Trips")).toHaveLength(1);
+    // Once in the header, once as the breadcrumb's single (and only) crumb.
+    expect(screen.getAllByText("Trips")).toHaveLength(2);
   });
 });
 

@@ -213,6 +213,10 @@ export interface EffectiveTag {
   value: string;
   /** `null` for a manual tag; the contributing ancestor folder otherwise. */
   originId: number | null;
+  /** Whether the contribution named by `originId` is that folder's title
+   *  tag rather than a manual flag or label — always `false` for a manual
+   *  tag. What a folder-name tag is suppressed on, structurally. */
+  originIsTitle: boolean;
 }
 
 // --- M2.1: folder/item operations, archetype and status management -------

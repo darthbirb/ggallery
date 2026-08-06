@@ -465,12 +465,18 @@ spent on an empty form. The rules that follow all come from that.
   context menu, not as a standing button competing with content.
 - **Favourite is a header control among the others**, not the heaviest thing in the band
   parked in the far corner.
-- **A subfolder shows its ancestry as a breadcrumb**, the same one the item details panel
-  uses, the folder itself included as the last crumb. Every crumb is a query term. Without
-  it the band names a folder and says nothing about where it sits, which matters more here
-  than for an item because the answer is also where the folder's inherited labels come
-  from — and those are rendered greyed in the same chip row, so their origin has to be
-  visible somewhere.
+- **Every folder shows its ancestry as a breadcrumb**, the same one the item details panel
+  uses, the folder itself included as the last crumb — always at least one entry, since a
+  top-level folder still sits somewhere, even if the answer is "at the top". Every crumb
+  is a query term. Without it the band names a folder and says nothing about where it
+  sits, which matters more here than for an item because the answer is also where the
+  folder's inherited labels come from — and those are rendered greyed in the same chip
+  row, so their origin has to be visible somewhere.
+- **A folder-name tag is never rendered as a tag**, in this row or in an item's. Every
+  folder auto-tags itself with its own title (§*Tags*), and that tag is inherited by
+  everything beneath it — showing it as a chip too would repeat the breadcrumb a second
+  time in tag shape. A manual tag that happens to share the same text is a deliberate
+  choice, not the folder leaking through, and still renders.
 
 **Design against the full case** — an archetype with five labels, eight tags and a real
 note — and let the empty one be that band with things missing. It must look right with **no
@@ -546,8 +552,11 @@ only comparison surface the app needs:
   **No position counter** — the strip already shows where you are, and `6 / 15` is a number
   nobody acts on.
 - **The pane header is the details header.** A chevron, the filename, and dimensions ·
-  size, opening **downwards** into duration, codec, dates, source URL and tags — inherited
-  greyed, manual solid. The media gives way; the filmstrip does not move.
+  size, opening **downwards** into duration, codec, dates, source URL, the item's folder
+  breadcrumb (folder itself last, per §2) and tags — inherited greyed, manual solid. An
+  inherited tag that is one of those folders' own name is never shown a second time as a
+  chip; a manual tag sharing the same text still is. The media gives way; the filmstrip
+  does not move.
 
   *(M2.5a.1 reversed this. Details first had a strip of their own above the filmstrip that
   grew upward, which left the pane with two headers and a band of chrome between the media

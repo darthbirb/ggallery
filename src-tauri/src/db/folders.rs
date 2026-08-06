@@ -112,10 +112,10 @@ pub fn tree(conn: &Connection) -> Result<Vec<FolderNode>> {
     Ok(nodes)
 }
 
-/// Root-first ancestry, not including `folder_id` itself — what the folder
-/// band and `ItemDetail`'s breadcrumb both render. Bounded by tree depth via
-/// the primary-key join on `folder.id`, same shape as
-/// `db::tags::resolve_ancestor_tags`.
+/// Root-first ancestry, including `folder_id` itself as the last crumb —
+/// what the folder band and `ItemDetail`'s breadcrumb both render (see
+/// docs/DESIGN.md §2). Bounded by tree depth via the primary-key join on
+/// `folder.id`, same shape as `db::tags::resolve_ancestor_tags`.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BreadcrumbCrumb {
@@ -131,7 +131,7 @@ pub fn breadcrumb(conn: &Connection, folder_id: i64) -> Result<Vec<BreadcrumbCru
              SELECT f.id, f.title, f.parent_id, a.depth + 1
                FROM folder f JOIN ancestry a ON f.id = a.parent_id
          )
-         SELECT id, title FROM ancestry WHERE id != ?1 ORDER BY depth DESC",
+         SELECT id, title FROM ancestry ORDER BY depth DESC",
     )?;
     let rows = stmt
         .query_map(params![folder_id], |r| Ok(BreadcrumbCrumb { id: r.get(0)?, title: r.get(1)? }))?
@@ -1169,6 +1169,34 @@ mod folder_metadata_tests {
             )
             .unwrap();
         assert_eq!(orphaned, 0, "the archetype's own field values are gone, not just hidden");
+    }
+
+    #[test]
+    fn breadcrumb_ends_at_the_folder_itself() {
+        let conn = memory_conn();
+        let f1 = create_record(&conn, None, "folder 1").unwrap();
+        let f2 = create_record(&conn, Some(f1), "folder 2").unwrap();
+        let f3 = create_record(&conn, Some(f2), "folder 3").unwrap();
+
+        let titles: Vec<String> = breadcrumb(&conn, f3)
+            .unwrap()
+            .into_iter()
+            .map(|c| c.title)
+            .collect();
+        assert_eq!(titles, vec!["folder 1", "folder 2", "folder 3"]);
+    }
+
+    #[test]
+    fn breadcrumb_of_a_top_level_folder_is_just_itself() {
+        let conn = memory_conn();
+        let f1 = create_record(&conn, None, "folder 1").unwrap();
+
+        let titles: Vec<String> = breadcrumb(&conn, f1)
+            .unwrap()
+            .into_iter()
+            .map(|c| c.title)
+            .collect();
+        assert_eq!(titles, vec!["folder 1"], "nothing sits above it, but it still shows where it sits");
     }
 
     #[test]
