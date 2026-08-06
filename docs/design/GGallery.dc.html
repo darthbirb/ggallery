@@ -1,0 +1,2411 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<style>
+:root{
+--bg:#14161a;--sunk:#0f1114;--pnl:#1b1e23;--rsd:#22262d;--hov:#2a2f37;
+--ln:#30363f;--lns:#262b32;--fg:#e4e7ed;--fgm:#a3aab5;--fgd:#717985;
+--ac:#6f9bdb;--acd:#3f5c85;--act:rgba(111,155,219,.15);--act2:rgba(111,155,219,.26);
+--good:#5f9e6e;--dngr:#c25a4a;--warn:#c9963f;
+--ui:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
+--mono:"Cascadia Mono","Cascadia Code",Consolas,ui-monospace,monospace;
+}
+body{margin:0;background:#0a0b0d;font-family:var(--ui);font-size:14px;line-height:1.5;color:var(--fg);-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+a{color:var(--ac);text-decoration:none}
+a:hover{color:var(--fg)}
+button{font:inherit;color:inherit;cursor:pointer;white-space:nowrap}
+input{font:inherit}
+span[data-i]{display:inline-block;line-height:0;flex:none}
+span[data-i] svg{width:100%;height:100%;display:block}
+span[data-i]:empty::before{content:"";display:block;width:100%;height:100%;background:currentColor;opacity:.28;border-radius:2px}
+::-webkit-scrollbar{width:16px;height:16px}
+::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:var(--sunk)}
+::-webkit-scrollbar-thumb{background:var(--ln)}
+::-webkit-scrollbar-thumb:hover{background:var(--fgd)}
+.noscroll::-webkit-scrollbar{width:0;height:0;display:none}
+</style>
+</helmet>
+
+<div style="width:2560px;padding:28px;background:#0a0b0d;font-family:var(--ui)">
+
+<div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;flex-wrap:wrap">
+  <span style="font:600 11px/1 var(--mono);letter-spacing:.14em;color:#5c636e;padding:6px 0">MOCKUP CONTROLS</span>
+  <div style="display:flex;gap:4px;flex-wrap:wrap;padding:5px;background:#141619;border:1px solid #23262b;border-radius:8px">
+    <sc-for list="{{ screens }}" as="s" hint-placeholder-count="12">
+      <button onClick="{{ s.go }}" style="height:28px;padding:0 11px;border-radius:5px;border:1px solid {{ s.bd }};background:{{ s.bg }};color:{{ s.fg }};font-size:13px;font-weight:500;white-space:nowrap">{{ s.label }}</button>
+    </sc-for>
+  </div>
+  <div style="display:flex;gap:4px;flex-wrap:wrap;padding:5px;background:#141619;border:1px solid #23262b;border-radius:8px">
+    <sc-for list="{{ toggles }}" as="t" hint-placeholder-count="6">
+      <button onClick="{{ t.go }}" style="height:28px;padding:0 11px;border-radius:5px;border:1px solid {{ t.bd }};background:{{ t.bg }};color:{{ t.fg }};font-size:13px;font-weight:500;white-space:nowrap">{{ t.label }}</button>
+    </sc-for>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:#141619;border:1px solid #23262b;border-radius:8px">
+    <span style="font:11px/1 var(--mono);letter-spacing:.08em;color:#5c636e">ACCENT</span>
+    <sc-for list="{{ accents }}" as="a" hint-placeholder-count="4">
+      <button onClick="{{ a.go }}" title="{{ a.label }}" style="width:20px;height:20px;border-radius:5px;border:2px solid {{ a.bd }};background:{{ a.hex }};padding:0"></button>
+    </sc-for>
+  </div>
+</div>
+
+<div style="position:relative;width:2560px;height:1440px;display:flex;flex-direction:column;background:var(--bg);border:1px solid #2a2e34;border-radius:8px;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.6);color:var(--fg)">
+
+  <header data-screen-label="Window Bar" style="height:36px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid var(--ln);background:var(--pnl)">
+    <div style="display:flex;align-items:center;gap:8px;padding:0 12px 0 10px;flex:none">
+      <span style="width:18px;height:18px;border-radius:5px;background:var(--rsd);border:1px solid var(--ln);display:grid;place-items:center;font:700 11px/1 var(--ui);color:var(--fg)">G</span>
+      <span style="font-size:13px;font-weight:600;letter-spacing:-.01em;color:var(--fg)">GGallery</span>
+    </div>
+
+    <div style="width:1px;background:var(--lns);margin:8px 0;flex:none"></div>
+
+    <sc-if value="{{ showBreadcrumb }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;align-items:center;gap:2px;padding:0 12px;flex:none;font-size:13px">
+        <span style="color:var(--fgd)">{{ crumbParent }}</span>
+        <span data-i="chevron-right" style="width:13px;height:13px;color:var(--fgd)"></span>
+        <span style="color:var(--fg);font-weight:500">{{ crumbTitle }}</span>
+      </div>
+    </sc-if>
+
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;min-width:0">
+      <div style="width:640px;height:26px;display:flex;align-items:center;gap:8px;padding:0 9px;border-radius:5px;border:1px solid var(--ln);background:var(--bg)" style-hover="border-color:var(--fgd)">
+        <span data-i="search" style="width:14px;height:14px;color:var(--fgd)"></span>
+        <span style="flex:1;min-width:0;font-size:13px;color:{{ queryColor }}">{{ queryText }}</span>
+        <sc-if value="{{ hasQuery }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ clearQuery }}" style="width:16px;height:16px;border:0;background:transparent;padding:0;display:grid;place-items:center;color:var(--fgd);border-radius:3px" style-hover="background:rgba(255,255,255,.09);color:var(--fg)">
+            <span data-i="x" style="width:12px;height:12px"></span>
+          </button>
+        </sc-if>
+        <span style="font:11px/1 var(--mono);color:#565d68;padding-left:2px;border-left:1px solid var(--lns);margin-left:2px;padding:3px 0 3px 8px">Ctrl F</span>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:stretch;flex:none">
+      <button style="width:46px;border:0;background:transparent;display:grid;place-items:center;color:var(--fgm)" style-hover="background:var(--hov);color:var(--fg)"><span data-i="minus" style="width:14px;height:14px"></span></button>
+      <button style="width:46px;border:0;background:transparent;display:grid;place-items:center;color:var(--fgm)" style-hover="background:var(--hov);color:var(--fg)"><span data-i="square" style="width:12px;height:12px"></span></button>
+      <button style="width:46px;border:0;background:transparent;display:grid;place-items:center;color:var(--fgm)" style-hover="background:var(--dngr);color:#fff"><span data-i="x" style="width:15px;height:15px"></span></button>
+    </div>
+  </header>
+
+  <div style="flex:1;min-height:0;display:{{ shellDisplay }};align-items:stretch">
+
+    <nav data-screen-label="Navigation Panel" style="width:{{ navW }}px;flex:none;display:flex;flex-direction:column;border-right:1px solid var(--ln);background:var(--pnl);overflow:hidden">
+
+      <sc-if value="{{ navFolded }}" hint-placeholder-val="{{ false }}">
+        <div style="height:44px;flex:none;display:flex;align-items:center;justify-content:center;border-bottom:1px solid var(--lns)">
+          <button onClick="{{ toggleNav }}" title="Show The Navigation Panel" style="width:32px;height:32px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="panel-left-open" style="width:18px;height:18px"></span></button>
+        </div>
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;gap:8px;padding-top:8px">
+          <sc-for list="{{ railRoots }}" as="r" hint-placeholder-count="5">
+            <button onClick="{{ r.go }}" title="{{ r.label }}" style="position:relative;width:32px;height:32px;border-radius:4px;border:1px solid {{ r.bd }};background:{{ r.bg }};color:{{ r.fg }};display:grid;place-items:center">
+              <span data-i="{{ r.icon }}" style="width:18px;height:18px"></span>
+              <sc-if value="{{ r.hasCount }}" hint-placeholder-val="{{ true }}">
+                <span style="position:absolute;top:-5px;right:-5px;height:17px;min-width:17px;padding:0 4px;border-radius:999px;border:1px solid var(--ln);background:var(--pnl);color:var(--fgm);font:11px/15px var(--mono);font-variant-numeric:tabular-nums">{{ r.count }}</span>
+              </sc-if>
+            </button>
+          </sc-for>
+        </div>
+        <div style="height:44px;flex:none;display:flex;align-items:center;justify-content:center;border-top:1px solid var(--lns)">
+          <button onClick="{{ openSettings }}" title="Settings" style="width:32px;height:32px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="settings" style="width:18px;height:18px"></span></button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ navOpen }}" hint-placeholder-val="{{ true }}">
+        <div style="height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;border-bottom:1px solid var(--lns)">
+          <span style="flex:1;font:600 11px/1 var(--mono);letter-spacing:.14em;color:var(--fgd)">LIBRARY</span>
+          <button onClick="{{ toggleNav }}" title="Hide The Navigation Panel" style="width:32px;height:32px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center;flex:none" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="panel-left-close" style="width:18px;height:18px"></span></button>
+        </div>
+
+        <div class="noscroll" style="flex:1;min-height:0;overflow-y:auto;padding:8px 0 14px">
+
+          <div style="display:flex;flex-direction:column;gap:2px;padding:0 8px">
+            <sc-for list="{{ roots }}" as="r" hint-placeholder-count="3">
+              <button onClick="{{ r.go }}" style="height:32px;display:flex;align-items:center;gap:9px;padding:0 8px 0 7px;border-radius:4px;border:0;background:{{ r.bg }};color:{{ r.fg }};text-align:left;width:100%">
+                <span data-i="{{ r.icon }}" style="width:18px;height:18px;color:{{ r.ic }}"></span>
+                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.label }}</span>
+                <sc-if value="{{ r.hasCount }}" hint-placeholder-val="{{ true }}">
+                  <span style="height:19px;padding:0 6px;border-radius:999px;border:1px solid {{ r.cbd }};background:{{ r.cbg }};color:{{ r.cfg }};font:11px/17px var(--mono);font-variant-numeric:tabular-nums">{{ r.count }}</span>
+                </sc-if>
+              </button>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:8px;padding:20px 12px 6px">
+            <span style="flex:1;font:600 11px/1 var(--mono);letter-spacing:.14em;color:var(--fgd)">PINNED</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:1px;padding:0 8px">
+            <sc-for list="{{ pinned }}" as="f" hint-placeholder-count="2">
+              <div style="height:32px;display:flex;align-items:center;gap:0;padding:0;border-radius:4px;background:{{ f.bg }};color:{{ f.fg }}" style-hover="background:{{ f.hbg }}">
+                <span style="width:26px"></span>
+                <span data-i="folder" style="width:16px;height:16px;color:{{ f.ic }}"></span>
+                <span style="flex:1;min-width:0;margin-left:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.title }}</span>
+                <span style="font:12px/1 var(--mono);font-variant-numeric:tabular-nums;color:{{ f.cfg }};padding-right:8px">{{ f.count }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:8px;padding:20px 12px 6px">
+            <span style="flex:1;font:600 11px/1 var(--mono);letter-spacing:.14em;color:var(--fgd)">FOLDERS</span>
+            <span style="font:12px/1 var(--mono);color:#5c636e">{{ folderCount }}</span>
+          </div>
+          <div style="padding:0 8px 6px">
+            <button onClick="{{ noop }}" style="width:100%;height:28px;display:flex;align-items:center;justify-content:center;gap:7px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)">
+              <span data-i="folder-plus" style="width:15px;height:15px"></span>New Root Folder
+            </button>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:1px;padding:0 8px">
+            <sc-for list="{{ tree }}" as="f" hint-placeholder-count="9">
+              <div style="height:32px;display:flex;align-items:center;padding:0;border-radius:4px;background:{{ f.bg }};color:{{ f.fg }};outline:{{ f.ring }}" style-hover="background:{{ f.hbg }}">
+                <span style="width:{{ f.indent }}px;flex:none"></span>
+                <button onClick="{{ f.toggle }}" style="width:20px;height:20px;flex:none;border:0;border-radius:3px;background:transparent;display:grid;place-items:center;color:var(--fgd);opacity:{{ f.chevOpacity }};margin-left:4px" style-hover="background:rgba(255,255,255,.10);color:var(--fg)">
+                  <span data-i="chevron-right" style="width:15px;height:15px;transform:rotate({{ f.chevRot }}deg);transition:transform 120ms ease-out"></span>
+                </button>
+                <span data-i="folder" style="width:16px;height:16px;margin-left:5px;color:{{ f.ic }}"></span>
+                <span style="flex:1;min-width:0;margin-left:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.title }}</span>
+                <sc-if value="{{ f.wip }}" hint-placeholder-val="{{ false }}">
+                  <span title="Work In Progress" style="width:6px;height:6px;border-radius:999px;background:var(--warn);flex:none;margin-right:6px"></span>
+                </sc-if>
+                <span style="font:12px/1 var(--mono);font-variant-numeric:tabular-nums;color:{{ f.cfg }};flex:none">{{ f.count }}</span>
+                <span style="display:flex;align-items:center;gap:1px;flex:none;width:48px;justify-content:flex-end;padding-right:4px;opacity:0" style-hover="opacity:1">
+                  <button title="New Subfolder" style="width:20px;height:20px;border:0;border-radius:3px;background:transparent;display:grid;place-items:center;color:var(--fgd)" style-hover="background:rgba(255,255,255,.10);color:var(--fg)"><span data-i="plus" style="width:14px;height:14px"></span></button>
+                  <button title="More Actions" style="width:20px;height:20px;border:0;border-radius:3px;background:transparent;display:grid;place-items:center;color:var(--fgd)" style-hover="background:rgba(255,255,255,.10);color:var(--fg)"><span data-i="ellipsis" style="width:14px;height:14px"></span></button>
+                </span>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:8px;padding:20px 12px 6px">
+            <span style="flex:1;font:600 11px/1 var(--mono);letter-spacing:.14em;color:var(--fgd)">QUEUES</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:2px;padding:0 8px">
+            <sc-for list="{{ queues }}" as="q" hint-placeholder-count="3">
+              <button onClick="{{ q.go }}" style="height:32px;display:flex;align-items:center;gap:9px;padding:0 8px 0 7px;border-radius:4px;border:0;background:{{ q.bg }};color:{{ q.fg }};text-align:left;width:100%">
+                <span data-i="{{ q.icon }}" style="width:18px;height:18px;color:{{ q.ic }}"></span>
+                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ q.label }}</span>
+                <sc-if value="{{ q.hasCount }}" hint-placeholder-val="{{ true }}">
+                  <span style="height:19px;padding:0 6px;border-radius:999px;border:1px solid {{ q.cbd }};background:{{ q.cbg }};color:{{ q.cfg }};font:11px/17px var(--mono);font-variant-numeric:tabular-nums">{{ q.count }}</span>
+                </sc-if>
+              </button>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:8px;padding:20px 12px 6px">
+            <span style="flex:1;font:600 11px/1 var(--mono);letter-spacing:.14em;color:var(--fgd)">SAVED SEARCHES</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:2px;padding:0 8px">
+            <sc-for list="{{ saved }}" as="s" hint-placeholder-count="2">
+              <button onClick="{{ s.go }}" style="height:32px;display:flex;align-items:center;gap:9px;padding:0 8px 0 7px;border-radius:4px;border:0;background:transparent;color:var(--fgm);text-align:left;width:100%" style-hover="background:var(--hov);color:var(--fg)">
+                <span data-i="bookmark" style="width:18px;height:18px;color:var(--fgd)"></span>
+                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono);font-size:12px">{{ s.q }}</span>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 8px;border-top:1px solid var(--lns)">
+          <button onClick="{{ openSettings }}" title="Settings" style="width:32px;height:32px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center;flex:none" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="settings" style="width:18px;height:18px"></span></button>
+          <sc-if value="{{ indexing }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+              <span style="font:11px/1 var(--mono);color:var(--fgm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">indexing 18,402 / 41,236</span>
+              <span style="height:3px;border-radius:999px;background:var(--rsd);overflow:hidden;display:block"><span style="display:block;width:45%;height:100%;background:var(--ac)"></span></span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ idleFooter }}" hint-placeholder-val="{{ true }}">
+            <span style="flex:1;min-width:0;font:11px/1 var(--mono);color:#5c636e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">41,236 items · 1.84 TB</span>
+          </sc-if>
+          <sc-if value="{{ failures }}" hint-placeholder-val="{{ false }}">
+            <button onClick="{{ noop }}" style="height:28px;padding:0 9px;flex:none;border-radius:4px;border:1px solid rgba(194,90,74,.45);background:rgba(194,90,74,.12);color:var(--dngr);font:12px/1 var(--mono);display:flex;align-items:center;gap:6px" style-hover="border-color:rgba(194,90,74,.7);background:rgba(194,90,74,.22)">
+              <span data-i="triangle-alert" style="width:14px;height:14px"></span>14
+            </button>
+          </sc-if>
+        </div>
+      </sc-if>
+    </nav>
+
+    <div style="width:7px;flex:none;background:transparent;cursor:col-resize;display:flex;justify-content:center" style-hover="background:transparent">
+      <span style="width:3px;height:100%;background:transparent" style-hover="background:var(--ac)"></span>
+    </div>
+
+    <main data-screen-label="Main Area" style="flex:1;min-width:0;display:flex;flex-direction:column">
+
+      <sc-if value="{{ isLibrary }}" hint-placeholder-val="{{ true }}">
+        <section style="flex:none;border-bottom:1px solid var(--ln);background:var(--pnl)">
+          <div style="height:44px;display:flex;align-items:center;gap:10px;padding:0 10px">
+            <button onClick="{{ toggleBand }}" style="height:32px;display:flex;align-items:center;gap:8px;padding:0 8px 0 5px;border-radius:4px;border:0;background:transparent;color:var(--fg);min-width:0" style-hover="background:var(--hov)">
+              <span data-i="chevron-right" style="width:18px;height:18px;color:var(--fgd);transform:rotate({{ bandRot }}deg);transition:transform 120ms ease-out"></span>
+              <span style="font-size:16px;font-weight:600;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ scopeTitle }}</span>
+            </button>
+
+            <sc-if value="{{ hasStatus }}" hint-placeholder-val="{{ true }}">
+              <button style="height:26px;padding:0 10px;flex:none;border-radius:999px;border:1px solid rgba(201,150,63,.5);background:rgba(201,150,63,.12);color:var(--warn);font-size:12px;font-weight:500;display:flex;align-items:center;gap:6px" style-hover="border-color:var(--warn)">WIP<span data-i="chevron-down" style="width:12px;height:12px"></span></button>
+            </sc-if>
+
+            <span style="font:12px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fgd);flex:none">{{ bandCounts }}</span>
+
+            <span style="flex:1"></span>
+
+            <div style="display:flex;align-items:center;gap:2px;padding:2px;border-radius:5px;border:1px solid var(--ln);background:var(--bg);flex:none">
+              <sc-for list="{{ scopeModes }}" as="m" hint-placeholder-count="2">
+                <button onClick="{{ m.go }}" style="height:24px;padding:0 10px;border-radius:3px;border:0;background:{{ m.bg }};color:{{ m.fg }};font-size:12px;font-weight:500;white-space:nowrap">{{ m.label }}</button>
+              </sc-for>
+            </div>
+
+            <span style="width:1px;height:22px;background:var(--lns);flex:none;margin:0 4px"></span>
+
+            <button style="height:32px;padding:0 10px;flex:none;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)">
+              <span data-i="arrow-down-narrow-wide" style="width:16px;height:16px"></span><span style="white-space:nowrap">Captured Date</span><span data-i="chevron-down" style="width:13px;height:13px;color:var(--fgd)"></span>
+            </button>
+
+            <span style="width:1px;height:22px;background:var(--lns);flex:none;margin:0 4px"></span>
+
+            <div style="display:flex;align-items:center;gap:2px;padding:2px;border-radius:5px;border:1px solid var(--ln);background:var(--bg);flex:none">
+              <sc-for list="{{ layouts }}" as="l" hint-placeholder-count="3">
+                <button onClick="{{ l.go }}" title="{{ l.label }}" style="width:26px;height:24px;border-radius:3px;border:0;background:{{ l.bg }};color:{{ l.fg }};display:grid;place-items:center;padding:0">
+                  <span data-i="{{ l.icon }}" style="width:15px;height:15px"></span>
+                </button>
+              </sc-for>
+            </div>
+
+            <span style="width:1px;height:22px;background:var(--lns);flex:none;margin:0 4px"></span>
+
+            <div style="display:flex;align-items:center;gap:9px;flex:none">
+              <span data-i="layout-grid" style="width:15px;height:15px;color:var(--fgd)"></span>
+              <span style="position:relative;width:104px;height:32px;display:flex;align-items:center">
+                <span style="position:absolute;left:0;right:0;height:4px;border-radius:999px;background:var(--rsd)"></span>
+                <span style="position:absolute;left:0;width:{{ sizePct }}%;height:4px;border-radius:999px;background:var(--ac)"></span>
+                <span style="position:absolute;left:calc({{ sizePct }}% - 7px);width:14px;height:14px;border-radius:999px;background:var(--fg);border:2px solid var(--pnl)"></span>
+              </span>
+              <span data-i="square" style="width:15px;height:15px;color:var(--fgd)"></span>
+            </div>
+
+            <span style="width:1px;height:22px;background:var(--lns);flex:none;margin:0 4px"></span>
+
+            <button title="Pin To The Top" style="width:32px;height:32px;flex:none;border-radius:4px;border:1px solid var(--acd);background:var(--act);color:var(--ac);display:grid;place-items:center" style-hover="background:var(--act2);border-color:var(--ac)"><span data-i="star" style="width:18px;height:18px"></span></button>
+            <button title="More Folder Actions" style="width:32px;height:32px;flex:none;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="ellipsis" style="width:18px;height:18px"></span></button>
+          </div>
+
+          <sc-if value="{{ bandExpanded }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;gap:16px;padding:2px 12px 14px 12px">
+              <div style="width:88px;height:88px;flex:none;border-radius:6px;border:1px solid var(--ln);background:var(--sunk);overflow:hidden;position:relative">
+                <span style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.05) 0 6px,transparent 6px 12px),linear-gradient(150deg,#3a4a5e,#1e2530)"></span>
+                <button title="Clear Cover" style="position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:999px;border:0;background:rgba(10,11,13,.8);color:var(--fgm);display:grid;place-items:center" style-hover="color:var(--fg)"><span data-i="x" style="width:12px;height:12px"></span></button>
+              </div>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;align-items:center;gap:5px;font-size:12px;font-family:var(--mono)">
+                  <span style="color:var(--fgd)">people</span>
+                  <span data-i="chevron-right" style="width:12px;height:12px;color:#4d545e"></span>
+                  <span style="color:var(--fgm)">ana</span>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+                  <span style="font:600 10px/1 var(--mono);letter-spacing:.12em;color:var(--fgd);margin-right:2px">LABELS</span>
+                  <sc-for list="{{ bandLabels }}" as="l" hint-placeholder-count="4">
+                    <span style="height:26px;display:inline-flex;align-items:stretch;border-radius:4px;border:1px solid {{ l.bd }};overflow:hidden;font-size:12px">
+                      <span style="display:flex;align-items:center;padding:0 8px;background:var(--sunk);color:var(--fgd);border-right:1px solid var(--lns);font-family:var(--mono)">{{ l.k }}</span>
+                      <span style="display:flex;align-items:center;padding:0 8px;background:{{ l.vbg }};color:{{ l.vfg }}">{{ l.v }}</span>
+                    </span>
+                  </sc-for>
+                  <button style="height:26px;padding:0 10px;border-radius:4px;border:1px dashed var(--ln);background:transparent;color:var(--fgd);font-size:12px;display:inline-flex;align-items:center;justify-content:center;gap:5px" style-hover="border-color:var(--fgd);color:var(--fg)"><span data-i="plus" style="width:12px;height:12px"></span>Add Label</button>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+                  <span style="font:600 10px/1 var(--mono);letter-spacing:.12em;color:var(--fgd);margin-right:2px">TAGS</span>
+                  <sc-for list="{{ bandTags }}" as="t" hint-placeholder-count="5">
+                    <span style="height:26px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-radius:999px;border:1px solid {{ t.bd }};background:{{ t.bg }};color:{{ t.fg }};font-size:12px">
+                      {{ t.v }}
+                      <sc-if value="{{ t.removable }}" hint-placeholder-val="{{ true }}">
+                        <button title="Remove Tag" style="width:18px;height:18px;border:0;border-radius:999px;background:transparent;color:inherit;opacity:.6;display:grid;place-items:center;margin-right:-6px" style-hover="opacity:1;background:rgba(255,255,255,.12)"><span data-i="x" style="width:11px;height:11px"></span></button>
+                      </sc-if>
+                    </span>
+                  </sc-for>
+                  <button style="height:26px;padding:0 10px;border-radius:999px;border:1px dashed var(--ln);background:transparent;color:var(--fgd);font-size:12px;display:inline-flex;align-items:center;justify-content:center;gap:5px" style-hover="border-color:var(--fgd);color:var(--fg)"><span data-i="plus" style="width:12px;height:12px"></span>Add Tag</button>
+                </div>
+                <button style="height:30px;display:flex;align-items:center;padding:0 8px;border-radius:4px;border:1px solid transparent;background:transparent;color:var(--fgm);font-size:13px;text-align:left;width:100%" style-hover="border-color:var(--ln);background:var(--rsd);color:var(--fg)">
+                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">shoots from the lisbon trip — still need to cull the beach set</span>
+                </button>
+              </div>
+            </div>
+          </sc-if>
+        </section>
+
+        <sc-if value="{{ showFfmpegBanner }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:none;display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--ln);background:var(--rsd);font-size:13px;color:var(--fgm)">
+            <span data-i="info" style="width:16px;height:16px;color:var(--warn)"></span>
+            <span>No <span style="font-family:var(--mono);color:var(--fg)">ffmpeg</span> in <span style="font-family:var(--mono);color:var(--fg)">tools/</span> or on PATH — videos are indexed, but get no poster frame or scrub strip.</span>
+            <span style="flex:1"></span>
+            <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--acd);background:var(--act);color:var(--ac);font-size:13px;font-weight:500" style-hover="background:var(--act2);border-color:var(--ac)">Download Tools</button>
+            <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)">Dismiss</button>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showFailureBanner }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:none;border-bottom:1px solid var(--ln);background:rgba(194,90,74,.07)">
+            <div style="display:flex;align-items:center;gap:10px;padding:9px 12px">
+              <span data-i="triangle-alert" style="width:16px;height:16px;color:var(--dngr)"></span>
+              <span style="font-size:13px;color:var(--fg);font-weight:500">14 Files Could Not Be Indexed</span>
+              <span style="font:12px/1 var(--mono);color:var(--fgd)">9 Retryable · 4 Damaged · 1 Skipped</span>
+              <span style="flex:1"></span>
+              <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--acd);background:var(--act);color:var(--ac);font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px" style-hover="background:var(--act2)"><span data-i="rotate-ccw" style="width:14px;height:14px"></span>Retry All Retryable</button>
+              <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500" style-hover="border-color:var(--fgd);color:var(--fg)">Export List</button>
+              <button style="height:28px;width:28px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);color:var(--fg)"><span data-i="x" style="width:14px;height:14px"></span></button>
+            </div>
+            <div style="padding:0 12px 12px;display:flex;flex-direction:column;gap:5px">
+              <sc-for list="{{ failureRows }}" as="f" hint-placeholder-count="4">
+                <div onClick="{{ f.go }}" style="display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:6px;border:1px solid {{ f.bd }};background:{{ f.bg }};cursor:pointer" style-hover="border-color:var(--fgd)">
+                  <span style="width:52px;height:40px;flex:none;border-radius:4px;border:1px solid var(--lns);background:var(--sunk);display:grid;place-items:center;color:#4d545e">
+                    <span data-i="file-question" style="width:18px;height:18px"></span>
+                  </span>
+                  <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                    <span style="display:flex;align-items:center;gap:8px;min-width:0">
+                      <span style="font:13px/1 var(--mono);color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.name }}</span>
+                      <span style="height:19px;padding:0 7px;flex:none;border-radius:3px;border:1px solid {{ f.kbd }};background:{{ f.kbg }};color:{{ f.kfg }};font:11px/17px var(--mono)">{{ f.kind }}</span>
+                    </span>
+                    <span style="font:11px/1 var(--mono);color:var(--fgd);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.path }}</span>
+                  </span>
+                  <span style="width:300px;flex:none;display:flex;flex-direction:column;gap:3px">
+                    <span style="font:12px/1 var(--mono);color:var(--dngr);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.reason }}</span>
+                    <span style="font:11px/1 var(--mono);color:var(--fgd)">{{ f.hint }}</span>
+                  </span>
+                  <span style="display:flex;align-items:center;gap:5px;flex:none">
+                    <button style="height:28px;padding:0 10px;border-radius:4px;border:1px solid var(--acd);background:var(--act);color:var(--ac);font-size:12px;font-weight:500;display:flex;align-items:center;gap:6px" style-hover="background:var(--act2);border-color:var(--ac)"><span data-i="rotate-ccw" style="width:14px;height:14px"></span>Retry</button>
+                    <button title="Reveal In Explorer" style="width:28px;height:28px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="folder-search" style="width:15px;height:15px"></span></button>
+                    <button title="Open With The Default App" style="width:28px;height:28px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="external-link" style="width:15px;height:15px"></span></button>
+                    <button title="Ignore — Stop Reporting This File" style="width:28px;height:28px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="eye-off" style="width:15px;height:15px"></span></button>
+                    <button title="Delete" style="width:28px;height:28px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:rgba(194,90,74,.7);background:rgba(194,90,74,.18);color:var(--dngr)"><span data-i="trash-2" style="width:15px;height:15px"></span></button>
+                  </span>
+                </div>
+              </sc-for>
+              <div style="display:flex;align-items:center;gap:8px;padding:2px 2px 0;font-size:12px;color:var(--fgd)">
+                <span data-i="info" style="width:14px;height:14px"></span>
+                A failed file is left exactly where it is on disk and is never renamed — nothing was moved into <span style="font-family:var(--mono);color:var(--fgm)">files/</span>.
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <div style="flex:1;min-height:0;display:flex">
+          <div class="noscroll" style="flex:1;min-width:0;position:relative;overflow-y:auto;background:var(--bg)">
+
+            <sc-if value="{{ gridEmpty }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center">
+                <span data-i="image-off" style="width:40px;height:40px;color:#414852"></span>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <span style="font-size:16px;font-weight:600;color:var(--fgm)">Nothing In This Folder Yet</span>
+                  <span style="font-size:13px;color:var(--fgd);max-width:44ch">Drag media here from Explorer, drop it into the library's <span style="font-family:var(--mono);color:var(--fgm)">inbox/</span> folder, or add files from the picker.</span>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:4px">
+                  <button style="height:32px;padding:0 13px;border-radius:4px;border:1px solid var(--acd);background:var(--act);color:var(--ac);font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px" style-hover="background:var(--act2);border-color:var(--ac)"><span data-i="file-plus" style="width:16px;height:16px"></span>Add Files</button>
+                  <button style="height:32px;padding:0 13px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="download" style="width:16px;height:16px"></span>Download From URL</button>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ indexing }}" hint-placeholder-val="{{ false }}">
+              <div style="position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:10px 14px;background:rgba(27,30,35,.94);border-bottom:1px solid var(--ln);backdrop-filter:blur(6px)">
+                <span data-i="loader" style="width:16px;height:16px;color:var(--ac)"></span>
+                <span style="font-size:13px;color:var(--fg)">Indexing — the grid fills in as it goes</span>
+                <span style="font:12px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fgm)">18,402 / 41,236 · 214/s · ~2m left</span>
+                <span style="flex:1;height:4px;border-radius:999px;background:var(--rsd);overflow:hidden;max-width:420px"><span style="display:block;width:45%;height:100%;background:var(--ac)"></span></span>
+                <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500" style-hover="border-color:var(--fgd);color:var(--fg)">Pause</button>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ gridJustified }}" hint-placeholder-val="{{ true }}">
+              <div style="position:relative;height:{{ gridH }}px;margin:8px">
+                <sc-for list="{{ tiles }}" as="t" hint-placeholder-count="24">
+                  <div style="position:absolute;left:{{ t.l }}px;top:{{ t.t }}px;width:{{ t.w }}px;height:{{ t.h }}px;border-radius:5px;border:2px solid {{ t.bd }};background:{{ t.bg }};overflow:hidden;cursor:pointer;box-shadow:{{ t.shadow }}" style-hover="border-color:var(--fgd)">
+                    <sc-if value="{{ t.selected }}" hint-placeholder-val="{{ false }}">
+                      <span style="position:absolute;inset:0;background:var(--act)"></span>
+                      <span style="position:absolute;top:6px;left:6px;width:20px;height:20px;border-radius:4px;background:var(--ac);color:#0f1114;display:grid;place-items:center"><span data-i="check" style="width:14px;height:14px"></span></span>
+                    </sc-if>
+                    <sc-if value="{{ t.fav }}" hint-placeholder-val="{{ false }}">
+                      <span style="position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:4px;background:rgba(8,9,11,.72);color:var(--ac);display:grid;place-items:center"><span data-i="star" style="width:14px;height:14px"></span></span>
+                    </sc-if>
+                    <sc-if value="{{ t.isVideo }}" hint-placeholder-val="{{ false }}">
+                      <span style="position:absolute;bottom:6px;right:6px;height:19px;padding:0 6px;border-radius:4px;background:rgba(8,9,11,.8);color:#fff;font:11px/19px var(--mono);font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:5px">
+                        <span data-i="play" style="width:10px;height:10px"></span>{{ t.dur }}
+                      </span>
+                    </sc-if>
+                    <sc-if value="{{ t.label }}" hint-placeholder-val="{{ false }}">
+                      <span style="position:absolute;bottom:6px;left:6px;height:18px;padding:0 6px;border-radius:4px;background:rgba(8,9,11,.66);color:#c8ced8;font:10px/18px var(--mono);letter-spacing:.04em">{{ t.label }}</span>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ gridUniform }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;grid-template-columns:repeat({{ uniformCols }},1fr);gap:8px;padding:8px">
+                <sc-for list="{{ uniformTiles }}" as="t" hint-placeholder-count="30">
+                  <div style="position:relative;aspect-ratio:1;border-radius:5px;border:2px solid {{ t.bd }};background:{{ t.bg }};overflow:hidden;cursor:pointer" style-hover="border-color:var(--fgd)">
+                    <sc-if value="{{ t.isVideo }}" hint-placeholder-val="{{ false }}">
+                      <span style="position:absolute;bottom:6px;right:6px;height:19px;padding:0 6px;border-radius:4px;background:rgba(8,9,11,.8);color:#fff;font:11px/19px var(--mono)">{{ t.dur }}</span>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ gridMasonry }}" hint-placeholder-val="{{ false }}">
+              <div style="columns:{{ uniformCols }};column-gap:8px;padding:8px">
+                <sc-for list="{{ masonryTiles }}" as="t" hint-placeholder-count="30">
+                  <div style="position:relative;break-inside:avoid;margin-bottom:8px;height:{{ t.h }}px;border-radius:5px;border:2px solid {{ t.bd }};background:{{ t.bg }};overflow:hidden;cursor:pointer" style-hover="border-color:var(--fgd)">
+                    <sc-if value="{{ t.isVideo }}" hint-placeholder-val="{{ false }}">
+                      <span style="position:absolute;bottom:6px;right:6px;height:19px;padding:0 6px;border-radius:4px;background:rgba(8,9,11,.8);color:#fff;font:11px/19px var(--mono)">{{ t.dur }}</span>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ dragging }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;left:640px;top:420px;pointer-events:none;display:flex;align-items:center;gap:10px;height:38px;padding:0 14px 0 10px;border-radius:6px;border:1px solid var(--ac);background:rgba(27,30,35,.96);box-shadow:0 12px 32px rgba(0,0,0,.6)">
+                <span style="width:24px;height:24px;border-radius:4px;background:linear-gradient(150deg,#3a4a5e,#1e2530);border:1px solid var(--acd)"></span>
+                <span style="font-size:13px;font-weight:500;color:var(--fg)">Moving 12 Items</span>
+                <span style="font:12px/1 var(--mono);color:var(--ac)">→ trips / lisbon</span>
+              </div>
+            </sc-if>
+          </div>
+
+          <div style="width:16px;flex:none;background:var(--sunk);border-left:1px solid var(--lns);position:relative;cursor:pointer">
+            <span style="position:absolute;left:0;right:0;top:{{ scrubTop }}%;height:{{ scrubH }}%;background:var(--ln)" style-hover="background:var(--fgd)"></span>
+          </div>
+        </div>
+
+        <sc-if value="{{ multiselect }}" hint-placeholder-val="{{ false }}">
+          <div style="height:44px;flex:none;display:flex;border-top:1px solid var(--ln);background:var(--pnl)">
+            <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;padding:0 12px">
+              <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)">Select All</button>
+              <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)">Invert</button>
+              <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)">Clear</button>
+              <span style="width:1px;height:22px;background:var(--lns);margin:0 5px"></span>
+              <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--acd);background:var(--act);color:var(--ac);font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px" style-hover="background:var(--act2);border-color:var(--ac)"><span data-i="folder-input" style="width:15px;height:15px"></span>Move To…</button>
+              <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="tag" style="width:15px;height:15px"></span>Add Tag…</button>
+              <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="star" style="width:15px;height:15px"></span>Favourite</button>
+              <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="minimize-2" style="width:15px;height:15px"></span>Compress…</button>
+              <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="upload" style="width:15px;height:15px"></span>Export…</button>
+              <span style="width:1px;height:22px;background:var(--lns);margin:0 5px"></span>
+              <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid rgba(194,90,74,.45);background:rgba(194,90,74,.12);color:var(--dngr);font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px" style-hover="border-color:rgba(194,90,74,.7);background:rgba(194,90,74,.22)"><span data-i="trash-2" style="width:15px;height:15px"></span>Delete</button>
+              <span style="flex:1"></span>
+              <span style="font:12px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fg)">12 Selected · 480 MB</span>
+            </div>
+            <div style="width:16px;flex:none;background:var(--sunk);border-left:1px solid var(--lns)"></div>
+          </div>
+        </sc-if>
+      </sc-if>
+
+      <sc-if value="{{ isSearch }}" hint-placeholder-val="{{ false }}">
+        <div style="height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--ln);background:var(--pnl)">
+          <span style="font-size:16px;font-weight:600;letter-spacing:-.01em">Results</span>
+          <span style="font:12px/1 var(--mono);color:var(--fgd)">3 folders · 2,481 media</span>
+          <span style="width:1px;height:22px;background:var(--lns);margin:0 6px"></span>
+          <sc-for list="{{ queryTerms }}" as="q" hint-placeholder-count="3">
+            <span style="height:26px;display:inline-flex;align-items:center;gap:6px;padding:0 4px 0 9px;border-radius:4px;border:1px solid {{ q.bd }};background:{{ q.bg }};color:{{ q.fg }};font:12px/1 var(--mono)">
+              {{ q.v }}
+              <button title="Remove Term" style="width:18px;height:18px;border:0;border-radius:3px;background:transparent;color:inherit;opacity:.65;display:grid;place-items:center" style-hover="opacity:1;background:rgba(255,255,255,.12)"><span data-i="x" style="width:11px;height:11px"></span></button>
+            </span>
+          </sc-for>
+          <button style="height:26px;padding:0 10px;border-radius:4px;border:1px dashed var(--ln);background:transparent;color:var(--fgd);font-size:12px;display:inline-flex;align-items:center;gap:5px" style-hover="border-color:var(--fgd);color:var(--fg)"><span data-i="plus" style="width:12px;height:12px"></span>Add Term</button>
+          <span style="flex:1"></span>
+          <button style="height:32px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="bookmark" style="width:16px;height:16px"></span>Save This Search</button>
+          <button style="height:32px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="arrow-down-narrow-wide" style="width:16px;height:16px"></span>Relevance<span data-i="chevron-down" style="width:13px;height:13px;color:var(--fgd)"></span></button>
+        </div>
+        <div class="noscroll" style="flex:1;min-height:0;overflow-y:auto;background:var(--bg)">
+          <div style="padding:16px 14px 10px;display:flex;align-items:baseline;gap:10px">
+            <span style="font:600 11px/1 var(--mono);letter-spacing:.14em;color:var(--fgd)">FOLDERS</span>
+            <span style="font:12px/1 var(--mono);color:#5c636e">3</span>
+          </div>
+          <div style="display:flex;gap:10px;padding:0 14px 8px">
+            <sc-for list="{{ searchFolders }}" as="f" hint-placeholder-count="3">
+              <div onClick="{{ f.go }}" style="width:264px;display:flex;gap:10px;padding:10px;border-radius:6px;border:1px solid var(--ln);background:var(--pnl);cursor:pointer" style-hover="border-color:var(--fgd);background:var(--rsd)">
+                <span style="width:64px;height:64px;flex:none;border-radius:4px;background:{{ f.cover }}"></span>
+                <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+                  <span style="font-size:14px;font-weight:600;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.title }}</span>
+                  <span style="font:11px/1.4 var(--mono);color:var(--fgd);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.path }}</span>
+                  <span style="display:flex;align-items:center;margin-top:2px">
+                    <span style="min-width:0;height:20px;display:inline-flex;align-items:stretch;border-radius:3px;border:1px solid var(--acd);overflow:hidden;font-size:11px">
+                      <span style="flex:none;display:block;padding:0 6px;line-height:18px;background:var(--sunk);color:var(--fgd);border-right:1px solid var(--lns);font-family:var(--mono)">{{ f.mk }}</span>
+                      <span style="min-width:0;display:block;padding:0 6px;line-height:18px;background:var(--act);color:var(--ac);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.mv }}</span>
+                    </span>
+                  </span>
+                  <span style="font:11px/1 var(--mono);color:var(--fgd)">{{ f.count }}</span>
+                </span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="padding:14px 14px 10px;display:flex;align-items:baseline;gap:10px">
+            <span style="font:600 11px/1 var(--mono);letter-spacing:.14em;color:var(--fgd)">MEDIA</span>
+            <span style="font:12px/1 var(--mono);color:#5c636e">2,481</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(9,1fr);gap:8px;padding:0 14px 14px">
+            <sc-for list="{{ searchTiles }}" as="t" hint-placeholder-count="36">
+              <span style="aspect-ratio:{{ t.ar }};border-radius:5px;border:2px solid transparent;background:{{ t.bg }};cursor:pointer" style-hover="border-color:var(--fgd)"></span>
+            </sc-for>
+            <sc-for list="{{ skeletons }}" as="k" hint-placeholder-count="9">
+              <span style="aspect-ratio:1;border-radius:5px;border:1px dashed var(--lns);background:var(--pnl)"></span>
+            </sc-for>
+          </div>
+          <div style="padding:0 14px 24px;display:flex;align-items:center;gap:10px;color:var(--fgd);font:12px/1 var(--mono)">
+            <span data-i="loader" style="width:14px;height:14px"></span>Loading the next page…
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isTriage }}" hint-placeholder-val="{{ false }}">
+        <div style="height:44px;flex:none;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--ln);background:var(--pnl)">
+          <span data-i="inbox" style="width:18px;height:18px;color:var(--ac)"></span>
+          <span style="font-size:16px;font-weight:600;letter-spacing:-.01em">Sorting Box</span>
+          <span style="font:12px/1 var(--mono);color:var(--fgd)">{{ triageLeft }} · 6.2 GB</span>
+          <span style="height:24px;padding:0 9px;border-radius:999px;border:1px solid var(--acd);background:var(--act);color:var(--ac);font:12px/22px var(--mono)">12 Selected</span>
+          <span style="flex:1"></span>
+          <span style="font-size:13px;color:var(--fgd)">Drag Onto A Folder Tile In The Pane, Or</span>
+          <button onClick="{{ openCuller }}" style="height:32px;padding:0 12px;border-radius:4px;border:1px solid var(--acd);background:var(--act);color:var(--ac);font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px" style-hover="background:var(--act2);border-color:var(--ac)"><span data-i="gauge" style="width:16px;height:16px"></span>Open The Fast Culler</button>
+          <span style="width:1px;height:22px;background:var(--lns);margin:0 4px"></span>
+          <button style="height:32px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="copy-check" style="width:16px;height:16px"></span>7 Exact Duplicates On Arrival</button>
+        </div>
+        <div class="noscroll" style="flex:1;min-height:0;overflow-y:auto;background:var(--bg);position:relative">
+          <div style="position:relative;height:{{ gridH }}px;margin:8px">
+            <sc-for list="{{ tiles }}" as="t" hint-placeholder-count="24">
+              <div style="position:absolute;left:{{ t.l }}px;top:{{ t.t }}px;width:{{ t.w }}px;height:{{ t.h }}px;border-radius:5px;border:2px solid {{ t.bd }};background:{{ t.bg }};overflow:hidden;cursor:pointer" style-hover="border-color:var(--fgd)">
+                <sc-if value="{{ t.isVideo }}" hint-placeholder-val="{{ false }}">
+                  <span style="position:absolute;bottom:6px;right:6px;height:19px;padding:0 6px;border-radius:4px;background:rgba(8,9,11,.8);color:#fff;font:11px/19px var(--mono)">{{ t.dur }}</span>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="height:44px;flex:none;display:flex;align-items:center;gap:6px;padding:0 12px;border-top:1px solid var(--ln);background:var(--pnl)">
+          <span style="font:600 10px/1 var(--mono);letter-spacing:.12em;color:var(--fgd);margin-right:4px">SEND TO</span>
+          <sc-for list="{{ hotkeys }}" as="h" hint-placeholder-count="6">
+            <button style="height:30px;padding:0 4px 0 4px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;display:flex;align-items:center;gap:8px" style-hover="border-color:var(--ac);background:var(--hov);color:var(--fg)">
+              <span style="width:20px;height:20px;border-radius:3px;background:var(--sunk);border:1px solid var(--lns);color:var(--fgd);font:11px/18px var(--mono);text-align:center">{{ h.key }}</span>
+              <span style="padding-right:8px">{{ h.label }}</span>
+            </button>
+          </sc-for>
+          <button style="height:30px;padding:0 11px;border-radius:4px;border:1px dashed var(--ln);background:transparent;color:var(--fgd);font-size:13px;display:flex;align-items:center;gap:6px" style-hover="border-color:var(--fgd);color:var(--fg)"><span data-i="search" style="width:14px;height:14px"></span>Find A Destination</button>
+          <span style="flex:1"></span>
+          <button style="height:30px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500">Skip</button>
+          <button style="height:30px;padding:0 11px;border-radius:4px;border:1px solid rgba(194,90,74,.45);background:rgba(194,90,74,.12);color:var(--dngr);font-size:13px;font-weight:500">Trash</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isDownloads }}" hint-placeholder-val="{{ false }}">
+        <div style="height:44px;flex:none;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--ln);background:var(--pnl)">
+          <span data-i="download" style="width:18px;height:18px;color:var(--ac)"></span>
+          <span style="font-size:16px;font-weight:600;letter-spacing:-.01em">Downloads</span>
+          <span style="font:12px/1 var(--mono);color:var(--fgd)">3 Active · 1 Failed · 214 Done</span>
+          <span style="flex:1"></span>
+          <button style="height:32px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="wrench" style="width:16px;height:16px"></span>Update Tools</button>
+          <button style="height:32px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="list" style="width:16px;height:16px"></span>History</button>
+        </div>
+        <div style="flex:none;display:flex;align-items:center;gap:8px;padding:12px;border-bottom:1px solid var(--ln);background:var(--bg)">
+          <span style="flex:1;height:38px;display:flex;align-items:center;gap:9px;padding:0 11px;border-radius:4px;border:1px solid var(--acd);background:var(--pnl)">
+            <span data-i="external-link" style="width:16px;height:16px;color:var(--fgd)"></span>
+            <span style="flex:1;font:13px/1 var(--mono);color:var(--fgd)">Paste A URL — yt-dlp Or gallery-dl Is Chosen Automatically</span>
+            <span style="font:11px/1 var(--mono);color:#565d68">Ctrl D</span>
+          </span>
+          <button style="height:38px;padding:0 13px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="inbox" style="width:17px;height:17px"></span>Into Sorting Box<span data-i="chevron-down" style="width:14px;height:14px;color:var(--fgd)"></span></button>
+          <button style="height:38px;padding:0 17px;border-radius:4px;border:1px solid var(--acd);background:var(--act);color:var(--ac);font-size:14px;font-weight:600" style-hover="background:var(--act2);border-color:var(--ac)">Download</button>
+        </div>
+        <div class="noscroll" style="flex:1;min-height:0;overflow-y:auto;background:var(--bg);padding:10px 12px">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <sc-for list="{{ downloads }}" as="d" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:6px;border:1px solid {{ d.bd }};background:var(--pnl)">
+                <span style="width:56px;height:56px;flex:none;border-radius:4px;background:{{ d.cover }}"></span>
+                <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px">
+                  <span style="display:flex;align-items:center;gap:8px">
+                    <span style="font-size:14px;font-weight:500;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ d.title }}</span>
+                    <span style="height:19px;padding:0 7px;flex:none;border-radius:3px;border:1px solid var(--lns);background:var(--sunk);color:var(--fgd);font:11px/17px var(--mono)">{{ d.tool }}</span>
+                    <span style="height:19px;padding:0 7px;flex:none;border-radius:3px;border:1px solid {{ d.sbd }};background:{{ d.sbg }};color:{{ d.sfg }};font:11px/17px var(--mono)">{{ d.status }}</span>
+                  </span>
+                  <span style="font:11px/1 var(--mono);color:var(--fgd);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ d.url }}</span>
+                  <span style="display:flex;align-items:center;gap:10px">
+                    <span style="flex:1;height:4px;border-radius:999px;background:var(--rsd);overflow:hidden;max-width:520px"><span style="display:block;width:{{ d.pct }}%;height:100%;background:{{ d.bar }}"></span></span>
+                    <span style="font:11px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fgm);flex:none">{{ d.meta }}</span>
+                  </span>
+                </span>
+                <span style="display:flex;align-items:center;gap:5px;flex:none">
+                  <sc-for list="{{ d.actions }}" as="x" hint-placeholder-count="2">
+                    <button title="{{ x.label }}" style="width:32px;height:32px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="{{ x.icon }}" style="width:17px;height:17px"></span></button>
+                  </sc-for>
+                </span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="margin-top:14px;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:6px;border:1px solid rgba(201,150,63,.35);background:rgba(201,150,63,.07);font-size:13px;color:var(--fgm)">
+            <span data-i="triangle-alert" style="width:16px;height:16px;color:var(--warn)"></span>
+            <span>The instagram cookie file expired 3 days ago — authenticated sources will fail until it is refreshed.</span>
+            <span style="flex:1"></span>
+            <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500" style-hover="border-color:var(--fgd);color:var(--fg)">Open Cookie Settings</button>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isPending }}" hint-placeholder-val="{{ false }}">
+        <div style="height:44px;flex:none;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--ln);background:var(--pnl)">
+          <span data-i="clock" style="width:18px;height:18px;color:var(--ac)"></span>
+          <span style="font-size:16px;font-weight:600;letter-spacing:-.01em">Pending Review</span>
+          <span style="font:12px/1 var(--mono);color:var(--fgd)">48 Results</span>
+          <span style="width:1px;height:22px;background:var(--lns);margin:0 6px"></span>
+          <span style="font-size:13px;color:var(--fgd)">Reclaimable</span>
+          <span style="font:14px/1 var(--mono);font-weight:600;color:var(--good)">61.2 GB</span>
+          <span style="flex:1"></span>
+          <button style="height:32px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="arrow-down-narrow-wide" style="width:16px;height:16px"></span>Savings<span data-i="chevron-down" style="width:13px;height:13px;color:var(--fgd)"></span></button>
+          <button style="height:32px;padding:0 12px;border-radius:4px;border:1px solid rgba(95,158,110,.45);background:rgba(95,158,110,.12);color:var(--good);font-size:13px;font-weight:600;display:flex;align-items:center;gap:7px" style-hover="border-color:rgba(95,158,110,.7);background:rgba(95,158,110,.22)"><span data-i="check" style="width:16px;height:16px"></span>Keep Compressed For All Above 80%</button>
+        </div>
+        <div class="noscroll" style="flex:1;min-height:0;overflow-y:auto;background:var(--bg);padding:10px 12px">
+          <div style="display:grid;grid-template-columns:30px 64px 1fr 128px 128px 84px 210px;gap:12px;align-items:center;padding:0 12px 8px;font:600 10px/1 var(--mono);letter-spacing:.12em;color:var(--fgd)">
+            <span></span><span></span><span>FILE</span><span>ORIGINAL</span><span>COMPRESSED</span><span>SAVING</span><span></span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <sc-for list="{{ pendingRows }}" as="p" hint-placeholder-count="8">
+              <div style="display:grid;grid-template-columns:30px 64px 1fr 128px 128px 84px 210px;gap:12px;align-items:center;padding:8px 12px;border-radius:6px;border:1px solid {{ p.bd }};background:{{ p.bg }};cursor:pointer" style-hover="border-color:var(--fgd)">
+                <span style="width:18px;height:18px;border-radius:4px;border:1px solid {{ p.cbd }};background:{{ p.cbg }};display:grid;place-items:center;color:#0f1114"><sc-if value="{{ p.checked }}" hint-placeholder-val="{{ false }}"><span data-i="check" style="width:13px;height:13px"></span></sc-if></span>
+                <span style="width:64px;height:44px;border-radius:4px;background:{{ p.cover }}"></span>
+                <span style="min-width:0;display:flex;flex-direction:column;gap:3px">
+                  <span style="font:13px/1 var(--mono);color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.name }}</span>
+                  <span style="font:11px/1 var(--mono);color:var(--fgd)">{{ p.spec }}</span>
+                </span>
+                <span style="font:13px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fgm)">{{ p.before }}</span>
+                <span style="font:13px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fg)">{{ p.after }}</span>
+                <span style="font:13px/1 var(--mono);font-weight:600;font-variant-numeric:tabular-nums;color:{{ p.pctColor }}">{{ p.pct }}</span>
+                <span style="display:flex;align-items:center;gap:5px;justify-content:flex-end">
+                  <button style="height:28px;padding:0 10px;border-radius:4px;border:1px solid rgba(95,158,110,.45);background:rgba(95,158,110,.12);color:var(--good);font-size:12px;font-weight:600" style-hover="border-color:rgba(95,158,110,.7);background:rgba(95,158,110,.22)">Keep New</button>
+                  <button style="height:28px;padding:0 10px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:12px;font-weight:500" style-hover="border-color:var(--fgd);color:var(--fg)">Keep Original</button>
+                  <button title="Compare Side By Side" style="width:28px;height:28px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);color:var(--fg)"><span data-i="columns-3" style="width:15px;height:15px"></span></button>
+                </span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isDuplicates }}" hint-placeholder-val="{{ false }}">
+        <div style="height:44px;flex:none;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--ln);background:var(--pnl)">
+          <span data-i="copy-check" style="width:18px;height:18px;color:var(--ac)"></span>
+          <span style="font-size:16px;font-weight:600;letter-spacing:-.01em">Duplicates</span>
+          <span style="font:12px/1 var(--mono);color:var(--fgd)">27 Groups · 63 Candidates · 14.8 GB Recoverable</span>
+          <span style="flex:1"></span>
+          <span style="font-size:13px;color:var(--fgd)">Similarity</span>
+          <span style="display:flex;align-items:center;gap:2px;padding:2px;border-radius:5px;border:1px solid var(--ln);background:var(--bg)">
+            <button style="height:24px;padding:0 10px;border-radius:3px;border:0;background:var(--act);color:var(--ac);font-size:12px;font-weight:500">Exact</button>
+            <button style="height:24px;padding:0 10px;border-radius:3px;border:0;background:transparent;color:var(--fgm);font-size:12px;font-weight:500">Near</button>
+            <button style="height:24px;padding:0 10px;border-radius:3px;border:0;background:transparent;color:var(--fgm);font-size:12px;font-weight:500">Loose</button>
+          </span>
+          <span style="width:1px;height:22px;background:var(--lns);margin:0 4px"></span>
+          <button style="height:32px;padding:0 12px;border-radius:4px;border:1px solid var(--acd);background:var(--act);color:var(--ac);font-size:13px;font-weight:600">Keep The Best Of Every Group</button>
+        </div>
+        <div class="noscroll" style="flex:1;min-height:0;overflow-y:auto;background:var(--bg);padding:12px">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <sc-for list="{{ dupeGroups }}" as="g" hint-placeholder-count="4">
+              <div style="border-radius:6px;border:1px solid var(--ln);background:var(--pnl);overflow:hidden">
+                <div style="height:38px;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--lns);background:var(--rsd)">
+                  <span style="font:12px/1 var(--mono);color:var(--fgm)">{{ g.hash }}</span>
+                  <span style="height:19px;padding:0 7px;border-radius:3px;border:1px solid var(--acd);background:var(--act);color:var(--ac);font:11px/17px var(--mono)">{{ g.match }}</span>
+                  <span style="font-size:13px;color:var(--fgd)">{{ g.count }} Candidates · {{ g.waste }} Wasted</span>
+                  <span style="flex:1"></span>
+                  <span style="font-size:12px;color:var(--fgd)">Tags from discarded copies merge into the keeper</span>
+                </div>
+                <div style="display:flex;gap:10px;padding:12px">
+                  <sc-for list="{{ g.items }}" as="c" hint-placeholder-count="3">
+                    <div style="width:236px;display:flex;flex-direction:column;gap:8px;padding:8px;border-radius:5px;border:1px solid {{ c.bd }};background:{{ c.bg }}">
+                      <span style="aspect-ratio:4/3;border-radius:4px;background:{{ c.cover }}"></span>
+                      <span style="display:grid;grid-template-columns:auto 1fr;gap:2px 8px;font:11px/1.5 var(--mono)">
+                        <span style="color:var(--fgd)">size</span><span style="color:var(--fgm)">{{ c.size }}</span>
+                        <span style="color:var(--fgd)">dims</span><span style="color:var(--fgm)">{{ c.dims }}</span>
+                        <span style="color:var(--fgd)">added</span><span style="color:var(--fgm)">{{ c.added }}</span>
+                        <span style="color:var(--fgd)">folder</span><span style="color:var(--fgm)">{{ c.folder }}</span>
+                      </span>
+                      <button style="height:28px;border-radius:4px;border:1px solid {{ c.btnBd }};background:{{ c.btnBg }};color:{{ c.btnFg }};font-size:12px;font-weight:600">{{ c.btn }}</button>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isStorage }}" hint-placeholder-val="{{ false }}">
+        <div style="height:44px;flex:none;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--ln);background:var(--pnl)">
+          <span data-i="hard-drive" style="width:18px;height:18px;color:var(--ac)"></span>
+          <span style="font-size:16px;font-weight:600;letter-spacing:-.01em">Storage</span>
+          <span style="font:12px/1 var(--mono);color:var(--fgd)">D:\MyMedia · Last Scanned 2h Ago</span>
+          <span style="flex:1"></span>
+          <button style="height:32px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="check" style="width:16px;height:16px"></span>Run Integrity Check</button>
+          <button style="height:32px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="trash-2" style="width:16px;height:16px"></span>Purge Trash · 4.1 GB</button>
+        </div>
+        <div class="noscroll" style="flex:1;min-height:0;overflow-y:auto;background:var(--bg);padding:14px">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+            <sc-for list="{{ storageStats }}" as="s" hint-placeholder-count="4">
+              <div style="padding:14px;border-radius:6px;border:1px solid var(--ln);background:var(--pnl);display:flex;flex-direction:column;gap:6px">
+                <span style="font:600 10px/1 var(--mono);letter-spacing:.12em;color:var(--fgd)">{{ s.k }}</span>
+                <span style="font:600 28px/1.1 var(--ui);letter-spacing:-.02em;color:{{ s.color }}">{{ s.v }}</span>
+                <span style="font-size:12px;color:var(--fgd)">{{ s.sub }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+            <div style="border-radius:6px;border:1px solid var(--ln);background:var(--pnl);overflow:hidden">
+              <div style="height:38px;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--lns)">
+                <span style="font:600 11px/1 var(--mono);letter-spacing:.12em;color:var(--fgd)">LARGEST FOLDERS</span>
+                <span style="flex:1"></span>
+                <button style="height:26px;padding:0 10px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:12px;font-weight:500" style-hover="border-color:var(--fgd);color:var(--fg)">Queue The Top 5 For Compression</button>
+              </div>
+              <div style="padding:10px 12px;display:flex;flex-direction:column;gap:9px">
+                <sc-for list="{{ bigFolders }}" as="f" hint-placeholder-count="6">
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <span style="width:150px;font-size:13px;color:var(--fgm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.title }}</span>
+                    <span style="flex:1;height:8px;border-radius:2px;background:var(--sunk);overflow:hidden"><span style="display:block;width:{{ f.pct }}%;height:100%;background:{{ f.bar }}"></span></span>
+                    <span style="width:74px;text-align:right;font:12px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fg)">{{ f.size }}</span>
+                    <span style="width:60px;text-align:right;font:11px/1 var(--mono);color:var(--fgd)">{{ f.count }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="border-radius:6px;border:1px solid var(--ln);background:var(--pnl);overflow:hidden">
+              <div style="height:38px;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--lns)">
+                <span style="font:600 11px/1 var(--mono);letter-spacing:.12em;color:var(--fgd)">LARGEST FILES</span>
+                <span style="flex:1"></span>
+                <button style="height:26px;padding:0 10px;border-radius:4px;border:1px solid var(--acd);background:var(--act);color:var(--ac);font-size:12px;font-weight:500" style-hover="background:var(--act2)">Compress Selected</button>
+              </div>
+              <div style="padding:10px 12px;display:flex;flex-direction:column;gap:5px">
+                <sc-for list="{{ bigFiles }}" as="f" hint-placeholder-count="6">
+                  <div style="display:flex;align-items:center;gap:10px;padding:5px 6px;border-radius:4px" style-hover="background:var(--rsd)">
+                    <span style="width:18px;height:18px;border-radius:4px;border:1px solid var(--ln);background:var(--sunk);flex:none"></span>
+                    <span style="width:44px;height:32px;border-radius:3px;background:{{ f.cover }};flex:none"></span>
+                    <span style="flex:1;min-width:0;font:12px/1 var(--mono);color:var(--fgm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.name }}</span>
+                    <span style="font:11px/1 var(--mono);color:var(--fgd)">{{ f.spec }}</span>
+                    <span style="width:70px;text-align:right;font:12px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fg)">{{ f.size }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isTags }}" hint-placeholder-val="{{ false }}">
+        <div style="height:44px;flex:none;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--ln);background:var(--pnl)">
+          <span data-i="tag" style="width:18px;height:18px;color:var(--ac)"></span>
+          <span style="font-size:16px;font-weight:600;letter-spacing:-.01em">Tags</span>
+          <span style="font:12px/1 var(--mono);color:var(--fgd)">312 Tags · 84 Labels · 41 Unused</span>
+          <span style="flex:1"></span>
+          <span style="height:32px;width:280px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:4px;border:1px solid var(--ln);background:var(--bg)">
+            <span data-i="search" style="width:15px;height:15px;color:var(--fgd)"></span>
+            <span style="font-size:13px;color:var(--fgd)">Filter Tags…</span>
+          </span>
+          <button style="height:32px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500" style-hover="border-color:var(--fgd);color:var(--fg)">Delete Unused</button>
+        </div>
+        <div style="height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--ln);background:rgba(111,155,219,.06)">
+          <span style="font-size:13px;color:var(--fg);font-weight:500">2 Selected</span>
+          <span style="width:1px;height:22px;background:var(--lns);margin:0 4px"></span>
+          <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--acd);background:var(--act);color:var(--ac);font-size:13px;font-weight:500">Merge Into One…</button>
+          <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500">Rename</button>
+          <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500">Add Alias</button>
+          <span style="flex:1"></span>
+          <span style="font-size:12px;color:var(--fgd)">Renaming propagates to every item and folder that uses the tag</span>
+        </div>
+        <div class="noscroll" style="flex:1;min-height:0;overflow-y:auto;background:var(--bg);padding:0 12px 14px">
+          <div style="display:grid;grid-template-columns:30px 1fr 90px 110px 1fr 150px;gap:12px;align-items:center;padding:12px 12px 8px;font:600 10px/1 var(--mono);letter-spacing:.12em;color:var(--fgd);position:sticky;top:0;background:var(--bg)">
+            <span></span><span>TAG</span><span>KIND</span><span>USED BY</span><span>ALIASES</span><span></span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <sc-for list="{{ tagRows }}" as="t" hint-placeholder-count="12">
+              <div style="display:grid;grid-template-columns:30px 1fr 90px 110px 1fr 150px;gap:12px;align-items:center;padding:7px 12px;border-radius:5px;background:{{ t.bg }}" style-hover="background:var(--rsd)">
+                <span style="width:18px;height:18px;border-radius:4px;border:1px solid {{ t.cbd }};background:{{ t.cbg }};display:grid;place-items:center;color:#0f1114"><sc-if value="{{ t.checked }}" hint-placeholder-val="{{ false }}"><span data-i="check" style="width:13px;height:13px"></span></sc-if></span>
+                <span style="display:flex;align-items:center;gap:8px;min-width:0">
+                  <span style="height:24px;display:inline-flex;align-items:center;padding:0 9px;border-radius:999px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:12px">{{ t.name }}</span>
+                </span>
+                <span style="font:11px/1 var(--mono);color:var(--fgd)">{{ t.kind }}</span>
+                <span style="font:12px/1 var(--mono);font-variant-numeric:tabular-nums;color:{{ t.useColor }}">{{ t.uses }}</span>
+                <span style="display:flex;gap:5px;flex-wrap:wrap;min-width:0">
+                  <sc-for list="{{ t.aliases }}" as="al" hint-placeholder-count="1">
+                    <span style="height:22px;display:inline-flex;align-items:center;padding:0 8px;border-radius:999px;border:1px dashed var(--lns);color:var(--fgd);font:11px/1 var(--mono)">{{ al.v }}</span>
+                  </sc-for>
+                </span>
+                <span style="display:flex;justify-content:flex-end;gap:4px">
+                  <button title="Rename" style="width:28px;height:28px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);color:var(--fg)"><span data-i="wrench" style="width:15px;height:15px"></span></button>
+                  <button title="Show Items" style="width:28px;height:28px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);color:var(--fg)"><span data-i="search" style="width:15px;height:15px"></span></button>
+                  <button title="Delete" style="width:28px;height:28px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:rgba(194,90,74,.7);background:rgba(194,90,74,.18);color:var(--dngr)"><span data-i="trash-2" style="width:15px;height:15px"></span></button>
+                </span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isComponents }}" hint-placeholder-val="{{ false }}">
+        <div style="height:44px;flex:none;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--ln);background:var(--pnl)">
+          <span data-i="layout-grid" style="width:18px;height:18px;color:var(--ac)"></span>
+          <span style="font-size:16px;font-weight:600;letter-spacing:-.01em">Component Vocabulary</span>
+          <span style="font:12px/1 var(--mono);color:var(--fgd)">One Spec Per Element — Every Screen Is Built Only From These</span>
+        </div>
+        <div class="noscroll" style="flex:1;min-height:0;overflow-y:auto;background:var(--bg);padding:16px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+
+            <div style="padding:14px;border-radius:6px;border:1px solid var(--ln);background:var(--pnl)">
+              <span style="font:600 11px/1 var(--mono);letter-spacing:.14em;color:var(--fgd)">BUTTON · 28 / 32 / 38, EVERY VARIANT HAS A SURFACE AT REST</span>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;align-items:center">
+                <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)">Default Small</button>
+                <button style="height:32px;padding:0 12px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:14px;font-weight:500" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)">Default</button>
+                <button style="height:38px;padding:0 16px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:14px;font-weight:500" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)">Default Large</button>
+                <button style="height:32px;padding:0 12px;border-radius:4px;border:1px solid var(--acd);background:var(--act);color:var(--ac);font-size:14px;font-weight:600" style-hover="background:var(--act2);border-color:var(--ac)">Accent</button>
+                <button style="height:32px;padding:0 12px;border-radius:4px;border:1px solid rgba(95,158,110,.45);background:rgba(95,158,110,.12);color:var(--good);font-size:14px;font-weight:500">Good</button>
+                <button style="height:32px;padding:0 12px;border-radius:4px;border:1px solid rgba(194,90,74,.45);background:rgba(194,90,74,.12);color:var(--dngr);font-size:14px;font-weight:500">Danger</button>
+                <button disabled style="height:32px;padding:0 12px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:14px;font-weight:500;opacity:.4;cursor:default">Disabled</button>
+                <button style="width:32px;height:32px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="star" style="width:18px;height:18px"></span></button>
+                <button style="width:38px;height:38px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="settings" style="width:22px;height:22px"></span></button>
+              </div>
+              <p style="margin:12px 0 0;font-size:12px;color:var(--fgd);line-height:1.6">Text is Title Case. Icon and label are centred together as one group, so a glyph never floats outside the centred text.</p>
+            </div>
+
+            <div style="padding:14px;border-radius:6px;border:1px solid var(--ln);background:var(--pnl)">
+              <span style="font:600 11px/1 var(--mono);letter-spacing:.14em;color:var(--fgd)">SEGMENTED · BADGE · COUNT</span>
+              <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;align-items:center">
+                <span style="display:flex;align-items:center;gap:2px;padding:2px;border-radius:5px;border:1px solid var(--ln);background:var(--bg)">
+                  <button style="height:24px;padding:0 10px;border-radius:3px;border:0;background:var(--act);color:var(--ac);font-size:12px;font-weight:500">All Items</button>
+                  <button style="height:24px;padding:0 10px;border-radius:3px;border:0;background:transparent;color:var(--fgm);font-size:12px;font-weight:500">Here Only</button>
+                </span>
+                <span style="height:19px;padding:0 6px;border-radius:999px;border:1px solid var(--lns);background:var(--rsd);color:var(--fgm);font:11px/17px var(--mono)">1,204</span>
+                <span style="height:19px;padding:0 6px;border-radius:999px;border:1px solid var(--acd);background:var(--act);color:var(--ac);font:11px/17px var(--mono)">48</span>
+                <span style="height:19px;padding:0 6px;border-radius:999px;border:1px solid rgba(194,90,74,.45);background:rgba(194,90,74,.12);color:var(--dngr);font:11px/17px var(--mono)">14</span>
+                <span style="height:19px;padding:0 7px;border-radius:3px;border:1px solid var(--lns);background:var(--sunk);color:var(--fgd);font:11px/17px var(--mono)">yt-dlp</span>
+                <span title="Work In Progress" style="width:6px;height:6px;border-radius:999px;background:var(--warn)"></span>
+              </div>
+              <p style="margin:12px 0 0;font-size:12px;color:var(--fgd);line-height:1.6">Counts are mono with tabular numerals so a changing number never shifts the row beside it.</p>
+            </div>
+
+            <div style="padding:14px;border-radius:6px;border:1px solid var(--ln);background:var(--pnl)">
+              <span style="font:600 11px/1 var(--mono);letter-spacing:.14em;color:var(--fgd)">CHIP · LABEL IS A RECTANGLE, TAG IS A PILL</span>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;align-items:center">
+                <span style="height:26px;display:inline-flex;align-items:stretch;border-radius:4px;border:1px solid var(--ln);overflow:hidden;font-size:12px">
+                  <span style="display:flex;align-items:center;padding:0 8px;background:var(--sunk);color:var(--fgd);border-right:1px solid var(--lns);font-family:var(--mono)">instagram</span>
+                  <span style="display:flex;align-items:center;padding:0 8px;background:var(--rsd);color:var(--fgm)">@ana</span>
+                </span>
+                <span style="height:26px;display:inline-flex;align-items:stretch;border-radius:4px;border:1px solid var(--lns);overflow:hidden;font-size:12px">
+                  <span style="display:flex;align-items:center;padding:0 8px;background:var(--sunk);color:var(--fgd);border-right:1px solid var(--lns);font-family:var(--mono)">city</span>
+                  <span style="display:flex;align-items:center;padding:0 8px;background:var(--sunk);color:var(--fgd)">lisbon · inherited</span>
+                </span>
+                <span style="height:26px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-radius:999px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:12px">
+                  beach
+                  <button style="width:18px;height:18px;border:0;border-radius:999px;background:transparent;color:inherit;opacity:.6;display:grid;place-items:center;margin-right:-6px" style-hover="opacity:1;background:rgba(255,255,255,.12)"><span data-i="x" style="width:11px;height:11px"></span></button>
+                </span>
+                <span style="height:26px;display:inline-flex;align-items:center;padding:0 10px;border-radius:999px;border:1px solid var(--lns);background:var(--sunk);color:var(--fgd);font-size:12px">people · inherited</span>
+                <button style="height:26px;padding:0 10px;border-radius:999px;border:1px dashed var(--ln);background:transparent;color:var(--fgd);font-size:12px;display:inline-flex;align-items:center;justify-content:center;gap:5px" style-hover="border-color:var(--fgd);color:var(--fg)"><span data-i="plus" style="width:12px;height:12px"></span>Add Tag</button>
+              </div>
+              <p style="margin:12px 0 0;font-size:12px;color:var(--fgd);line-height:1.6">Inherited chips are recessed and carry no remove button — they change at the folder that owns them.</p>
+            </div>
+
+            <div style="padding:14px;border-radius:6px;border:1px solid var(--ln);background:var(--pnl)">
+              <span style="font:600 11px/1 var(--mono);letter-spacing:.14em;color:var(--fgd)">ROW · SUB-CONTROLS USE TRANSLUCENT OVERLAYS</span>
+              <div style="margin-top:12px;display:flex;flex-direction:column;gap:2px">
+                <sc-for list="{{ demoRows }}" as="r" hint-placeholder-count="3">
+                  <div style="height:32px;display:flex;align-items:center;border-radius:4px;background:{{ r.bg }};color:{{ r.fg }}" style-hover="background:{{ r.hbg }}">
+                    <button style="width:20px;height:20px;flex:none;border:0;border-radius:3px;background:transparent;display:grid;place-items:center;color:var(--fgd);margin-left:5px" style-hover="background:rgba(255,255,255,.10);color:var(--fg)"><span data-i="chevron-right" style="width:15px;height:15px"></span></button>
+                    <span data-i="folder" style="width:16px;height:16px;margin-left:5px;color:{{ r.ic }}"></span>
+                    <span style="flex:1;margin-left:9px;font-size:14px">{{ r.title }}</span>
+                    <span style="font:12px/1 var(--mono);color:{{ r.cfg }}">{{ r.count }}</span>
+                    <span style="display:flex;gap:1px;width:48px;justify-content:flex-end;padding-right:4px;opacity:{{ r.op }}">
+                      <button style="width:20px;height:20px;border:0;border-radius:3px;background:transparent;display:grid;place-items:center;color:var(--fgd)" style-hover="background:rgba(255,255,255,.10);color:var(--fg)"><span data-i="plus" style="width:14px;height:14px"></span></button>
+                      <button style="width:20px;height:20px;border:0;border-radius:3px;background:transparent;display:grid;place-items:center;color:var(--fgd)" style-hover="background:rgba(255,255,255,.10);color:var(--fg)"><span data-i="ellipsis" style="width:14px;height:14px"></span></button>
+                    </span>
+                  </div>
+                </sc-for>
+              </div>
+              <p style="margin:12px 0 0;font-size:12px;color:var(--fgd);line-height:1.6">The old grey hover on the chevron vanished on the accented selected row. A translucent white overlay reads on every row state, so one rule covers all of them.</p>
+            </div>
+
+            <div style="padding:14px;border-radius:6px;border:1px solid var(--ln);background:var(--pnl)">
+              <span style="font:600 11px/1 var(--mono);letter-spacing:.14em;color:var(--fgd)">FIELD · SLIDER · CHECKBOX · SWITCH</span>
+              <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;align-items:center">
+                <span style="height:32px;width:240px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:4px;border:1px solid var(--ln);background:var(--bg);font-size:13px;color:var(--fgd)">Placeholder Text…</span>
+                <span style="height:32px;width:240px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:4px;border:1px solid var(--ac);background:var(--bg);font-size:13px;color:var(--fg)">Focused Value<span style="width:1px;height:16px;background:var(--ac)"></span></span>
+                <span style="position:relative;width:120px;height:32px;display:flex;align-items:center">
+                  <span style="position:absolute;left:0;right:0;height:4px;border-radius:999px;background:var(--rsd)"></span>
+                  <span style="position:absolute;left:0;width:60%;height:4px;border-radius:999px;background:var(--ac)"></span>
+                  <span style="position:absolute;left:calc(60% - 7px);width:14px;height:14px;border-radius:999px;background:var(--fg);border:2px solid var(--pnl)"></span>
+                </span>
+                <span style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fgm)"><span style="width:18px;height:18px;border-radius:4px;border:1px solid var(--ac);background:var(--ac);display:grid;place-items:center;color:#0f1114"><span data-i="check" style="width:13px;height:13px"></span></span>Checked</span>
+                <span style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fgm)"><span style="width:18px;height:18px;border-radius:4px;border:1px solid var(--ln);background:var(--bg)"></span>Unchecked</span>
+                <span style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fgm)"><span style="width:34px;height:19px;border-radius:999px;background:var(--ac);position:relative"><span style="position:absolute;right:2px;top:2px;width:15px;height:15px;border-radius:999px;background:#0f1114"></span></span>On</span>
+              </div>
+            </div>
+
+            <div style="padding:14px;border-radius:6px;border:1px solid var(--ln);background:var(--pnl)">
+              <span style="font:600 11px/1 var(--mono);letter-spacing:.14em;color:var(--fgd)">TOAST · MENU</span>
+              <div style="display:flex;gap:14px;margin-top:12px;align-items:flex-start">
+                <div style="flex:1;display:flex;align-items:center;gap:10px;padding:10px 10px 10px 12px;border-radius:6px;border:1px solid var(--ln);background:var(--rsd);box-shadow:0 10px 30px rgba(0,0,0,.45)">
+                  <span data-i="check" style="width:16px;height:16px;color:var(--good)"></span>
+                  <span style="flex:1;min-width:0;font-size:13px;color:var(--fg)">Moved 12 Items To <span style="font-family:var(--mono);color:var(--fgm)">trips / lisbon</span></span>
+                  <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--acd);background:var(--act);color:var(--ac);font-size:13px;font-weight:500">Undo</button>
+                  <button style="width:24px;height:24px;border:0;border-radius:4px;background:transparent;color:var(--fgd);display:grid;place-items:center" style-hover="background:rgba(255,255,255,.10);color:var(--fg)"><span data-i="x" style="width:14px;height:14px"></span></button>
+                </div>
+                <div style="width:230px;padding:5px;border-radius:6px;border:1px solid var(--ln);background:var(--rsd);box-shadow:0 14px 34px rgba(0,0,0,.5)">
+                  <span style="display:block;padding:6px 9px 5px;font:600 10px/1 var(--mono);letter-spacing:.12em;color:var(--fgd)">ITEM</span>
+                  <sc-for list="{{ menuItems }}" as="m" hint-placeholder-count="5">
+                    <button style="width:100%;height:30px;display:flex;align-items:center;gap:9px;padding:0 9px;border:0;border-radius:4px;background:{{ m.bg }};color:{{ m.fg }};font-size:13px;text-align:left" style-hover="background:var(--hov);color:var(--fg)">
+                      <span data-i="{{ m.icon }}" style="width:16px;height:16px;color:{{ m.ic }}"></span>
+                      <span style="flex:1">{{ m.label }}</span>
+                      <span style="font:11px/1 var(--mono);color:#565d68">{{ m.key }}</span>
+                    </button>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+    </main>
+
+    <div style="width:7px;flex:none;cursor:col-resize;display:flex;justify-content:center">
+      <span style="width:3px;height:100%;background:transparent" style-hover="background:var(--ac)"></span>
+    </div>
+
+    <aside data-screen-label="Pane" style="width:{{ paneW }}px;flex:none;display:flex;flex-direction:column;border-left:1px solid var(--ln);background:var(--pnl);overflow:hidden">
+
+      <sc-if value="{{ paneClosed }}" hint-placeholder-val="{{ false }}">
+        <div style="height:44px;flex:none;display:flex;align-items:center;justify-content:center;border-bottom:1px solid var(--lns)">
+          <button onClick="{{ togglePane }}" title="Show The Pane" style="width:32px;height:32px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="panel-right-open" style="width:18px;height:18px"></span></button>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding-top:8px">
+          <sc-for list="{{ paneModes }}" as="m" hint-placeholder-count="3">
+            <button onClick="{{ m.open }}" title="{{ m.label }}" style="width:32px;height:32px;border-radius:4px;border:1px solid {{ m.bd }};background:{{ m.bg }};color:{{ m.fg }};display:grid;place-items:center"><span data-i="{{ m.icon }}" style="width:18px;height:18px"></span></button>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ paneOpen }}" hint-placeholder-val="{{ true }}">
+        <header style="height:44px;flex:none;display:flex;align-items:center;gap:6px;padding:0 8px;border-bottom:1px solid var(--ln)">
+          <button title="{{ maxLabel }}" onClick="{{ toggleMax }}" style="width:32px;height:32px;flex:none;border-radius:4px;border:1px solid {{ maxBd }};background:{{ maxBg }};color:{{ maxFg }};display:grid;place-items:center" style-hover="border-color:var(--fgd)"><span data-i="{{ maxIcon }}" style="width:18px;height:18px"></span></button>
+
+          <sc-if value="{{ isPreview }}" hint-placeholder-val="{{ true }}">
+            <button onClick="{{ toggleDetails }}" style="height:32px;flex:1;min-width:0;display:flex;align-items:center;gap:7px;padding:0 8px 0 5px;border-radius:4px;border:0;background:transparent;color:var(--fg);text-align:left" style-hover="background:var(--hov)">
+              <span data-i="chevron-right" style="width:17px;height:17px;color:var(--fgd);transform:rotate({{ detailsRot }}deg);transition:transform 120ms ease-out"></span>
+              <span style="flex:1;min-width:0;font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">lisbon_beach_0142.jpg</span>
+            </button>
+          </sc-if>
+
+          <sc-if value="{{ isFolders }}" hint-placeholder-val="{{ false }}">
+            <button title="Up A Level" style="width:32px;height:32px;flex:none;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="arrow-up" style="width:18px;height:18px"></span></button>
+            <div style="flex:1;min-width:0;display:flex;align-items:center;gap:5px;padding-left:4px;font-size:13px">
+              <span style="color:var(--fgd)">all folders</span>
+              <span data-i="chevron-right" style="width:12px;height:12px;color:#4d545e"></span>
+              <span style="color:var(--fg);font-weight:500">trips</span>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isGridMode }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:1;min-width:0;display:flex;align-items:center;gap:5px;padding-left:4px;font-size:13px">
+              <span style="color:var(--fg);font-weight:500">trips / lisbon</span>
+              <span style="font:12px/1 var(--mono);color:var(--fgd)">616 items</span>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isFailure }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;padding-left:4px">
+              <span data-i="triangle-alert" style="width:16px;height:16px;color:var(--dngr);flex:none"></span>
+              <span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ fName }}</span>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isCompare }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;padding-left:4px">
+              <span style="font-size:13px;font-weight:500;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ compareTitle }}</span>
+              <span style="height:19px;padding:0 7px;flex:none;border-radius:3px;border:1px solid var(--acd);background:var(--act);color:var(--ac);font:11px/17px var(--mono)">Synced</span>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ showModeSwitcher }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:center;gap:2px;padding:2px;border-radius:5px;border:1px solid var(--ln);background:var(--bg);flex:none">
+              <sc-for list="{{ paneModes }}" as="m" hint-placeholder-count="3">
+                <button onClick="{{ m.open }}" title="{{ m.label }}" style="width:30px;height:24px;padding:0;border-radius:3px;border:0;background:{{ m.sbg }};color:{{ m.sfg }};display:grid;place-items:center">
+                  <span data-i="{{ m.icon }}" style="width:15px;height:15px"></span>
+                </button>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <span style="width:1px;height:22px;background:var(--lns);flex:none;margin:0 3px"></span>
+
+          <button onClick="{{ togglePane }}" title="Hide The Pane" style="width:32px;height:32px;flex:none;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="panel-right-close" style="width:18px;height:18px"></span></button>
+        </header>
+
+        <sc-if value="{{ showDetails }}" hint-placeholder-val="{{ true }}">
+          <section style="flex:none;max-height:420px;overflow-y:auto;border-bottom:1px solid var(--ln);background:var(--pnl);padding:12px 12px 14px">
+            <div style="display:grid;grid-template-columns:110px 1fr;gap:5px 14px;font-size:13px">
+              <sc-for list="{{ detailRows }}" as="r" hint-placeholder-count="8">
+                <span style="color:var(--fgd)">{{ r.k }}</span>
+                <span style="color:var(--fgm);font-family:{{ r.font }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.v }}</span>
+              </sc-for>
+            </div>
+
+            <div style="display:flex;align-items:center;gap:5px;margin-top:12px;font-size:12px;font-family:var(--mono)">
+              <span style="color:var(--fgd)">people</span>
+              <span data-i="chevron-right" style="width:12px;height:12px;color:#4d545e"></span>
+              <span style="color:var(--fgd)">ana</span>
+              <span data-i="chevron-right" style="width:12px;height:12px;color:#4d545e"></span>
+              <span style="color:var(--fgm)">2024 trip</span>
+            </div>
+
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:12px">
+              <span style="font:600 10px/1 var(--mono);letter-spacing:.12em;color:var(--fgd);width:100%">LABELS · INHERITED FROM FOLDER</span>
+              <sc-for list="{{ itemLabels }}" as="l" hint-placeholder-count="3">
+                <span style="height:26px;display:inline-flex;align-items:stretch;border-radius:4px;border:1px solid {{ l.bd }};overflow:hidden;font-size:12px">
+                  <span style="display:flex;align-items:center;padding:0 8px;background:var(--sunk);color:var(--fgd);border-right:1px solid var(--lns);font-family:var(--mono)">{{ l.k }}</span>
+                  <span style="display:flex;align-items:center;padding:0 8px;background:{{ l.vbg }};color:{{ l.vfg }}">{{ l.v }}</span>
+                </span>
+              </sc-for>
+            </div>
+
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:12px">
+              <span style="font:600 10px/1 var(--mono);letter-spacing:.12em;color:var(--fgd);width:100%">TAGS</span>
+              <sc-for list="{{ itemTags }}" as="t" hint-placeholder-count="4">
+                <span style="height:26px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-radius:999px;border:1px solid {{ t.bd }};background:{{ t.bg }};color:{{ t.fg }};font-size:12px">
+                  {{ t.v }}
+                  <sc-if value="{{ t.removable }}" hint-placeholder-val="{{ true }}">
+                    <button title="Remove Tag" style="width:18px;height:18px;border:0;border-radius:999px;background:transparent;color:inherit;opacity:.6;display:grid;place-items:center;margin-right:-6px" style-hover="opacity:1;background:rgba(255,255,255,.12)"><span data-i="x" style="width:11px;height:11px"></span></button>
+                  </sc-if>
+                </span>
+              </sc-for>
+              <button style="height:26px;padding:0 10px;border-radius:999px;border:1px dashed var(--ln);background:transparent;color:var(--fgd);font-size:12px;display:inline-flex;align-items:center;justify-content:center;gap:5px" style-hover="border-color:var(--fgd);color:var(--fg)"><span data-i="plus" style="width:12px;height:12px"></span>Add Tag</button>
+            </div>
+          </section>
+        </sc-if>
+
+        <sc-if value="{{ isPreview }}" hint-placeholder-val="{{ true }}">
+          <div style="flex:1;min-height:0;position:relative;background:var(--sunk);display:grid;place-items:center;padding:10px">
+            <div style="position:relative;max-width:100%;max-height:100%;aspect-ratio:4/3;width:100%;border-radius:3px;background:repeating-linear-gradient(135deg,rgba(255,255,255,.035) 0 8px,transparent 8px 16px),linear-gradient(155deg,#43566b,#212934)">
+              <span style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font:11px/1 var(--mono);letter-spacing:.1em;color:rgba(255,255,255,.42)">PHOTO · 4032×3024</span>
+            </div>
+            <button style="position:absolute;right:16px;bottom:16px;height:26px;padding:0 10px;border-radius:4px;border:1px solid var(--ln);background:rgba(15,17,20,.86);color:var(--fgm);font:12px/1 var(--mono)" style-hover="border-color:var(--fgd);color:var(--fg)">142%</button>
+          </div>
+
+          <div style="height:44px;flex:none;display:flex;align-items:center;gap:6px;padding:0 8px;border-top:1px solid var(--ln);background:var(--pnl)">
+            <button title="Favourite" style="width:32px;height:32px;flex:none;border-radius:4px;border:1px solid var(--acd);background:var(--act);color:var(--ac);display:grid;place-items:center" style-hover="background:var(--act2);border-color:var(--ac)"><span data-i="star" style="width:18px;height:18px"></span></button>
+            <button style="height:32px;padding:0 10px;flex:none;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="folder-input" style="width:16px;height:16px"></span>Move To…</button>
+            <span style="flex:1"></span>
+            <button title="Reveal In Explorer" style="width:32px;height:32px;flex:none;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="folder-search" style="width:18px;height:18px"></span></button>
+            <button title="Copy File" style="width:32px;height:32px;flex:none;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="copy" style="width:18px;height:18px"></span></button>
+            <button title="Open With The Default App" style="width:32px;height:32px;flex:none;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="external-link" style="width:18px;height:18px"></span></button>
+            <button title="Blur Everything" style="width:32px;height:32px;flex:none;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="eye-off" style="width:18px;height:18px"></span></button>
+            <button title="Delete" style="width:32px;height:32px;flex:none;border-radius:4px;border:1px solid rgba(194,90,74,.45);background:rgba(194,90,74,.12);color:var(--dngr);display:grid;place-items:center" style-hover="border-color:rgba(194,90,74,.7);background:rgba(194,90,74,.22)"><span data-i="trash-2" style="width:18px;height:18px"></span></button>
+            <button title="More Actions" style="width:32px;height:32px;flex:none;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="ellipsis" style="width:18px;height:18px"></span></button>
+          </div>
+
+          <div style="height:7px;flex:none;cursor:row-resize;display:flex;align-items:center">
+            <span style="height:3px;width:100%;background:transparent" style-hover="background:var(--ac)"></span>
+          </div>
+
+          <div style="height:76px;flex:none;position:relative;background:var(--pnl)">
+            <div class="noscroll" style="display:flex;align-items:stretch;gap:5px;height:100%;padding:6px 46px;overflow-x:auto">
+              <sc-for list="{{ strip }}" as="s" hint-placeholder-count="14">
+                <span style="flex:none;width:86px;height:100%;border-radius:4px;border:2px solid {{ s.bd }};background:{{ s.bg }};opacity:{{ s.op }};cursor:pointer" style-hover="opacity:1"></span>
+              </sc-for>
+            </div>
+            <div style="position:absolute;left:0;top:0;bottom:0;display:flex;align-items:center;padding-left:7px;background:linear-gradient(to right,var(--pnl) 60%,transparent)">
+              <button title="Previous" style="width:32px;height:32px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="chevron-left" style="width:18px;height:18px"></span></button>
+            </div>
+            <div style="position:absolute;right:0;top:0;bottom:0;display:flex;align-items:center;padding-right:7px;background:linear-gradient(to left,var(--pnl) 60%,transparent)">
+              <button title="Next" style="width:32px;height:32px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="chevron-right" style="width:18px;height:18px"></span></button>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isFolders }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;min-height:0;overflow-y:auto;padding:10px">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+              <sc-for list="{{ folderTiles }}" as="f" hint-placeholder-count="9">
+                <div onClick="{{ f.go }}" style="display:flex;flex-direction:column;gap:7px;padding:8px;border-radius:6px;border:1px solid {{ f.bd }};background:{{ f.bg }};cursor:pointer;outline:{{ f.ring }}" style-hover="border-color:var(--fgd);background:var(--rsd)">
+                  <span style="aspect-ratio:1;border-radius:4px;background:{{ f.cover }};display:grid;place-items:center"></span>
+                  <span style="font-size:13px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.title }}</span>
+                  <span style="font:12px/1 var(--mono);font-variant-numeric:tabular-nums;color:{{ f.cfg }}">{{ f.count }}</span>
+                </div>
+              </sc-for>
+              <button style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;aspect-ratio:1;border-radius:6px;border:1px dashed var(--ln);background:transparent;color:var(--fgd);text-align:center;padding:8px" style-hover="border-color:var(--ac);color:var(--fg)">
+                <span data-i="folder-plus" style="width:26px;height:26px"></span>
+                <span style="font-size:12px;line-height:1.3">New Folder<br>In Trips</span>
+              </button>
+            </div>
+          </div>
+          <div style="height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;border-top:1px solid var(--ln)">
+            <span style="flex:1;height:32px;display:flex;align-items:center;gap:8px;padding:0 9px;border-radius:4px;border:1px solid var(--ln);background:var(--bg)">
+              <span data-i="search" style="width:15px;height:15px;color:var(--fgd)"></span>
+              <span style="font-size:13px;color:var(--fgd)">Filter By Title Or Path…</span>
+            </span>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isGridMode }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;min-height:0;overflow-y:auto;padding:8px;background:var(--bg)">
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+              <sc-for list="{{ paneGridTiles }}" as="t" hint-placeholder-count="24">
+                <span style="aspect-ratio:1;border-radius:4px;border:2px solid {{ t.bd }};background:{{ t.bg }};cursor:pointer" style-hover="border-color:var(--fgd)"></span>
+              </sc-for>
+            </div>
+          </div>
+          <div style="height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;border-top:1px solid var(--ln);color:var(--fgm);font-size:13px">
+            <span data-i="folder-input" style="width:16px;height:16px;color:var(--ac)"></span>Drop Items Here To Move Them Into This Folder
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isFailure }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;min-height:0;display:flex;flex-direction:column;background:var(--sunk);overflow-y:auto">
+            <div style="flex:none;height:280px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;border-bottom:1px solid var(--ln);background:repeating-linear-gradient(135deg,rgba(255,255,255,.018) 0 10px,transparent 10px 20px)">
+              <span style="width:96px;height:112px;border-radius:6px;border:2px dashed #3c434d;display:grid;place-items:center;color:#4d545e">
+                <span data-i="file-question" style="width:40px;height:40px"></span>
+              </span>
+              <span style="font:11px/1 var(--mono);letter-spacing:.12em;color:#5c636e">NO PREVIEW — THIS FILE WAS NEVER DECODED</span>
+            </div>
+
+            <div style="padding:14px 14px 16px;display:flex;flex-direction:column;gap:14px;background:var(--pnl)">
+              <div style="display:flex;align-items:flex-start;gap:11px;padding:11px 12px;border-radius:6px;border:1px solid rgba(194,90,74,.4);background:rgba(194,90,74,.07)">
+                <span data-i="triangle-alert" style="width:17px;height:17px;color:var(--dngr);flex:none;margin-top:1px"></span>
+                <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+                  <span style="font:13px/1 var(--mono);color:var(--dngr)">{{ fReason }}</span>
+                  <span style="font-size:13px;line-height:1.6;color:var(--fgm)">{{ fDetail }}</span>
+                </span>
+              </div>
+
+              <div style="display:flex;align-items:flex-start;gap:11px;padding:11px 12px;border-radius:6px;border:1px solid var(--ln);background:var(--bg)">
+                <span data-i="info" style="width:17px;height:17px;color:var(--ac);flex:none;margin-top:1px"></span>
+                <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+                  <span style="font:600 10px/1 var(--mono);letter-spacing:.12em;color:var(--fgd)">WHAT TO DO</span>
+                  <span style="font-size:13px;line-height:1.6;color:var(--fgm)">{{ fFix }}</span>
+                </span>
+              </div>
+
+              <div style="display:grid;grid-template-columns:96px 1fr;gap:5px 14px;font-size:13px">
+                <sc-for list="{{ fMeta }}" as="r" hint-placeholder-count="4">
+                  <span style="color:var(--fgd)">{{ r.k }}</span>
+                  <span style="min-width:0;font-family:var(--mono);font-size:12px;color:var(--fgm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.v }}</span>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+
+          <div style="height:44px;flex:none;display:flex;align-items:center;gap:6px;padding:0 8px;border-top:1px solid var(--ln);background:var(--pnl)">
+            <button style="height:32px;padding:0 12px;flex:none;border-radius:4px;border:1px solid {{ fRetryBd }};background:{{ fRetryBg }};color:{{ fRetryFg }};font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px" style-hover="border-color:var(--fgd)"><span data-i="rotate-ccw" style="width:16px;height:16px"></span>{{ fRetryLabel }}</button>
+            <span style="flex:1"></span>
+            <button title="Reveal In Explorer" style="width:32px;height:32px;flex:none;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="folder-search" style="width:18px;height:18px"></span></button>
+            <button title="Open With The Default App" style="width:32px;height:32px;flex:none;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="external-link" style="width:18px;height:18px"></span></button>
+            <button title="Copy The Full Path" style="width:32px;height:32px;flex:none;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="copy" style="width:18px;height:18px"></span></button>
+            <button title="Ignore — Stop Reporting This File" style="width:32px;height:32px;flex:none;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="eye-off" style="width:18px;height:18px"></span></button>
+            <button title="Delete" style="width:32px;height:32px;flex:none;border-radius:4px;border:1px solid rgba(194,90,74,.45);background:rgba(194,90,74,.12);color:var(--dngr);display:grid;place-items:center" style-hover="border-color:rgba(194,90,74,.7);background:rgba(194,90,74,.22)"><span data-i="trash-2" style="width:18px;height:18px"></span></button>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isCompare }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;background:var(--sunk)">
+            <sc-for list="{{ compareSlots }}" as="c" hint-placeholder-count="2">
+              <div style="position:relative;border-radius:4px;background:{{ c.cover }};overflow:hidden">
+                <span style="position:absolute;top:8px;left:8px;height:22px;padding:0 8px;border-radius:4px;background:rgba(8,9,11,.78);color:{{ c.tagFg }};font:11px/22px var(--mono);letter-spacing:.06em">{{ c.tag }}</span>
+                <span style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font:11px/1 var(--mono);letter-spacing:.1em;color:rgba(255,255,255,.4)">{{ c.spec }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="flex:none;padding:10px 12px;border-top:1px solid var(--ln);background:var(--pnl)">
+            <div style="display:grid;grid-template-columns:88px 1fr 1fr;gap:4px 12px;font:12px/1.7 var(--mono)">
+              <sc-for list="{{ compareStats }}" as="r" hint-placeholder-count="5">
+                <span style="color:var(--fgd)">{{ r.k }}</span>
+                <span style="color:var(--fgm)">{{ r.a }}</span>
+                <span style="color:{{ r.bColor }}">{{ r.b }}</span>
+              </sc-for>
+            </div>
+          </div>
+          <div style="height:44px;flex:none;display:flex;align-items:center;gap:6px;padding:0 10px;border-top:1px solid var(--ln);background:var(--pnl)">
+            <button title="Previous Frame" style="width:32px;height:32px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);color:var(--fg)"><span data-i="chevron-left" style="width:18px;height:18px"></span></button>
+            <button title="Next Frame" style="width:32px;height:32px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);color:var(--fg)"><span data-i="chevron-right" style="width:18px;height:18px"></span></button>
+            <button style="height:32px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500" style-hover="border-color:var(--fgd);color:var(--fg)">1:1</button>
+            <button style="height:32px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500" style-hover="border-color:var(--fgd);color:var(--fg)">Wipe</button>
+            <span style="flex:1"></span>
+            <button style="height:32px;padding:0 12px;border-radius:4px;border:1px solid rgba(95,158,110,.45);background:rgba(95,158,110,.12);color:var(--good);font-size:13px;font-weight:600">{{ compareKeep }}</button>
+            <button style="height:32px;padding:0 12px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500">{{ compareReject }}</button>
+          </div>
+        </sc-if>
+      </sc-if>
+    </aside>
+  </div>
+
+  <sc-if value="{{ isImport }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="First Import" style="flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;background:var(--bg);overflow-y:auto">
+      <div style="width:880px;padding:56px 0 48px;display:flex;flex-direction:column;gap:28px">
+
+        <div style="display:flex;align-items:center;gap:0">
+          <sc-for list="{{ importSteps }}" as="st" hint-placeholder-count="3">
+            <button onClick="{{ st.go }}" style="display:flex;align-items:center;gap:10px;padding:0;border:0;background:transparent;text-align:left">
+              <span style="width:28px;height:28px;border-radius:999px;border:1px solid {{ st.bd }};background:{{ st.bg }};color:{{ st.fg }};font:12px/26px var(--mono);text-align:center">{{ st.n }}</span>
+              <span style="font-size:14px;font-weight:500;color:{{ st.fg }}">{{ st.label }}</span>
+            </button>
+            <span style="width:64px;height:1px;background:var(--ln);margin:0 14px"></span>
+          </sc-for>
+        </div>
+
+        <sc-if value="{{ importReview }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;flex-direction:column;gap:22px">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <h1 style="margin:0;font-size:26px;font-weight:600;letter-spacing:-.02em;color:var(--fg)">Review This Library Before It Is Opened</h1>
+              <p style="margin:0;font-size:14px;line-height:1.65;color:var(--fgm);max-width:74ch">Every file will be renamed to a UUID and stored flat inside <span style="font-family:var(--mono);color:var(--fg)">files/</span>. Your directory tree is kept — each directory becomes a folder, and each file is filed into the folder it was already in. Files loose at the top level go to the Sorting Box. Original filenames are stored as searchable metadata.</p>
+            </div>
+
+            <div style="padding:14px 16px;border-radius:6px;border:1px solid var(--ln);background:var(--pnl);display:flex;align-items:center;gap:12px">
+              <span data-i="folder" style="width:18px;height:18px;color:var(--fgd)"></span>
+              <span style="flex:1;font:14px/1 var(--mono);color:var(--fg)">D:\MyMedia</span>
+              <button style="height:32px;padding:0 12px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)">Choose A Different Folder</button>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+              <sc-for list="{{ importStats }}" as="s" hint-placeholder-count="4">
+                <div style="padding:14px;border-radius:6px;border:1px solid var(--ln);background:var(--pnl);display:flex;flex-direction:column;gap:6px">
+                  <span style="font:600 10px/1 var(--mono);letter-spacing:.12em;color:var(--fgd)">{{ s.k }}</span>
+                  <span style="font:600 26px/1.1 var(--ui);letter-spacing:-.02em;color:{{ s.color }}">{{ s.v }}</span>
+                  <span style="font-size:12px;color:var(--fgd)">{{ s.sub }}</span>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="padding:14px 16px;border-radius:6px;border:1px solid rgba(194,90,74,.4);background:rgba(194,90,74,.07);display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;align-items:flex-start;gap:12px">
+                <span data-i="triangle-alert" style="width:18px;height:18px;color:var(--dngr);margin-top:2px"></span>
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <span style="font-size:14px;font-weight:600;color:var(--fg)">There Is No Undo For This</span>
+                  <span style="font-size:13px;line-height:1.6;color:var(--fgm)">The rename runs before anything is indexed. Nothing reconstructs the original filenames back onto disk afterwards — the mapping is exported to <span style="font-family:var(--mono);color:var(--fg)">library.jsonl</span> for disaster recovery only.</span>
+                </div>
+              </div>
+              <label style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--fg);cursor:pointer;padding-left:30px">
+                <span style="width:18px;height:18px;border-radius:4px;border:1px solid var(--ac);background:var(--ac);display:grid;place-items:center;color:#0f1114;flex:none"><span data-i="check" style="width:13px;height:13px"></span></span>
+                I have a backup of this folder.
+              </label>
+            </div>
+
+            <div style="display:flex;align-items:center;gap:10px">
+              <button style="height:38px;padding:0 20px;border-radius:4px;border:1px solid var(--acd);background:var(--act);color:var(--ac);font-size:14px;font-weight:600" style-hover="background:var(--act2);border-color:var(--ac)">Rename And Import</button>
+              <button style="height:38px;padding:0 16px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:14px;font-weight:500" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)">Dry Run First</button>
+              <span style="flex:1"></span>
+              <button style="height:38px;padding:0 16px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:14px;font-weight:500" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)">Cancel</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ importChoose }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:22px;align-items:flex-start">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <h1 style="margin:0;font-size:26px;font-weight:600;letter-spacing:-.02em;color:var(--fg)">Choose The Folder That Holds Your Media</h1>
+              <p style="margin:0;font-size:14px;line-height:1.65;color:var(--fgm);max-width:70ch">Everything the app writes goes into a <span style="font-family:var(--mono);color:var(--fg)">.ggallery</span> folder inside it — the database, the thumbnail cache, the trash and the plaintext backup. Backing up is copying that one folder.</p>
+            </div>
+            <button style="height:38px;padding:0 20px;border-radius:4px;border:1px solid var(--acd);background:var(--act);color:var(--ac);font-size:14px;font-weight:600" style-hover="background:var(--act2);border-color:var(--ac)">Choose Library Folder</button>
+            <div style="width:100%;padding:12px 14px;border-radius:6px;border:1px solid var(--ln);background:var(--pnl);display:flex;align-items:center;gap:12px">
+              <span data-i="clock" style="width:16px;height:16px;color:var(--fgd)"></span>
+              <span style="flex:1;font:13px/1 var(--mono);color:var(--fgm)">D:\MyMedia</span>
+              <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500" style-hover="border-color:var(--fgd);color:var(--fg)">Reopen</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ importProgress }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:22px">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <h1 style="margin:0;font-size:26px;font-weight:600;letter-spacing:-.02em;color:var(--fg)">Normalising The Library</h1>
+              <p style="margin:0;font-size:14px;line-height:1.65;color:var(--fgm)">Renaming first, then indexing. Nothing is written into <span style="font-family:var(--mono);color:var(--fg)">.ggallery/</span> until the rename has finished.</p>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <sc-for list="{{ importPhases }}" as="p" hint-placeholder-count="4">
+                <div style="display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:6px;border:1px solid {{ p.bd }};background:var(--pnl)">
+                  <span data-i="{{ p.icon }}" style="width:18px;height:18px;color:{{ p.iconColor }}"></span>
+                  <span style="width:190px;font-size:14px;font-weight:500;color:{{ p.fg }}">{{ p.label }}</span>
+                  <span style="flex:1;height:5px;border-radius:999px;background:var(--rsd);overflow:hidden"><span style="display:block;width:{{ p.pct }}%;height:100%;background:{{ p.bar }}"></span></span>
+                  <span style="width:190px;text-align:right;font:12px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fgm)">{{ p.meta }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <span style="font-size:13px;color:var(--fgd)">You can leave this running — the grid opens as soon as the rename finishes and fills in as indexing continues.</span>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isTheatre }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Multi-View" style="flex:1;min-height:0;display:flex;flex-direction:column;background:var(--sunk)">
+      <div style="height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;border-bottom:1px solid var(--ln);background:var(--pnl)">
+        <button onClick="{{ leaveTheatre }}" title="Back To The Split" style="width:32px;height:32px;border-radius:4px;border:1px solid var(--acd);background:var(--act);color:var(--ac);display:grid;place-items:center" style-hover="background:var(--act2)"><span data-i="chevron-right" style="width:18px;height:18px"></span></button>
+        <span style="font-size:14px;font-weight:600;color:var(--fg)">Multi-View</span>
+        <span style="font:12px/1 var(--mono);color:var(--fgd)">6 Of 12 Slots · All Looping · Muted</span>
+        <span style="width:1px;height:22px;background:var(--lns);margin:0 6px"></span>
+        <div style="display:flex;align-items:center;gap:2px;padding:2px;border-radius:5px;border:1px solid var(--ln);background:var(--bg)">
+          <sc-for list="{{ theatreCounts }}" as="c" hint-placeholder-count="5">
+            <button onClick="{{ c.go }}" style="height:24px;padding:0 10px;border-radius:3px;border:0;background:{{ c.bg }};color:{{ c.fg }};font:12px/1 var(--mono)">{{ c.n }}</button>
+          </sc-for>
+        </div>
+        <span style="font-size:12px;color:var(--fgd)">Click A Pane To Solo Its Audio</span>
+        <span style="flex:1"></span>
+        <button style="height:32px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span data-i="eye-off" style="width:16px;height:16px"></span>Blur Everything</button>
+        <button style="height:32px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)">Shared Timeline</button>
+      </div>
+      <div style="flex:1;min-height:0;display:grid;grid-template-columns:repeat({{ theatreCols }},minmax(0,1fr));grid-template-rows:repeat({{ theatreRows }},minmax(0,1fr));gap:4px;padding:4px">
+        <sc-for list="{{ theatreSlots }}" as="t" hint-placeholder-count="6">
+          <div style="position:relative;border-radius:4px;border:2px solid {{ t.bd }};background:{{ t.bg }};overflow:hidden;cursor:pointer" style-hover="border-color:var(--fgd)">
+            <span style="position:absolute;top:8px;left:8px;height:20px;padding:0 7px;border-radius:4px;background:rgba(8,9,11,.75);color:#c8ced8;font:11px/20px var(--mono)">{{ t.name }}</span>
+            <sc-if value="{{ t.solo }}" hint-placeholder-val="{{ false }}">
+              <span style="position:absolute;top:8px;right:8px;height:20px;padding:0 7px;border-radius:4px;background:var(--ac);color:#0f1114;font:600 11px/20px var(--mono)">AUDIO</span>
+            </sc-if>
+            <span style="position:absolute;left:8px;right:8px;bottom:8px;height:4px;border-radius:999px;background:rgba(0,0,0,.45);overflow:hidden"><span style="display:block;width:{{ t.pct }}%;height:100%;background:rgba(255,255,255,.72)"></span></span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ cullerOpen }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Fast Culler" style="position:absolute;inset:0;z-index:40;display:flex;flex-direction:column;background:#08090b">
+      <div style="height:44px;flex:none;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--ln);background:var(--pnl)">
+        <button onClick="{{ closeCuller }}" title="Back To The Grid" style="width:32px;height:32px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);color:var(--fg)"><span data-i="x" style="width:18px;height:18px"></span></button>
+        <span style="font-size:14px;font-weight:600;color:var(--fg)">Fast Culler</span>
+        <span style="font:12px/1 var(--mono);color:var(--fgd)">Every Key Here Has A Button Below It</span>
+        <span style="flex:1"></span>
+        <span style="font:13px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fgm)">142 Left · 38 Filed This Session</span>
+      </div>
+      <div style="flex:1;min-height:0;display:grid;place-items:center;padding:20px">
+        <div style="position:relative;height:100%;aspect-ratio:3/2;border-radius:4px;background:repeating-linear-gradient(135deg,rgba(255,255,255,.03) 0 9px,transparent 9px 18px),linear-gradient(155deg,#44586d,#1d2530)">
+          <span style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font:11px/1 var(--mono);letter-spacing:.1em;color:rgba(255,255,255,.4)">VIDEO · LOOPING · MUTED</span>
+        </div>
+      </div>
+      <div style="flex:none;border-top:1px solid var(--ln);background:var(--pnl);padding:10px 12px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font:600 10px/1 var(--mono);letter-spacing:.12em;color:var(--fgd);margin-right:4px">SEND TO</span>
+          <sc-for list="{{ hotkeys }}" as="h" hint-placeholder-count="6">
+            <button style="height:34px;padding:0 4px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:14px;display:flex;align-items:center;gap:9px" style-hover="border-color:var(--ac);background:var(--hov);color:var(--fg)">
+              <span style="width:22px;height:22px;border-radius:3px;background:var(--sunk);border:1px solid var(--lns);color:var(--fgd);font:12px/20px var(--mono);text-align:center">{{ h.key }}</span>
+              <span style="padding-right:9px">{{ h.label }}</span>
+            </button>
+          </sc-for>
+          <button style="height:34px;padding:0 12px;border-radius:4px;border:1px dashed var(--ln);background:transparent;color:var(--fgd);font-size:14px;display:flex;align-items:center;gap:7px" style-hover="border-color:var(--fgd);color:var(--fg)"><span data-i="search" style="width:15px;height:15px"></span>Find Or Create A Destination</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="flex:1;height:34px;display:flex;align-items:center;gap:9px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--bg)">
+            <span data-i="tag" style="width:15px;height:15px;color:var(--fgd)"></span>
+            <span style="font-size:13px;color:var(--fgd)">Add Tags To This Item…</span>
+          </span>
+          <button style="height:34px;padding:0 13px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px" style-hover="border-color:var(--fgd);background:var(--hov);color:var(--fg)"><span style="width:22px;height:22px;border-radius:3px;background:var(--sunk);border:1px solid var(--lns);color:var(--fgd);font:12px/20px var(--mono);text-align:center">␣</span>Skip</button>
+          <button style="height:34px;padding:0 13px;border-radius:4px;border:1px solid rgba(194,90,74,.45);background:rgba(194,90,74,.12);color:var(--dngr);font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px" style-hover="border-color:rgba(194,90,74,.7);background:rgba(194,90,74,.22)"><span style="width:22px;height:22px;border-radius:3px;background:rgba(0,0,0,.3);border:1px solid rgba(194,90,74,.4);font:12px/20px var(--mono);text-align:center">X</span>Trash</button>
+          <button style="height:34px;padding:0 13px;border-radius:4px;border:1px solid var(--acd);background:var(--act);color:var(--ac);font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px" style-hover="background:var(--act2)"><span data-i="chevron-left" style="width:16px;height:16px"></span>Undo Last</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ toastOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:50%;bottom:28px;transform:translateX(-50%);z-index:45;display:flex;align-items:center;gap:10px;padding:10px 10px 10px 13px;border-radius:6px;border:1px solid var(--ln);background:var(--rsd);box-shadow:0 14px 40px rgba(0,0,0,.55)">
+      <span data-i="check" style="width:16px;height:16px;color:var(--good)"></span>
+      <span style="font-size:13px;color:var(--fg)">{{ toastText }} <span style="font-family:var(--mono);color:var(--fgm)">{{ toastDest }}</span></span>
+      <button onClick="{{ undoMove }}" style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--acd);background:var(--act);color:var(--ac);font-size:13px;font-weight:500" style-hover="background:var(--act2);border-color:var(--ac)">Undo</button>
+      <button onClick="{{ dismissToast }}" title="Dismiss" style="width:24px;height:24px;border:0;border-radius:4px;background:transparent;color:var(--fgd);display:grid;place-items:center" style-hover="background:rgba(255,255,255,.10);color:var(--fg)"><span data-i="x" style="width:14px;height:14px"></span></button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:50;background:rgba(8,9,11,.62);display:grid;place-items:center">
+      <div data-screen-label="Settings" style="width:1120px;height:760px;display:flex;border-radius:8px;border:1px solid var(--ln);background:var(--pnl);overflow:hidden;box-shadow:0 30px 90px rgba(0,0,0,.7)">
+        <div style="width:240px;flex:none;display:flex;flex-direction:column;border-right:1px solid var(--ln);background:var(--bg)">
+          <div style="height:52px;flex:none;display:flex;align-items:center;padding:0 16px;border-bottom:1px solid var(--lns)">
+            <span style="font-size:16px;font-weight:600;letter-spacing:-.01em">Settings</span>
+          </div>
+          <div style="flex:1;min-height:0;overflow-y:auto;padding:8px">
+            <sc-for list="{{ settingsSections }}" as="s" hint-placeholder-count="8">
+              <button onClick="{{ s.go }}" style="width:100%;height:32px;display:flex;align-items:center;gap:9px;padding:0 8px;border:0;border-radius:4px;background:{{ s.bg }};color:{{ s.fg }};font-size:14px;text-align:left;margin-bottom:2px" style-hover="background:var(--hov)">
+                <span data-i="{{ s.icon }}" style="width:17px;height:17px;color:{{ s.ic }}"></span>
+                <span style="flex:1">{{ s.label }}</span>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+          <div style="height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--ln)">
+            <span style="flex:1;font-size:15px;font-weight:600">Appearance</span>
+            <button onClick="{{ closeSettings }}" title="Close" style="width:32px;height:32px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);display:grid;place-items:center" style-hover="border-color:var(--fgd);color:var(--fg)"><span data-i="x" style="width:17px;height:17px"></span></button>
+          </div>
+          <div style="flex:1;min-height:0;overflow-y:auto;padding:20px 22px;display:flex;flex-direction:column;gap:24px">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <span style="font-size:14px;font-weight:600;color:var(--fg)">Accent</span>
+              <span style="font-size:13px;color:var(--fgd);max-width:74ch">One hue carries selection, focus, the active tab, drop acceptance and the panel drag handles. Green and red are reserved for meaning and are never the accent.</span>
+              <div style="display:flex;gap:10px;margin-top:4px">
+                <sc-for list="{{ accentCards }}" as="a" hint-placeholder-count="4">
+                  <button onClick="{{ a.go }}" style="width:132px;padding:10px;border-radius:6px;border:1px solid {{ a.bd }};background:{{ a.bg }};display:flex;flex-direction:column;gap:8px;align-items:flex-start" style-hover="border-color:var(--fgd)">
+                    <span style="display:flex;gap:5px">
+                      <span style="width:22px;height:22px;border-radius:4px;background:{{ a.hex }}"></span>
+                      <span style="width:22px;height:22px;border-radius:4px;background:{{ a.deep }}"></span>
+                      <span style="width:22px;height:22px;border-radius:4px;background:var(--rsd);border:1px solid {{ a.deep }}"></span>
+                    </span>
+                    <span style="font-size:13px;color:{{ a.fg }}">{{ a.label }}</span>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+            <div style="height:1px;background:var(--lns)"></div>
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <sc-for list="{{ settingsRows }}" as="r" hint-placeholder-count="5">
+                <div style="display:flex;align-items:center;gap:16px">
+                  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                    <span style="font-size:14px;color:var(--fg)">{{ r.label }}</span>
+                    <span style="font-size:12px;color:var(--fgd)">{{ r.hint }}</span>
+                  </div>
+                  <span style="width:34px;height:19px;flex:none;border-radius:999px;background:{{ r.track }};position:relative">
+                    <span style="position:absolute;top:2px;left:{{ r.knobLeft }};width:15px;height:15px;border-radius:999px;background:{{ r.knob }}"></span>
+                  </span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="height:1px;background:var(--lns)"></div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <span style="font-size:14px;font-weight:600;color:var(--fg)">Library</span>
+              <div style="padding:12px 14px;border-radius:6px;border:1px solid var(--ln);background:var(--bg);display:flex;align-items:center;gap:12px">
+                <span data-i="hard-drive" style="width:17px;height:17px;color:var(--fgd)"></span>
+                <span style="flex:1;font:13px/1 var(--mono);color:var(--fgm)">D:\MyMedia · 41,236 items · 1.84 TB</span>
+                <button style="height:28px;padding:0 11px;border-radius:4px;border:1px solid var(--ln);background:var(--rsd);color:var(--fgm);font-size:13px;font-weight:500" style-hover="border-color:var(--fgd);color:var(--fg)">Change Library…</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+
+<div style="margin-top:16px;display:flex;gap:10px;align-items:center;font:12px/1.6 var(--mono);color:#5c636e">
+  <span>GGallery · overhaul mockup · 2560×1440</span>
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:2616,&quot;height&quot;:1600},&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#6f9bdb&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#6f9bdb&quot;,&quot;#8d9aab&quot;,&quot;#58b3a7&quot;,&quot;#8b8fd9&quot;],&quot;section&quot;:&quot;Theme&quot;},&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;pending&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;library&quot;,&quot;search&quot;,&quot;triage&quot;,&quot;downloads&quot;,&quot;pending&quot;,&quot;duplicates&quot;,&quot;storage&quot;,&quot;tags&quot;,&quot;settings&quot;,&quot;import&quot;,&quot;theatre&quot;,&quot;components&quot;],&quot;section&quot;:&quot;Mockup&quot;}}">
+const ICONS = ["image","file-question","rotate-ccw","eye-off","chevron-right","chevron-left","chevron-down","search","x","minus","square","panel-left-open","panel-left-close","panel-right-open","panel-right-close","settings","folder","folder-plus","folder-input","folder-search","plus","ellipsis","star","layout-grid","rows-3","columns-3","arrow-down-narrow-wide","arrow-up","image-off","file-plus","download","upload","tag","trash-2","minimize-2","copy","external-link","eye-off","play","check","triangle-alert","info","loader","bookmark","inbox","images","clock","hard-drive","copy-check","list","gauge","wrench"];
+
+const ACCENTS = [
+  { key: "azure", label: "Azure", hex: "#6f9bdb", deep: "#3f5c85", t: "rgba(111,155,219,.15)", t2: "rgba(111,155,219,.26)" },
+  { key: "steel", label: "Steel", hex: "#8d9aab", deep: "#4e5765", t: "rgba(141,154,171,.15)", t2: "rgba(141,154,171,.26)" },
+  { key: "teal", label: "Teal", hex: "#58b3a7", deep: "#2c6660", t: "rgba(88,179,167,.15)", t2: "rgba(88,179,167,.26)" },
+  { key: "indigo", label: "Indigo", hex: "#8b8fd9", deep: "#4d5085", t: "rgba(139,143,217,.15)", t2: "rgba(139,143,217,.26)" }
+];
+
+const SCREENS = [
+  { key: "library", label: "Library" },
+  { key: "search", label: "Search" },
+  { key: "triage", label: "Triage" },
+  { key: "downloads", label: "Downloads" },
+  { key: "pending", label: "Pending Review" },
+  { key: "duplicates", label: "Duplicates" },
+  { key: "storage", label: "Storage" },
+  { key: "tags", label: "Tags" },
+  { key: "settings", label: "Settings" },
+  { key: "import", label: "First Import" },
+  { key: "theatre", label: "Multi-View" },
+  { key: "components", label: "Components" }
+];
+
+const STATES = [
+  { key: "normal", label: "Normal" },
+  { key: "indexing", label: "Indexing" },
+  { key: "empty", label: "Empty" },
+  { key: "failures", label: "Failures" },
+  { key: "dragging", label: "Drag" },
+  { key: "multiselect", label: "Selection" },
+  { key: "noffmpeg", label: "No ffmpeg" }
+];
+
+const ASPECTS = [1.5, 0.75, 1.33, 1.78, 1, 0.67, 1.5, 2.1, 0.8, 1.33, 1, 1.78, 0.75, 1.6, 1.2, 0.66, 1.5, 1, 2.4, 0.85, 1.33, 1.78, 1, 0.7, 1.45, 1.9, 0.78, 1.33, 1.15, 1.6];
+const HUES = [212, 196, 232, 24, 168, 246, 34, 204, 152, 262, 188, 14];
+
+function fill(i) {
+  const h = HUES[i % HUES.length];
+  const s = 14 + ((i * 7) % 12);
+  return "repeating-linear-gradient(135deg,rgba(255,255,255,.045) 0 7px,transparent 7px 14px),linear-gradient(155deg,hsl(" + h + " " + s + "% 33%),hsl(" + ((h + 18) % 360) + " " + (s + 4) + "% 19%))";
+}
+
+function dur(i) {
+  const s = 8 + ((i * 37) % 600);
+  return String(Math.floor(s / 60)).padStart(1, "0") + ":" + String(s % 60).padStart(2, "0");
+}
+
+class Component extends DCLogic {
+  state = {
+    screen: null,
+    navFolded: false,
+    paneOpen: true,
+    paneMode: "preview",
+    bandExpanded: false,
+    detailsExpanded: true,
+    layout: "justified",
+    scopeRecursive: true,
+    tileSize: 2,
+    maximised: false,
+    view: "normal",
+    accent: null,
+    cullerOpen: false,
+    failureSel: 0,
+    scope: { title: "ana", parent: "people" },
+    moved: null,
+    toast: null,
+    importStep: "review",
+    theatreN: 6,
+    settingsSection: "appearance",
+    collapsed: {}
+  };
+
+  componentDidMount() {
+    this.applyAccent();
+    this.loadIcons();
+  }
+
+  componentDidUpdate() {
+    this.applyAccent();
+    this.paintIcons();
+  }
+
+  accent() {
+    const key = this.state.accent || this.props.accent || "azure";
+    return ACCENTS.find((a) => a.key === key || a.hex === key) || ACCENTS[0];
+  }
+
+  applyAccent() {
+    const a = this.accent();
+    const r = document.documentElement.style;
+    r.setProperty("--ac", a.hex);
+    r.setProperty("--acd", a.deep);
+    r.setProperty("--act", a.t);
+    r.setProperty("--act2", a.t2);
+  }
+
+  async loadIcons() {
+    this.icons = this.icons || {};
+    const base = "https://unpkg.com/lucide-static@latest/icons/";
+    await Promise.all(
+      ICONS.map(async (name) => {
+        try {
+          const res = await fetch(base + name + ".svg");
+          if (res.ok) this.icons[name] = await res.text();
+        } catch (e) {
+          /* placeholder square stays */
+        }
+      })
+    );
+    this.paintIcons();
+  }
+
+  paintIcons() {
+    if (!this.icons) return;
+    const nodes = document.querySelectorAll("span[data-i]");
+    for (const node of nodes) {
+      if (node.firstChild) continue;
+      const svg = this.icons[node.getAttribute("data-i")];
+      if (svg) node.innerHTML = svg;
+    }
+  }
+
+  set(k, v) {
+    this.setState({ [k]: v });
+  }
+
+  gridWidth() {
+    const nav = this.state.navFolded ? 44 : 232;
+    const pane = this.state.paneOpen ? 560 : 44;
+    return 2560 - nav - pane - 14 - 16 - 16;
+  }
+
+  justified(width, target) {
+    const rows = [];
+    let row = [];
+    let ratio = 0;
+    const gap = 8;
+    for (let i = 0; i < 46; i += 1) {
+      const a = ASPECTS[i % ASPECTS.length];
+      row.push({ i: i, a: a });
+      ratio += a;
+      if (ratio * target + (row.length - 1) * gap >= width) {
+        rows.push({ items: row, ratio: ratio });
+        row = [];
+        ratio = 0;
+      }
+    }
+    if (row.length) rows.push({ items: row, ratio: ratio, last: true });
+
+    const out = [];
+    let top = 0;
+    for (const r of rows) {
+      const avail = width - (r.items.length - 1) * gap;
+      const h = r.last ? target : Math.round(avail / r.ratio);
+      let left = 0;
+      for (const it of r.items) {
+        const w = Math.round(h * it.a);
+        out.push({ i: it.i, l: left, t: top, w: w, h: h });
+        left += w + gap;
+      }
+      top += h + gap;
+    }
+    return { tiles: out, height: top };
+  }
+
+  decorate(t) {
+    const i = t.i;
+    const isVideo = i % 5 === 2;
+    const selected = this.state.view === "multiselect" && i % 7 < 3 && i < 30;
+    const fav = i % 11 === 4;
+    return {
+      i: i,
+      l: t.l,
+      t: t.t,
+      w: t.w,
+      h: t.h,
+      bg: fill(i),
+      bd: selected ? "var(--ac)" : "transparent",
+      shadow: selected ? "0 0 0 1px rgba(0,0,0,.4)" : "none",
+      selected: selected,
+      fav: fav,
+      isVideo: isVideo,
+      dur: dur(i),
+      label: i % 9 === 5 ? "GIF" : null
+    };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const screen = s.screen || this.props.startScreen || "library";
+    const view = s.view;
+    const a = this.accent();
+    const target = [96, 132, 180, 240, 320][s.tileSize];
+    const gw = this.gridWidth() - 16;
+    const layout = this.justified(gw, target);
+    const empty = view === "empty";
+    const MAINS = ["library", "search", "triage", "downloads", "pending", "duplicates", "storage", "tags", "components"];
+    const main = MAINS.indexOf(screen) === -1 ? "library" : screen;
+    const compare = screen === "pending" || screen === "duplicates";
+
+    const FAILURES = [
+      { name: "IMG_2841.HEIC", path: "D:\\MyMedia\\people\\ana\\IMG_2841.HEIC", kind: "decode", reason: "unsupported codec — heic", hint: "retry succeeds once ffmpeg is installed", state: "fixable", size: "4.1 MB", modified: "14 June 2024, 17:42", detail: "The file is a valid HEIC, but no decoder for it was found. GGallery does not bundle one — it looks for ffmpeg in tools/ and then on PATH.", fix: "Install ffmpeg, then retry. Nothing about this file needs changing." },
+      { name: "clip_final_v3.mkv", path: "D:\\MyMedia\\trips\\lisbon\\clip_final_v3.mkv", kind: "probe", reason: "ffprobe exited 1 — truncated stream", hint: "the file is likely damaged", state: "bad", size: "812 MB", modified: "03 Sept 2024, 22:15", detail: "ffprobe read 812 MB and never found the end of the video stream. The container declares a duration of 12m 04s but the data stops at roughly 4m 30s.", fix: "Retrying will fail the same way. Recover the file from a backup, or delete it." },
+      { name: "scan_0093.tif", path: "D:\\MyMedia\\reference\\scan_0093.tif", kind: "io", reason: "locked by another process", hint: "close the app holding it, then retry", state: "fixable", size: "212 MB", modified: "11 Jan 2025, 08:31", detail: "Windows refused the read with a sharing violation. Another process holds an exclusive handle on the file.", fix: "Close whatever has it open, then retry. Nothing was written to the file." },
+      { name: "note.txt", path: "D:\\MyMedia\\inbox\\note.txt", kind: "skipped", reason: "not a media file", hint: "left in place, never renamed", state: "skipped", size: "1.2 KB", modified: "22 June 2024, 09:03", detail: "The extension is not in the indexable set, so the file was never opened.", fix: "Nothing to do. Ignore it to stop it appearing in this list." }
+    ];
+    const failureView = main === "library" && view === "failures";
+    const fsel = FAILURES[s.failureSel] || FAILURES[0];
+
+    const chip = (on) => ({
+      bg: on ? "var(--act)" : "#1b1e23",
+      bd: on ? "var(--acd)" : "#2a2e34",
+      fg: on ? "var(--ac)" : "#9aa1ac"
+    });
+
+    const rootDefs = [
+      { key: "everything", label: "Everything", icon: "images", count: "41,236" },
+      { key: "sorting", label: "Sorting Box", icon: "inbox", count: "142" },
+      { key: "favourites", label: "Favourites", icon: "star", count: "1,204" }
+    ];
+    const activeRoot = screen === "triage" ? "sorting" : "";
+
+    const mkRoot = (r) => {
+      const on = r.key === activeRoot;
+      return {
+        label: r.label,
+        icon: r.icon,
+        count: r.count,
+        hasCount: true,
+        go: () => this.set("screen", r.key === "sorting" ? "triage" : "library"),
+        bg: on ? "var(--act)" : "transparent",
+        fg: on ? "var(--ac)" : "var(--fgm)",
+        ic: on ? "var(--ac)" : "var(--fgd)",
+        cbd: on ? "var(--acd)" : "var(--lns)",
+        cbg: on ? "var(--act)" : "var(--rsd)",
+        cfg: on ? "var(--ac)" : "var(--fgm)"
+      };
+    };
+
+    const treeDefs = [
+      { id: 1, title: "people", depth: 0, count: "12,884", kids: true, open: true },
+      { id: 2, title: "ana", depth: 1, count: "2,481", kids: true, open: true, sel: true, wip: true },
+      { id: 3, title: "2024 trip", depth: 2, count: "612", kids: false },
+      { id: 4, title: "studio", depth: 2, count: "348", kids: false },
+      { id: 5, title: "sara", depth: 1, count: "1,905", kids: false },
+      { id: 6, title: "places", depth: 0, count: "9,412", kids: true, open: false },
+      { id: 7, title: "trips", depth: 0, count: "6,118", kids: true, open: false, drop: view === "dragging" },
+      { id: 8, title: "reference", depth: 0, count: "3,004", kids: false },
+      { id: 9, title: "wallpapers", depth: 0, count: "1,472", kids: false }
+    ];
+
+    const tree = treeDefs.map((f) => {
+      const on = !!f.sel;
+      return {
+        title: f.title,
+        count: f.count,
+        indent: f.depth * 15,
+        wip: !!f.wip,
+        chevRot: f.open ? 90 : 0,
+        chevOpacity: f.kids ? 1 : 0,
+        toggle: () => {},
+        bg: on ? "var(--act)" : "transparent",
+        hbg: on ? "var(--act2)" : "var(--hov)",
+        fg: on ? "var(--ac)" : "var(--fgm)",
+        ic: on ? "var(--ac)" : "var(--fgd)",
+        cfg: on ? "var(--ac)" : "var(--fgd)",
+        ring: f.drop ? "2px solid var(--ac)" : "none"
+      };
+    });
+
+    const paneModeDefs = [
+      { key: "preview", label: "Preview", icon: "image" },
+      { key: "grid", label: "Grid", icon: "layout-grid" },
+      { key: "folders", label: "Folders", icon: "folder" }
+    ];
+
+    return {
+      noop: () => {},
+      screens: SCREENS.map((x) => {
+        const on = x.key === screen;
+        const c = chip(on);
+        return {
+          label: x.label,
+          go: () => this.setState(x.key === "triage" ? { screen: "triage", paneMode: "folders" } : { screen: x.key }),
+          bg: c.bg,
+          bd: c.bd,
+          fg: c.fg
+        };
+      }),
+      toggles: STATES.map((x) => {
+        const on = x.key === view;
+        const c = chip(on);
+        return { label: x.label, go: () => this.set("view", x.key), bg: c.bg, bd: c.bd, fg: c.fg };
+      }).concat([
+        (() => { const c = chip(s.bandExpanded); return { label: "Band", go: () => this.set("bandExpanded", !s.bandExpanded), bg: c.bg, bd: c.bd, fg: c.fg }; })(),
+        (() => { const c = chip(s.navFolded); return { label: "Fold Nav", go: () => this.set("navFolded", !s.navFolded), bg: c.bg, bd: c.bd, fg: c.fg }; })(),
+        (() => { const c = chip(!s.paneOpen); return { label: "Fold Pane", go: () => this.set("paneOpen", !s.paneOpen), bg: c.bg, bd: c.bd, fg: c.fg }; })()
+      ]),
+      accents: ACCENTS.map((x) => ({
+        label: x.label,
+        hex: x.hex,
+        go: () => this.set("accent", x.key),
+        bd: x.key === a.key ? "#e4e7ed" : "transparent"
+      })),
+
+      isLibrary: main === "library",
+      isSearch: main === "search",
+      isTriage: main === "triage",
+      isDownloads: main === "downloads",
+      isPending: main === "pending",
+      isDuplicates: main === "duplicates",
+      isStorage: main === "storage",
+      isTags: main === "tags",
+      isComponents: main === "components",
+      isImport: screen === "import",
+      isTheatre: screen === "theatre",
+      isSettings: screen === "settings",
+      shellDisplay: screen === "import" || screen === "theatre" ? "none" : "flex",
+      screenName: screen,
+      closeSettings: () => this.set("screen", "library"),
+      leaveTheatre: () => this.set("screen", "library"),
+      openCuller: () => this.set("cullerOpen", true),
+      closeCuller: () => this.set("cullerOpen", false),
+      cullerOpen: s.cullerOpen && screen === "triage",
+
+      navW: s.navFolded ? 44 : 232,
+      navFolded: s.navFolded,
+      navOpen: !s.navFolded,
+      toggleNav: () => this.set("navFolded", !s.navFolded),
+      openSettings: () => this.set("screen", "settings"),
+
+      roots: rootDefs.map(mkRoot),
+      railRoots: rootDefs.map(mkRoot),
+      pinned: [
+        { title: "ana", count: "2,481" },
+        { title: "wallpapers", count: "1,472" }
+      ].map((f) => ({
+        title: f.title,
+        count: f.count,
+        bg: "transparent",
+        hbg: "var(--hov)",
+        fg: "var(--fgm)",
+        ic: "var(--fgd)",
+        cfg: "var(--fgd)"
+      })),
+      folderCount: "48",
+      tree: tree,
+      queues: [
+        { label: "Pending Review", icon: "clock", count: "48", key: "pending" },
+        { label: "Downloads", icon: "download", count: "3", key: "downloads" },
+        { label: "Duplicates", icon: "copy-check", count: "27", key: "duplicates" },
+        { label: "Trash", icon: "trash-2", count: "612", key: "trash" }
+      ].map((q) => {
+        const on = q.key === screen;
+        return {
+          label: q.label,
+          icon: q.icon,
+          count: q.count,
+          hasCount: q.count !== "",
+          go: () => this.set("screen", q.key),
+          bg: on ? "var(--act)" : "transparent",
+          fg: on ? "var(--ac)" : "var(--fgm)",
+          ic: on ? "var(--ac)" : "var(--fgd)",
+          cbd: on ? "var(--acd)" : "var(--lns)",
+          cbg: on ? "var(--act)" : "var(--rsd)",
+          cfg: on ? "var(--ac)" : "var(--fgm)"
+        };
+      }),
+      saved: [
+        { q: "is:favorite kind:video" },
+        { q: "status:wip added:<30d" }
+      ].map((x) => ({ q: x.q, go: () => this.set("screen", "search") })),
+
+      indexing: view === "indexing",
+      idleFooter: view !== "indexing",
+      failures: view === "failures",
+      showFailureBanner: view === "failures",
+      showFfmpegBanner: view === "noffmpeg",
+      failureRows: FAILURES.map((f, i) => {
+        const map = {
+          fixable: { kbd: "rgba(201,150,63,.45)", kbg: "rgba(201,150,63,.12)", kfg: "var(--warn)" },
+          bad: { kbd: "rgba(194,90,74,.45)", kbg: "rgba(194,90,74,.12)", kfg: "var(--dngr)" },
+          skipped: { kbd: "var(--lns)", kbg: "var(--sunk)", kfg: "var(--fgd)" }
+        };
+        const m = map[f.state];
+        return {
+          name: f.name,
+          path: f.path,
+          kind: f.kind,
+          reason: f.reason,
+          hint: f.hint,
+          kbd: m.kbd,
+          kbg: m.kbg,
+          kfg: m.kfg,
+          go: () => this.setState({ failureSel: i, paneOpen: true }),
+          bd: i === s.failureSel ? "var(--ac)" : "var(--ln)",
+          bg: i === s.failureSel ? "rgba(111,155,219,.09)" : "var(--pnl)"
+        };
+      }),
+
+      showBreadcrumb: screen === "library",
+      queryText: screen === "search" ? "@ana beach kind:image" : "Search Folders, Tags And Labels…",
+      queryColor: screen === "search" ? "var(--fg)" : "var(--fgd)",
+      hasQuery: screen === "search",
+      clearQuery: () => this.set("screen", "library"),
+
+      scopeTitle: s.scope.title,
+      crumbParent: s.scope.parent,
+      crumbTitle: s.scope.title,
+      hasStatus: true,
+      bandCounts: "2,481 Here · 612 Below · 2 Subfolders · Added 4d Ago",
+      bandExpanded: s.bandExpanded,
+      bandRot: s.bandExpanded ? 90 : 0,
+      toggleBand: () => this.set("bandExpanded", !s.bandExpanded),
+      scopeModes: [
+        { key: true, label: "All Items" },
+        { key: false, label: "Here Only" }
+      ].map((m) => {
+        const on = m.key === s.scopeRecursive;
+        return {
+          label: m.label,
+          go: () => this.set("scopeRecursive", m.key),
+          bg: on ? "var(--act)" : "transparent",
+          fg: on ? "var(--ac)" : "var(--fgm)"
+        };
+      }),
+      layouts: [
+        { key: "justified", label: "Justified Rows", icon: "rows-3" },
+        { key: "uniform", label: "Uniform Grid", icon: "layout-grid" },
+        { key: "masonry", label: "Masonry Columns", icon: "columns-3" }
+      ].map((l) => {
+        const on = l.key === s.layout;
+        return {
+          label: l.label,
+          icon: l.icon,
+          go: () => this.set("layout", l.key),
+          bg: on ? "var(--act)" : "transparent",
+          fg: on ? "var(--ac)" : "var(--fgm)"
+        };
+      }),
+      sizePct: (s.tileSize / 4) * 100,
+      bandLabels: [
+        { k: "instagram", v: "@ana", muted: false },
+        { k: "city", v: "lisbon", muted: false },
+        { k: "camera", v: "a7r v", muted: false },
+        { k: "shoot", v: "—", muted: false }
+      ].map((l) => ({
+        k: l.k,
+        v: l.v,
+        bd: "var(--ln)",
+        vbg: "var(--rsd)",
+        vfg: "var(--fgm)"
+      })),
+      bandTags: [
+        { v: "people", inherited: true },
+        { v: "portrait", inherited: false },
+        { v: "beach", inherited: false },
+        { v: "35mm", inherited: false }
+      ].map((t) => ({
+        v: t.v,
+        removable: !t.inherited,
+        bd: t.inherited ? "var(--lns)" : "var(--ln)",
+        bg: t.inherited ? "var(--sunk)" : "var(--rsd)",
+        fg: t.inherited ? "var(--fgd)" : "var(--fgm)"
+      })),
+
+      gridEmpty: empty,
+      gridJustified: !empty && s.layout === "justified",
+      gridUniform: !empty && s.layout === "uniform",
+      gridMasonry: !empty && s.layout === "masonry",
+      gridH: layout.height,
+      tiles: empty ? [] : layout.tiles.map((t) => this.decorate(t)),
+      uniformCols: Math.max(3, Math.round(gw / (target + 8))),
+      uniformTiles: empty ? [] : ASPECTS.map((_, i) => ({
+        bg: fill(i),
+        bd: "transparent",
+        isVideo: i % 5 === 2,
+        dur: dur(i)
+      })),
+      masonryTiles: empty ? [] : ASPECTS.map((x, i) => ({
+        bg: fill(i),
+        bd: "transparent",
+        h: Math.round(target / x),
+        isVideo: i % 5 === 2,
+        dur: dur(i)
+      })),
+      dragging: view === "dragging",
+      multiselect: view === "multiselect",
+      scrubTop: 12,
+      scrubH: 22,
+
+      paneW: s.paneOpen ? 560 : 44,
+      paneOpen: s.paneOpen,
+      paneClosed: !s.paneOpen,
+      togglePane: () => this.set("paneOpen", !s.paneOpen),
+      toggleMax: () => this.set("maximised", !s.maximised),
+      maxLabel: s.maximised ? "Back To The Split" : "Fill The Window",
+      maxIcon: s.maximised ? "arrow-up" : "chevron-left",
+      maxBd: s.maximised ? "var(--acd)" : "var(--ln)",
+      maxBg: s.maximised ? "var(--act)" : "var(--rsd)",
+      maxFg: s.maximised ? "var(--ac)" : "var(--fgm)",
+      isPreview: !compare && !failureView && s.paneMode === "preview",
+      isGridMode: !compare && !failureView && s.paneMode === "grid",
+      isFolders: !compare && !failureView && s.paneMode === "folders",
+      isCompare: compare,
+      isFailure: failureView,
+      showModeSwitcher: !compare && !failureView,
+      fName: fsel.name,
+      fPath: fsel.path,
+      fKind: fsel.kind,
+      fReason: fsel.reason,
+      fDetail: fsel.detail,
+      fFix: fsel.fix,
+      fRetryable: fsel.state === "fixable",
+      fRetryLabel: fsel.state === "fixable" ? "Retry This File" : "Retry Anyway",
+      fRetryBd: fsel.state === "fixable" ? "var(--acd)" : "var(--ln)",
+      fRetryBg: fsel.state === "fixable" ? "var(--act)" : "var(--rsd)",
+      fRetryFg: fsel.state === "fixable" ? "var(--ac)" : "var(--fgm)",
+      fMeta: [
+        { k: "Size", v: fsel.size },
+        { k: "Modified", v: fsel.modified },
+        { k: "Failure", v: fsel.kind },
+        { k: "Path", v: fsel.path }
+      ],
+      paneModes: paneModeDefs.map((m) => {
+        const on = m.key === s.paneMode;
+        return {
+          label: m.label,
+          icon: m.icon,
+          open: () => this.setState({ paneMode: m.key, paneOpen: true }),
+          bd: on ? "var(--acd)" : "var(--ln)",
+          bg: on ? "var(--act)" : "var(--rsd)",
+          fg: on ? "var(--ac)" : "var(--fgm)",
+          sbg: on ? "var(--act)" : "transparent",
+          sfg: on ? "var(--ac)" : "var(--fgm)"
+        };
+      }),
+      detailsExpanded: s.detailsExpanded,
+      showDetails: !compare && !failureView && s.paneMode === "preview" && s.detailsExpanded,
+      detailsRot: s.detailsExpanded ? 90 : 0,
+      toggleDetails: () => this.set("detailsExpanded", !s.detailsExpanded),
+      detailRows: [
+        { k: "File Name", v: "a3f2c1d4-88be-4f21-9c07-2b1e5d9a7f30.jpg", font: "var(--mono)" },
+        { k: "Original Name", v: "lisbon_beach_0142.jpg", font: "var(--mono)" },
+        { k: "Dimensions", v: "4032 × 3024 · 12.2 MP", font: "var(--mono)" },
+        { k: "Size", v: "8.4 MB", font: "var(--mono)" },
+        { k: "Codec", v: "jpeg · 4:2:0", font: "var(--mono)" },
+        { k: "Captured", v: "14 June 2024, 17:42", font: "var(--ui)" },
+        { k: "Added", v: "22 June 2024, 09:03", font: "var(--ui)" },
+        { k: "Source", v: "instagram.com/p/C8kQ2…", font: "var(--mono)" }
+      ],
+      itemLabels: [
+        { k: "instagram", v: "@ana" },
+        { k: "city", v: "lisbon" },
+        { k: "camera", v: "a7r v" }
+      ].map((l) => ({ k: l.k, v: l.v, bd: "var(--lns)", vbg: "var(--sunk)", vfg: "var(--fgd)" })),
+      itemTags: [
+        { v: "people", inherited: true },
+        { v: "ana", inherited: true },
+        { v: "beach", inherited: false },
+        { v: "golden hour", inherited: false }
+      ].map((t) => ({
+        v: t.v,
+        removable: !t.inherited,
+        bd: t.inherited ? "var(--lns)" : "var(--ln)",
+        bg: t.inherited ? "var(--sunk)" : "var(--rsd)",
+        fg: t.inherited ? "var(--fgd)" : "var(--fgm)"
+      })),
+      strip: ASPECTS.slice(0, 16).map((x, i) => ({
+        bg: fill(i + 3),
+        bd: i === 4 ? "var(--ac)" : "transparent",
+        op: i === 4 ? 1 : 0.5
+      })),
+      folderTiles: [
+        { title: "lisbon", n: 616, drop: true },
+        { title: "porto", n: 402 },
+        { title: "madeira", n: 188 },
+        { title: "iceland", n: 1204 },
+        { title: "japan 2023", n: 2910 },
+        { title: "roadtrip", n: 77 }
+      ].map((f, i) => {
+        const landed = s.moved && s.moved.title === f.title;
+        const dragHint = f.drop && view === "dragging";
+        const n = f.n + (landed ? s.moved.n : 0);
+        return {
+          title: f.title,
+          count: dragHint
+            ? f.n.toLocaleString() + " → " + (f.n + 12).toLocaleString()
+            : n.toLocaleString() + " Items",
+          cover: fill(i * 3 + 1),
+          go: () => {
+            if (screen !== "triage") return this.setState({ screen: "library", scope: { title: f.title, parent: "trips" } });
+            this.setState({
+              moved: { title: f.title, n: (s.moved && s.moved.title === f.title ? s.moved.n : 0) + 12 },
+              toast: { n: 12, dest: "trips / " + f.title }
+            });
+          },
+          bd: landed || dragHint ? "var(--ac)" : "var(--ln)",
+          bg: landed ? "rgba(111,155,219,.09)" : "var(--pnl)",
+          cfg: landed || dragHint ? "var(--ac)" : "var(--fgd)",
+          ring: dragHint ? "2px solid var(--ac)" : "none"
+        };
+      }),
+      toastOpen: !!s.toast,
+      toastText: s.toast ? "Moved " + s.toast.n + " Items To" : "",
+      toastDest: s.toast ? s.toast.dest : "",
+      undoMove: () => this.setState({ moved: null, toast: null }),
+      dismissToast: () => this.set("toast", null),
+      triageLeft: s.moved ? 142 - s.moved.n + " Unfiled" : "142 Unfiled",
+      paneGridTiles: ASPECTS.slice(0, 24).map((x, i) => ({ bg: fill(i + 6), bd: "transparent" })),
+
+      queryTerms: [
+        { v: "@ana" },
+        { v: "beach" },
+        { v: "kind:image" }
+      ].map((q) => ({ v: q.v, bd: "var(--acd)", bg: "var(--act)", fg: "var(--ac)" })),
+      searchFolders: [
+        { title: "ana", path: "people / ana", mk: "instagram", mv: "@ana", count: "2,481 items" },
+        { title: "ana b.", path: "people / ana b.", mk: "instagram", mv: "@ana_b", count: "412 items" },
+        { title: "ana trips", path: "trips / ana trips", mk: "instagram", mv: "@anatrp", count: "188 items" }
+      ].map((f, i) => ({
+        title: f.title,
+        path: f.path,
+        mk: f.mk,
+        mv: f.mv,
+        count: f.count,
+        cover: fill(i * 4 + 2),
+        go: () => this.setState({ screen: "library", scope: { title: f.title, parent: f.path.split(" / ")[0] } })
+      })),
+      searchTiles: ASPECTS.slice(0, 27).map((x, i) => ({ bg: fill(i + 2), ar: "4/3" })),
+      skeletons: [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => ({ n: n })),
+
+      hotkeys: [
+        { key: "A", label: "ana" },
+        { key: "S", label: "sara" },
+        { key: "D", label: "dogs" },
+        { key: "F", label: "food" },
+        { key: "G", label: "gym" },
+        { key: "L", label: "lisbon" }
+      ],
+
+      downloads: [
+        { title: "ana — reel, 14 june", tool: "gallery-dl", status: "downloading", url: "https://instagram.com/reel/C8kQ2pXt1Yz/", pct: 62, meta: "48.2 MB / 78.0 MB · 6.4 MB/s · 5s", state: "run" },
+        { title: "porto sunset drone pass", tool: "yt-dlp", status: "downloading", url: "https://youtube.com/watch?v=9bZkp7q19f0", pct: 34, meta: "412 MB / 1.2 GB · 11.8 MB/s · 1m 8s", state: "run" },
+        { title: "studio set — 42 files", tool: "gallery-dl", status: "queued", url: "https://instagram.com/ana/saved/studio/", pct: 0, meta: "waiting for a free slot", state: "queued" },
+        { title: "madeira hike", tool: "yt-dlp", status: "failed", url: "https://vimeo.com/778213904", pct: 18, meta: "http 403 — cookies expired", state: "failed" },
+        { title: "reference — 118 files", tool: "gallery-dl", status: "done", url: "https://pinterest.com/ana/reference/", pct: 100, meta: "1.4 GB · filed into reference", state: "done" }
+      ].map((d, i) => {
+        const map = {
+          run: { sbd: "var(--acd)", sbg: "var(--act)", sfg: "var(--ac)", bar: "var(--ac)", bd: "var(--ln)" },
+          queued: { sbd: "var(--lns)", sbg: "var(--sunk)", sfg: "var(--fgd)", bar: "var(--ln)", bd: "var(--ln)" },
+          failed: { sbd: "rgba(194,90,74,.45)", sbg: "rgba(194,90,74,.12)", sfg: "var(--dngr)", bar: "var(--dngr)", bd: "rgba(194,90,74,.4)" },
+          done: { sbd: "rgba(95,158,110,.45)", sbg: "rgba(95,158,110,.12)", sfg: "var(--good)", bar: "var(--good)", bd: "var(--ln)" }
+        };
+        const m = map[d.state];
+        const actions =
+          d.state === "failed"
+            ? [{ icon: "loader", label: "Retry" }, { icon: "x", label: "Remove" }]
+            : d.state === "done"
+              ? [{ icon: "folder-search", label: "Show In Library" }, { icon: "x", label: "Clear" }]
+              : [{ icon: "minus", label: "Pause" }, { icon: "x", label: "Cancel" }];
+        return {
+          title: d.title,
+          tool: d.tool,
+          status: d.status,
+          url: d.url,
+          pct: d.pct,
+          meta: d.meta,
+          cover: fill(i * 5 + 3),
+          actions: actions,
+          sbd: m.sbd,
+          sbg: m.sbg,
+          sfg: m.sfg,
+          bar: m.bar,
+          bd: m.bd
+        };
+      }),
+
+      pendingRows: [
+        { name: "clip_2024_06.mp4", spec: "h264 1080p · 12m 04s", before: "4.2 GB", after: "380 MB", pct: "−91%", checked: true },
+        { name: "beach_walk.mp4", spec: "h264 1080p · 6m 41s", before: "1.8 GB", after: "240 MB", pct: "−87%", checked: true },
+        { name: "studio_bts.mov", spec: "prores 4k · 3m 12s", before: "9.4 GB", after: "1.4 GB", pct: "−85%", checked: true },
+        { name: "drone_pass_02.mp4", spec: "hevc 4k · 2m 08s", before: "2.1 GB", after: "610 MB", pct: "−71%", checked: false },
+        { name: "portrait.png", spec: "png · 6000×4000", before: "88 MB", after: "71 MB", pct: "−19%", checked: false, marginal: true },
+        { name: "scan_0093.tif", spec: "tiff · 8000×6000", before: "212 MB", after: "198 MB", pct: "−7%", checked: false, marginal: true }
+      ].map((p, i) => ({
+        name: p.name,
+        spec: p.spec,
+        before: p.before,
+        after: p.after,
+        pct: p.pct,
+        checked: p.checked,
+        cover: fill(i * 6 + 4),
+        pctColor: p.marginal ? "var(--warn)" : "var(--good)",
+        bd: i === 0 ? "var(--acd)" : "var(--ln)",
+        bg: i === 0 ? "rgba(111,155,219,.07)" : "var(--pnl)",
+        cbd: p.checked ? "var(--ac)" : "var(--ln)",
+        cbg: p.checked ? "var(--ac)" : "var(--bg)"
+      })),
+
+      dupeGroups: [
+        { hash: "phash 8f2a…c104", match: "100% match", count: 3, waste: "1.9 GB" },
+        { hash: "phash 41cd…9ab7", match: "98% match", count: 2, waste: "620 MB" },
+        { hash: "phash d09e…2f13", match: "94% match", count: 2, waste: "88 MB" }
+      ].map((g, gi) => ({
+        hash: g.hash,
+        match: g.match,
+        count: g.count,
+        waste: g.waste,
+        items: [0, 1, 2].slice(0, g.count).map((n) => ({
+          cover: fill(gi * 7 + n),
+          size: n === 0 ? "12.4 MB" : n === 1 ? "3.1 MB" : "980 KB",
+          dims: n === 0 ? "6000×4000" : n === 1 ? "3000×2000" : "1600×1066",
+          added: n === 0 ? "22 jun 2024" : n === 1 ? "03 sep 2024" : "11 jan 2025",
+          folder: n === 0 ? "people / ana" : n === 1 ? "sorting box" : "wallpapers",
+          bd: n === 0 ? "var(--ac)" : "var(--ln)",
+          bg: n === 0 ? "rgba(111,155,219,.08)" : "var(--rsd)",
+          btn: n === 0 ? "Keeping This One" : "Keep This Instead",
+          btnBd: n === 0 ? "rgba(95,158,110,.5)" : "var(--ln)",
+          btnBg: n === 0 ? "rgba(95,158,110,.14)" : "var(--rsd)",
+          btnFg: n === 0 ? "var(--good)" : "var(--fgm)"
+        }))
+      })),
+
+      storageStats: [
+        { k: "LIBRARY SIZE", v: "1.84 TB", sub: "41,236 items · 3.2 TB free on D:", color: "var(--fg)" },
+        { k: "NEVER COMPRESSED", v: "68%", sub: "28,040 items · 1.24 TB", color: "var(--warn)" },
+        { k: "ESTIMATED SAVING", v: "742 GB", sub: "at the current default presets", color: "var(--good)" },
+        { k: "TRASH", v: "4.1 GB", sub: "612 items · not freed until purged", color: "var(--fgm)" }
+      ],
+      bigFolders: [
+        { title: "trips / japan 2023", size: "412 GB", count: "2,910", pct: 100 },
+        { title: "people / ana", size: "288 GB", count: "2,481", pct: 70 },
+        { title: "trips / iceland", size: "204 GB", count: "1,204", pct: 50 },
+        { title: "reference", size: "121 GB", count: "3,004", pct: 30 },
+        { title: "wallpapers", size: "64 GB", count: "1,472", pct: 16 },
+        { title: "places / porto", size: "48 GB", count: "402", pct: 12 }
+      ].map((f, i) => ({ title: f.title, size: f.size, count: f.count, pct: f.pct, bar: i < 3 ? "var(--ac)" : "var(--acd)" })),
+      bigFiles: [
+        { name: "studio_bts.mov", spec: "prores 4k", size: "9.4 GB" },
+        { name: "clip_2024_06.mp4", spec: "h264 1080p", size: "4.2 GB" },
+        { name: "drone_pass_02.mp4", spec: "hevc 4k", size: "2.1 GB" },
+        { name: "beach_walk.mp4", spec: "h264 1080p", size: "1.8 GB" },
+        { name: "timelapse_full.mkv", spec: "hevc 6k", size: "1.6 GB" },
+        { name: "scan_0093.tif", spec: "tiff", size: "212 MB" }
+      ].map((f, i) => ({ name: f.name, spec: f.spec, size: f.size, cover: fill(i * 3 + 5) })),
+
+      tagRows: [
+        { name: "@ana", kind: "label", uses: "2,481", aliases: ["ana_official"], checked: true },
+        { name: "beach", kind: "flag", uses: "1,204", aliases: [], checked: true },
+        { name: "portrait", kind: "flag", uses: "912", aliases: ["portraits"] },
+        { name: "golden hour", kind: "flag", uses: "488", aliases: [] },
+        { name: "lisbon", kind: "label", uses: "616", aliases: [] },
+        { name: "35mm", kind: "flag", uses: "204", aliases: ["35 mm"] },
+        { name: "blurry", kind: "flag", uses: "88", aliases: [] },
+        { name: "to-edit", kind: "flag", uses: "12", aliases: [] },
+        { name: "misc", kind: "flag", uses: "0", aliases: [], unused: true },
+        { name: "temp", kind: "flag", uses: "0", aliases: [], unused: true }
+      ].map((t) => ({
+        name: t.name,
+        kind: t.kind,
+        uses: t.uses,
+        checked: !!t.checked,
+        aliases: t.aliases.map((v) => ({ v: v })),
+        bg: t.checked ? "rgba(111,155,219,.08)" : "transparent",
+        cbd: t.checked ? "var(--ac)" : "var(--ln)",
+        cbg: t.checked ? "var(--ac)" : "var(--bg)",
+        useColor: t.unused ? "var(--fgd)" : "var(--fgm)"
+      })),
+
+      demoRows: [
+        { title: "people", count: "12,884", sel: false },
+        { title: "ana", count: "2,481", sel: true },
+        { title: "places", count: "9,412", sel: false, hover: true }
+      ].map((r) => ({
+        title: r.title,
+        count: r.count,
+        bg: r.sel ? "var(--act)" : r.hover ? "var(--hov)" : "transparent",
+        hbg: r.sel ? "var(--act2)" : "var(--hov)",
+        fg: r.sel ? "var(--ac)" : "var(--fgm)",
+        ic: r.sel ? "var(--ac)" : "var(--fgd)",
+        cfg: r.sel ? "var(--ac)" : "var(--fgd)",
+        op: r.hover ? 1 : 0
+      })),
+      menuItems: [
+        { label: "Show In The Pane", icon: "image", key: "" },
+        { label: "Favourite", icon: "star", key: "F" },
+        { label: "Move To…", icon: "folder-input", key: "" },
+        { label: "Reveal In Explorer", icon: "folder-search", key: "" },
+        { label: "Copy File", icon: "copy", key: "Ctrl C" },
+        { label: "Delete", icon: "trash-2", key: "Del" }
+      ].map((m, i) => ({
+        label: m.label,
+        icon: m.icon,
+        key: m.key,
+        bg: i === 1 ? "var(--hov)" : "transparent",
+        fg: m.label === "Delete" ? "var(--dngr)" : "var(--fgm)",
+        ic: m.label === "Delete" ? "var(--dngr)" : "var(--fgd)"
+      })),
+
+      compareTitle: screen === "pending" ? "clip_2024_06.mp4 — Original Vs Compressed" : "phash 8f2a…c104 — 3 Candidates",
+      compareKeep: screen === "pending" ? "Keep Compressed" : "Keep The Left One",
+      compareReject: screen === "pending" ? "Keep Original" : "Keep The Right One",
+      compareSlots: [
+        { tag: screen === "pending" ? "ORIGINAL · 4.2 GB" : "KEEPER · 12.4 MB", spec: "1920×1080", tagFg: "#c8ced8", cover: fill(11) },
+        { tag: screen === "pending" ? "COMPRESSED · 380 MB" : "CANDIDATE · 3.1 MB", spec: "1920×1080", tagFg: "var(--ac)", cover: fill(11) }
+      ],
+      compareStats: [
+        { k: "size", a: "4.2 GB", b: "380 MB  −91%", bColor: "var(--good)" },
+        { k: "bitrate", a: "46.1 Mb/s", b: "4.2 Mb/s", bColor: "var(--fgm)" },
+        { k: "resolution", a: "1920×1080", b: "1920×1080", bColor: "var(--fgm)" },
+        { k: "codec", a: "h264 high", b: "hevc main10", bColor: "var(--fgm)" },
+        { k: "duration", a: "12m 04s", b: "12m 04s", bColor: "var(--fgm)" }
+      ],
+
+      importSteps: [
+        { n: "1", key: "choose", label: "Choose Folder" },
+        { n: "2", key: "review", label: "Review" },
+        { n: "3", key: "progress", label: "Progress" }
+      ].map((st) => {
+        const on = st.key === s.importStep;
+        return {
+          n: st.n,
+          label: st.label,
+          go: () => this.set("importStep", st.key),
+          bd: on ? "var(--ac)" : "var(--ln)",
+          bg: on ? "var(--act)" : "var(--rsd)",
+          fg: on ? "var(--ac)" : "var(--fgd)"
+        };
+      }),
+      importChoose: s.importStep === "choose",
+      importReview: s.importStep === "review",
+      importProgress: s.importStep === "progress",
+      importStats: [
+        { k: "FILES FOUND", v: "41,236", sub: "images, video and gifs", color: "var(--fg)" },
+        { k: "TOTAL SIZE", v: "1.84 TB", sub: "3.2 TB free on the target disk", color: "var(--fg)" },
+        { k: "DIRECTORIES", v: "612", sub: "each becomes a folder", color: "var(--ac)" },
+        { k: "UNREADABLE", v: "14", sub: "skipped and listed afterwards", color: "var(--warn)" }
+      ],
+      importPhases: [
+        { label: "Renaming To UUIDs", pct: 100, meta: "41,236 / 41,236", state: "done" },
+        { label: "Verifying Hashes", pct: 100, meta: "41,236 / 41,236 · 0 mismatches", state: "done" },
+        { label: "Rebuilding The Folder Tree", pct: 100, meta: "612 folders · 3 merged", state: "done" },
+        { label: "Indexing And Thumbnails", pct: 45, meta: "18,402 / 41,236 · ~2m left", state: "run" }
+      ].map((p) => ({
+        label: p.label,
+        pct: p.pct,
+        meta: p.meta,
+        icon: p.state === "done" ? "check" : "loader",
+        iconColor: p.state === "done" ? "var(--good)" : "var(--ac)",
+        bar: p.state === "done" ? "var(--good)" : "var(--ac)",
+        bd: p.state === "done" ? "var(--ln)" : "var(--acd)",
+        fg: p.state === "done" ? "var(--fgm)" : "var(--fg)"
+      })),
+
+      theatreCols: s.theatreN <= 1 ? 1 : s.theatreN === 2 ? 2 : s.theatreN <= 4 ? 2 : s.theatreN <= 6 ? 3 : s.theatreN <= 9 ? 3 : 4,
+      theatreRows: s.theatreN <= 2 ? 1 : s.theatreN <= 4 ? 2 : s.theatreN <= 6 ? 2 : s.theatreN <= 9 ? 3 : 3,
+      theatreCounts: [1, 2, 4, 6, 9, 12].map((n) => ({
+        n: String(n),
+        go: () => this.set("theatreN", n),
+        bg: n === s.theatreN ? "var(--act)" : "transparent",
+        fg: n === s.theatreN ? "var(--ac)" : "var(--fgm)"
+      })),
+      theatreSlots: Array.from({ length: s.theatreN }, (x, i) => ({
+        name: "clip_" + String(i + 1).padStart(2, "0") + ".mp4",
+        bg: fill(i + 4),
+        bd: i === 0 ? "var(--ac)" : "transparent",
+        solo: i === 0,
+        pct: 20 + ((i * 17) % 70)
+      })),
+
+      settingsSections: [
+        { key: "appearance", label: "Appearance", icon: "layout-grid" },
+        { key: "library", label: "Library", icon: "hard-drive" },
+        { key: "archetypes", label: "Archetypes", icon: "list" },
+        { key: "statuses", label: "Folder Statuses", icon: "bookmark" },
+        { key: "tags", label: "Tags And Aliases", icon: "tag" },
+        { key: "compression", label: "Compression Presets", icon: "minimize-2" },
+        { key: "downloads", label: "Downloads And Cookies", icon: "download" },
+        { key: "hotkeys", label: "Triage Hotkeys", icon: "gauge" },
+        { key: "tools", label: "Sidecar Tools", icon: "wrench" }
+      ].map((x) => {
+        const on = x.key === s.settingsSection;
+        return {
+          label: x.label,
+          icon: x.icon,
+          go: () => this.set("settingsSection", x.key),
+          bg: on ? "var(--act)" : "transparent",
+          fg: on ? "var(--ac)" : "var(--fgm)",
+          ic: on ? "var(--ac)" : "var(--fgd)"
+        };
+      }),
+      accentCards: ACCENTS.map((x) => ({
+        label: x.label,
+        hex: x.hex,
+        deep: x.deep,
+        go: () => this.set("accent", x.key),
+        bd: x.key === a.key ? "var(--ac)" : "var(--ln)",
+        bg: x.key === a.key ? "rgba(111,155,219,.07)" : "var(--bg)",
+        fg: x.key === a.key ? "var(--fg)" : "var(--fgm)"
+      })),
+      settingsRows: [
+        { label: "Blur Every Thumbnail And Preview", hint: "One key toggles it. Nothing is persisted — it is a panic button, not security.", on: false },
+        { label: "Loop Video In The Pane", hint: "On by default. Volume persists between items.", on: true },
+        { label: "Scrub Video Tiles On Hover", hint: "Ten sprite frames, moved by cursor position across the tile.", on: true },
+        { label: "Reduce Motion", hint: "Follows the system setting unless overridden here.", on: false },
+        { label: "Confirm Before Deleting", hint: "Deletes always go to the trash and always raise an undoable toast.", on: true }
+      ].map((r) => ({
+        label: r.label,
+        hint: r.hint,
+        track: r.on ? "var(--ac)" : "var(--rsd)",
+        knob: r.on ? "#0f1114" : "var(--fgd)",
+        knobLeft: r.on ? "17px" : "2px"
+      }))
+    };
+  }
+}
+
+</script>
+</body>
+</html>

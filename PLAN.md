@@ -773,6 +773,60 @@ Separated from M2 deliberately. Folded together, the data work eats the schedule
 interface arrives as an afterthought. Given its own milestone, it also establishes the
 component vocabulary every later milestone builds from.
 
+### M2.8 — The interface, drawn
+
+The interface was designed in Claude Design and the result is checked in at
+[docs/design/](docs/design/). **It is a drawing, not a decision** — DESIGN.md stays the
+specification, and this milestone is where the two are reconciled and the drawing is
+built.
+
+It covers twelve screens, seven states and four accents, and **most of it is ahead of the
+build**: Search (M3), Triage (M4), Downloads (M5), Pending Review (M6), Duplicates (M7),
+Storage and Tags (M8) and Multi-View (M10) are all drawn. That is the more valuable half
+and the half that must not be built — a surface with no backend behind it is a prop that
+rots before its milestone reaches it. **Drawn-ahead screens become specification text in
+DESIGN.md and nothing else.**
+
+In four parts, because building it in one pass is the M2.5a mistake exactly: correct
+structure, invented appearance, three corrective milestones to undo it.
+
+**M2.8a — reconcile.** Read the drawing and write `docs/design/RECONCILIATION.md`: what
+maps to a built surface, what is new with data already behind it, what is drawn ahead of
+its milestone, and what conflicts. **Conflicts are listed, never resolved** — several of
+the rules the drawing crosses were decided against a real alternative, and one of them has
+been reversed once already. No code.
+
+Four conflicts are already known, and the list is not complete:
+
+- **Labels and tags are two rows again**, each with its own mono heading. DESIGN §2's
+  *"Fields and tags share one chip row"* was M2.5c's deliberate correction of exactly
+  this shape.
+- **Three grid layouts** — justified rows, uniform grid, masonry columns — where DESIGN
+  and M0's validated architecture have one. This is engineering in the layout worker, not
+  appearance, and needs a decision before it is a feature.
+- **A sort control** in the folder band. DESIGN §*Grid* already specifies sorting by
+  captured date, added date and size; no control was ever built. The data exists.
+- **The folder band's right side** now carries scope, sort, layout, tile size, pin and an
+  overflow menu. DESIGN §2 gives it tile size and *this folder only*. Whether a band that
+  full still reads as one line is the question, not whether each control is defensible.
+
+**M2.8b — tokens and primitives.** The drawing's colour, type, spacing, radius and motion
+values into the Tailwind token layer, and `src/components/ui/*` restyled against them.
+Nothing is re-laid-out. Safe to build before the conflicts are settled, because a token
+cannot contradict a layout decision. Checked on `#kitchen-sink`.
+
+**The accent system survives** — decision 24, four accents in the drawing, and it is
+user-configurable. A drawing that hard-codes one accent is adapted to the system, not the
+other way round.
+
+**M2.8c — the surfaces**, one at a time, once the conflict list has been ruled on.
+
+**M2.8d — the drawn-ahead screens into DESIGN.md** as prose, so M3 onwards build from a
+specification with a picture behind it rather than from the picture.
+
+**Nothing in `docs/design/` ships.** It fetches React and its icons from `unpkg.com` to
+render; that is a property of the mockup and must never follow it into the application.
+
 ### M2.9 — The nitpick pass
 
 **The user goes over the whole interface and complains about everything.** Then it gets

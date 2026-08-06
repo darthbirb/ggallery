@@ -17,6 +17,9 @@ GGallery/
   .mcp.json         MCP servers for this repo — the shadcn registry, so blocks and
                     component source are read rather than recalled
   docs/             specifications — this file, DESIGN, DATA-MODEL, ENGINEERING-NOTES
+    design/         the interface design, copied verbatim from Claude Design. The
+                    drawing DESIGN.md describes in prose; see its SOURCE.md. Read-only
+                    and never edited here — a changed design is re-copied, not patched
     reference/      screenshots of prior art, named `<app>-<surface>.png`. Inputs to
                     a spec, never a spec themselves; see DESIGN §Prior art
   src/              frontend — React + TypeScript

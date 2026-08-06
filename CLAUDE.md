@@ -27,8 +27,14 @@ root from config, and never commit anything that references a specific machine's
 - [docs/NITPICKS.md](docs/NITPICKS.md) — where interface complaints are collected until
   M2.9 clears them. A small annoyance noticed mid-milestone goes in the file, not into
   the milestone.
+- [docs/design/](docs/design/) — **the interface design**, copied from Claude Design and
+  checked in. `GGallery.dc.html` is the drawing; DESIGN.md is the prose. Start with
+  [SOURCE.md](docs/design/SOURCE.md), which says how to read it and what not to copy
+  out of it.
 
-`docs/mockup.html` is an early drawing, superseded by the built interface. Ignore it.
+**Two drawings exist and only one is live.** `docs/design/GGallery.dc.html` is the
+design being built to. `docs/mockup.html` is an early sketch that predates the built
+interface and everything in `docs/design/`; it is superseded and should be ignored.
 
 **PLAN.md has a Non-goals section.** Those features are excluded deliberately, not
 overlooked. Do not build them.

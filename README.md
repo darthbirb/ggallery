@@ -160,6 +160,7 @@ src-tauri/                 backend — Rust
   settings.json            permission rules (committed)
   hooks/guard.ps1          blocks destructive git, confirms commits and pushes
 docs/
+  design/                  the interface design from Claude Design — the drawing
   DESIGN.md                product and UX specification
   DATA-MODEL.md            schema, tag resolution, query language
   STRUCTURE.md             where every file goes — spec, not description
@@ -194,7 +195,8 @@ docs/
 | M2.6 | Folders as data — flat sharded storage, DB hierarchy, inbox | Built |
 | M2.6a | Import mirrors the tree — directories become folders, not Sorting Box | Built |
 | M2.5b | The sorting surfaces — pane grid and folder modes, drops | Built |
-| M2.9 | The nitpick pass — the whole interface reviewed in use, then fixed | Next |
+| M2.8 | The interface, drawn — the Claude Design document reconciled and built | Next |
+| M2.9 | The nitpick pass — the whole interface reviewed in use, then fixed | |
 | M3 | Search — query parser, sectioned results | |
 | M4 | Sorting Box and triage — hotkey culling, undo, trash | |
 | M5 | Downloads — yt-dlp and gallery-dl integration | |
