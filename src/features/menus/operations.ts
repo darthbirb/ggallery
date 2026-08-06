@@ -291,6 +291,7 @@ export function buildOperations(deps: Deps): Operations {
     async setFolderNotes(folderId, notes) {
       try {
         await ipc.setFolderNotes(folderId, notes);
+        library.refreshFolders();
       } catch (err) {
         fail(deps, "Could not save the notes", err);
       }
