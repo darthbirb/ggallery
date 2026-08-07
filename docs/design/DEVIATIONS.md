@@ -49,10 +49,10 @@ Drawing 62–96.
 | Caption buttons | 46px wide, close hovers `--dngr`/white | `w-11` (44px), same hover | appearance |
 | Maximise glyph | always `square` | `Square`, swapping to `Copy` when maximised | drawing silent — §5 |
 
-The centred search field and the `people › ana` breadcrumb are **ahead** — see §3.
+The centred search field and the `people › ana` breadcrumb are **ahead** — see §4.
 
 **The window bar holds nothing else.** No tile size, no scope toggle, no *Open pane*
-button, no library name or path. That is decision 28 and DESIGN §2 held exactly.
+button, no library name or path. That is decision 28 and SPEC §2 held exactly.
 
 ### 2.2 Navigation panel — `src/features/nav/Nav.tsx`
 
@@ -63,10 +63,10 @@ Drawing 100–232 (expanded 121–231, folded rail 102–119).
 | Width | 232 open / 44 folded | `NAV_DEFAULT` 200 / `NAV_FOLDED` 44 | layout |
 | Header row (44px) | `LIBRARY` mono heading at the left, fold button at the right | three inert placeholder `IconButton`s, spacer, fold button | layout |
 | Group headings | mono `600 11px`, `.14em`, `--fgd`, `20px 12px 6px` | `GroupLabel`: mono 12px, normal weight, `.1em`, `pt-4 pb-1 px-3` | appearance (but 11px is taken) |
-| `FOLDERS` heading | carries a right-aligned folder count | no count | **new** — §2 |
-| *New Root Folder* button | full-width, under the `FOLDERS` heading | none; creation is the tree's context menu or the pane's Folders mode | **new** — §2 |
+| `FOLDERS` heading | carries a right-aligned folder count | no count | **new** — §3 |
+| *New Root Folder* button | full-width, under the `FOLDERS` heading | none; creation is the tree's context menu or the pane's Folders mode | **new** — §3 |
 | Root rows | 32px, radius 4, active `--act` bg + `--ac` text/icon/badge | identical shape via `ROW_ACTIVE` | already aligned |
-| Everything row | carries a count | `countFor` returns `undefined` for it | **new** — §2 |
+| Everything row | carries a count | `countFor` returns `undefined` for it | **new** — §3 |
 | Everything icon | `images` | `LayoutGrid` | appearance |
 | Tree row indent | 15px per level | 14px per level | appearance |
 | Tree chevron hover | translucent white overlay `rgba(255,255,255,.10)` | `hover:bg-hover` | appearance |
@@ -78,7 +78,7 @@ Drawing 100–232 (expanded 121–231, folded rail 102–119).
 | Footer, failures | `triangle-alert` glyph + count, danger-tinted | count alone, danger `Button` | appearance |
 | Resize handle | 7px hit area over a 3px line, `--ac` on hover | `.resizer` — identical | already aligned |
 
-**Caveat on the WIP dot.** Statuses are user-defined and user-**recolourable** (DESIGN §1
+**Caveat on the WIP dot.** Statuses are user-defined and user-**recolourable** (SPEC §1
 *Folder status*). The drawing hard-codes the mark to `--warn`. That is defensible for the
 tree, where the point is one fixed mark for one fixed key, but it is not a general rule for
 status colour — see the band's status chip below.
@@ -129,11 +129,11 @@ Drawing 393–479 (justified 420–442), tiles 423–439, scrubber 477–479, se
 | Selected tile | `--ac` border **+ a full `--act` wash + a 20×20 accent check badge top-left** + `0 0 0 1px rgba(0,0,0,.4)` | accent border + `color-mix(accent 18%, raised)` | appearance for the wash; the check badge is **ruled: build the drawing** |
 | Favourite badge | 22×22, `rgba(8,9,11,.72)`, `star` glyph in `--ac` | `.tile-fav`, the literal character `★` | appearance |
 | Duration badge | 19px, mono, with a leading `play` glyph | mono, no glyph | appearance |
-| `GIF` corner label | bottom-left, 10px mono, `rgba(8,9,11,.66)` | none | **new**, but needs `ext` on `GridItem` — §2 |
+| `GIF` corner label | bottom-left, 10px mono, `rgba(8,9,11,.66)` | none | **new**, but needs `ext` on `GridItem` — §3 |
 | Scrubber | 16px channel, **`--sunk`** ground, `--lns` left border, thumb `--ln` → `--fgd` on hover, `cursor: pointer` | `.scrubber` — same but `--color-ground`, and no pointer cursor | appearance; the pointer ships — decision 25 |
 | Empty state | glyph + heading + one sentence + *Add Files* / *Download From URL* | one line of grey text | layout; the two buttons are §3 |
-| Indexing banner | sticky at the top of the grid: spinner, sentence, `18,402 / 41,236 · 214/s · ~2m left`, a bar, *Pause* | nothing here; the nav footer carries indexing | layout + **new**, partly unbacked — §2 |
-| Drag ghost | floating chip: thumbnail, `Moving 12 Items`, `→ trips / lisbon` | the browser's native drag image | **new** — §2 |
+| Indexing banner | sticky at the top of the grid: spinner, sentence, `18,402 / 41,236 · 214/s · ~2m left`, a bar, *Pause* | nothing here; the nav footer carries indexing | layout + **new**, partly unbacked — §3 |
+| Drag ghost | floating chip: thumbnail, `Moving 12 Items`, `→ trips / lisbon` | the browser's native drag image | **new** — §3 |
 
 **Selection bar** (482–501). The drawing runs *Select All · Invert · Clear ‖ Move To… ·
 Add Tag… · Favourite · Compress… · Export… ‖ Delete* then `12 Selected · 480 MB`, with the
@@ -163,13 +163,13 @@ for the grouping; the 30×24 button size is taken.
 | Labels and tags | **two blocks, each under a mono heading**, the labels one asserting `INHERITED FROM FOLDER` | one chip row, inherited-vs-manual decided per tag by `originId` | **ruled: build the drawing** (and the heading over-claims — an item can carry its own label) |
 | Media stage | `--sunk` | `bg-ground` | appearance |
 | Zoom readout | bottom-right, 26px rectangle, mono, `rgba(15,17,20,.86)` (= `--sunk`/86%) | bottom-right rounded-full pill, `bg-ground/90`, mono, with a glyph | appearance |
-| **Item action bar** | 44px under the media: Favourite · Move To… ‖ Reveal · Copy · Open With · Blur · Delete · More | none — these live only in the right-click `ItemMenu` | layout + **new** — §2 |
+| **Item action bar** | 44px under the media: Favourite · Move To… ‖ Reveal · Copy · Open With · Blur · Delete · More | none — these live only in the right-click `ItemMenu` | layout + **new** — §3 |
 | Filmstrip | 76px, 86px thumbs, 5px gap, chevrons overlaid in gradient fades at either end, **`class="noscroll"`** | resizable, chevrons, and a scrollbar | layout; the missing scrollbar is **ruled: build the drawing** |
 
 **Grid mode** (1007–1012, 1148–1159). Drawing header: `trips / lisbon` + `616 items`.
 Drawing footer: `Drop Items Here To Move Them Into This Folder`. Built header: a
 folder-picker button carrying a breadcrumb; built footer: a tile-size slider and a count.
-**layout** — and note the drawing **drops the tile-size control**, which DESIGN §2 *Grid
+**layout** — and note the drawing **drops the tile-size control**, which SPEC §2 *Grid
 mode* requires ("with its own sort and tile size"). It must not be dropped in M2.8c.
 
 **Folders mode** (998–1005, 1124–1146). Drawing: Up button + breadcrumb header, 3-column
@@ -310,7 +310,7 @@ is not an argument that it *should* be — only that nothing is blocking it.
 
 | # | Control | Backing | Note |
 | --- | --- | --- | --- |
-| N1 | **Sort control** — captured date, added date, size (DESIGN §Grid adds duration and random) | `item.captured_at`, `added_at`, `size_bytes`, `duration_ms` all exist | `db::items::list` hard-codes `ORDER BY COALESCE(captured_at, mtime) DESC, id DESC` (`items.rs:443`). Needs a sort argument through `list_items` and a `UiPrefs` field. **Placement settled: it goes in the band.** |
+| N1 | **Sort control** — captured date, added date, size (SPEC §Grid adds duration and random) | `item.captured_at`, `added_at`, `size_bytes`, `duration_ms` all exist | `db::items::list` hard-codes `ORDER BY COALESCE(captured_at, mtime) DESC, id DESC` (`items.rs:443`). Needs a sort argument through `list_items` and a `UiPrefs` field. **Placement settled: it goes in the band.** |
 | N2 | Folder count beside the `FOLDERS` heading | `library.folders.length` | |
 | N3 | A count on the **Everything** row | `library.items.length` — already passed to the band as `itemCount` | |
 | N4 | *New Root Folder* button under the `FOLDERS` heading | `ops.createFolder(null, …)` | Decision 22 and 23 both argue for a visible control here |
@@ -351,13 +351,13 @@ indicator's clickable steps are canvas scaffolding, not design.
 
 The drawing has twelve screens and seven states, and the seven states are `normal`,
 `indexing`, `empty`, `failures`, `drag`, `selection`, `noffmpeg` (1514–1522). Everything
-below has no picture, so **DESIGN §Prior art still governs** — a citation has to be lookable
+below has no picture, so **SPEC §Prior art still governs** — a citation has to be lookable
 rather than recalled, and the drawing is now the first place to look only where it says
 something.
 
 - **Long-title truncation.** Every title in the drawing is short. `text-overflow: ellipsis`
   is set on nav rows, tree rows, the band title and the pane header, so single-line
-  truncation is implied — but nothing shows a 400-character title (DESIGN §1 *Folder names*
+  truncation is implied — but nothing shows a 400-character title (SPEC §1 *Folder names*
   permits one), a title that truncates in a breadcrumb, or whether a truncated title gets a
   tooltip. No tooltip appears anywhere in the drawing.
 - **Error states.** No failed dialog, no failed operation, no toast in `danger` tone (the

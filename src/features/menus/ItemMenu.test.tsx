@@ -59,7 +59,7 @@ function openItemMenu(over: { itemIds?: number[]; favorite?: boolean } = {}) {
 }
 
 describe("the item menu", () => {
-  it("offers every item operation DESIGN §8 requires a visible control for", async () => {
+  it("offers every item operation SPEC §8 requires a visible control for", async () => {
     openItemMenu();
 
     for (const label of [

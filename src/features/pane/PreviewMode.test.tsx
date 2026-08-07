@@ -30,7 +30,7 @@ beforeEach(() => {
 });
 
 describe("the pane layout", () => {
-  it("matches the shape DESIGN §2 specifies at every size", () => {
+  it("matches the shape SPEC §2 specifies at every size", () => {
     // 2 side by side, 3–4 as 2×2, 5–6 as 3×2, 7–9 as 3×3, 10–12 as 4×3.
     expect(paneGrid(1)).toEqual({ columns: 1, rows: 1 });
     expect(paneGrid(2)).toEqual({ columns: 2, rows: 1 });
