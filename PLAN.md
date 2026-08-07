@@ -135,8 +135,14 @@ folder holds everything, so backup is "copy the folder".
 
 24. **One accent, chosen from a fixed set.** Exactly one hue carries selection, focus,
     the active tab, drop acceptance and the panel drag handles. The user picks it from a
-    short list — Slate (default), Teal, Violet, Rose, Moss, Amber — so every value can be
+    short list — **Azure (default), Steel, Teal, Indigo** — so every value can be
     contrast-checked against the same greys rather than trusting a free colour picker.
+
+    *(M2.8 replaced the set.* It was Slate, Teal, Violet, Rose, Moss and Amber; the drawing
+    ships four, Teal is byte-identical in both, and the drawing is the specification. Each
+    accent also gains two tint levels — 15% and 26% — which is what selected, active and
+    drop-accepting surfaces fill with, in place of the three different ad-hoc values the
+    build had grown.)
 
     *(M2.5a.1: **scrubber position** left this list and the drag handles joined it.* The
     scrubber sits directly against the pane's handle, and two accent bars a pixel apart
@@ -158,6 +164,18 @@ folder holds everything, so backup is "copy the folder".
       that only materialise on hover are how a control becomes invisible until you already
       know it is there.
     - Base UI text `14px`, mono `12px`. Both a step up from where M2.5a landed.
+
+    *(M2.8 replaces the type scale and the height scale with the drawing's own.* The
+    drawing in [docs/design/](docs/design/) goes below this floor deliberately — mono
+    section headings at `10–11px`, badges and shortcut columns at `11px` — and uses more
+    control heights than the three named above. The user ruled: build the drawing exactly.
+    **What does not change is that there is a scale and it is written down.** M2.8b
+    inventories the drawing's real type sizes and control heights, records them here in
+    place of these, and enforces them the same way — the point of this decision was never
+    the specific numbers, it was that a fourth height never appears because somebody
+    needed one. A separate idea came out of the same conversation and is parked in M9:
+    **`Ctrl` `+` / `Ctrl` `-` interface scaling with a Settings option**, which is the
+    real answer if the drawing's sizes prove small in use. Not in M2.8's scope.)
     - **Anything clickable shows `cursor: pointer`.** *(Added in M2.5a.2 — nothing in the
       app did.* A control that keeps the arrow cursor reads as decoration, and the browser
       default for a `<div>` or a `<button>` is not a pointer. This includes rows, tiles,
@@ -165,10 +183,14 @@ folder holds everything, so backup is "copy the folder".
       axis, which is the same rule. **Scrollbars and the scrubber are the exception**: they
       are dragged, not clicked, and no scrollbar anywhere shows a pointer. Implement it as
       one global rule on `<button>` rather than a class per call site, or it will be as
-      complete as the last person's memory of it.)
+      complete as the last person's memory of it. **M2.8 removed the scrubber from the
+      exception** — the drawing gives it a pointer, and it is clicked to jump as well as
+      dragged. Scrollbars remain the exception.)
 
-26. **One visual state for selection; focus rings are for keyboards.** Selection is a filled
-    accent border. The shift-click anchor is **not rendered** — it is invisible bookkeeping,
+26. **Selection is one treatment per shape; focus rings are for keyboards.** On a tile it is
+    an accent border, an accent wash and a tick badge in the corner — one treatment made of
+    three marks that always appear together, never independently. The shift-click anchor is
+    **not rendered** — it is invisible bookkeeping,
     and drawing it competes with selection for the same meaning, which is why inverting a
     selection currently looks ambiguous. Keyboard focus uses `:focus-visible` only, so it
     never appears after a mouse click. Two outlines fighting over one tile is a design bug,
@@ -182,6 +204,12 @@ folder holds everything, so backup is "copy the folder".
     in neutral, one step lighter than the rest, so hovering a selected row is visibly not
     the same as selecting it. One shape, two intensities, and the accent only on the real
     state.)
+
+    *(M2.8 added the tick badge, from the drawing.* This decision was written as "one
+    visual state", which read as "one mark" and would have ruled the badge out. It was
+    always about not having **two competing meanings** on one tile — selection saying one
+    thing and the shift-anchor saying another. Three marks for one meaning is emphasis, and
+    on a tile whose media may be any colour, emphasis is worth having.)
 
 27. **Motion is short, functional and interruptible.** Anything that changes size or
     position animates — panel folds, band expansion, details opening, filmstrip resize —
@@ -776,9 +804,9 @@ component vocabulary every later milestone builds from.
 ### M2.8 — The interface, drawn
 
 The interface was designed in Claude Design and the result is checked in at
-[docs/design/](docs/design/). **It is a drawing, not a decision** — DESIGN.md stays the
-specification, and this milestone is where the two are reconciled and the drawing is
-built.
+[docs/design/](docs/design/). **It is the specification for how the application looks**,
+and DESIGN.md is amended to agree with it wherever the two differ. This milestone is where
+that happens.
 
 It covers twelve screens, seven states and four accents, and **most of it is ahead of the
 build**: Search (M3), Triage (M4), Downloads (M5), Pending Review (M6), Duplicates (M7),
@@ -796,19 +824,47 @@ its milestone, and what conflicts. **Conflicts are listed, never resolved** — 
 the rules the drawing crosses were decided against a real alternative, and one of them has
 been reversed once already. No code.
 
-Four conflicts are already known, and the list is not complete:
+#### The rule, decided after M2.8a
 
-- **Labels and tags are two rows again**, each with its own mono heading. DESIGN §2's
-  *"Fields and tags share one chip row"* was M2.5c's deliberate correction of exactly
-  this shape.
-- **Three grid layouts** — justified rows, uniform grid, masonry columns — where DESIGN
-  and M0's validated architecture have one. This is engineering in the layout worker, not
-  appearance, and needs a decision before it is a feature.
-- **A sort control** in the folder band. DESIGN §*Grid* already specifies sorting by
-  captured date, added date and size; no control was ever built. The data exists.
-- **The folder band's right side** now carries scope, sort, layout, tile size, pin and an
-  overflow menu. DESIGN §2 gives it tile size and *this folder only*. Whether a band that
-  full still reads as one line is the question, not whether each control is defensible.
+**The drawing is the specification. Where anything written before it disagrees, the drawing
+wins and the older text is amended to match.** M2.8a found ten conflicts and the user ruled
+on all of them the same way. Do not weigh a conflict on its merits; do not preserve an
+earlier decision because it was reasoned. Those decisions were made without a drawing, this
+one was made with it, and the reasoning is preserved in the amendment rather than in the
+outcome.
+
+That has already amended decisions 24, 25 and 26 and five passages of DESIGN.md. It applies
+to anything M2.8c finds later, too — including things nobody has noticed yet.
+
+**Two exceptions, and only two:**
+
+1. **Masonry columns is not built.** Uniform grid falls out of the existing row model for
+   almost nothing and ships. Masonry is column-major, has no rows, and would mean a second
+   windowing path through the one piece of the grid measured and tuned against a 100k
+   library (ENGINEERING-NOTES §1) — its own milestone, with re-measurement, not a switch.
+   The drawing's own masonry uses CSS `columns`, which lays out every item at once and is
+   exactly what virtualisation exists to avoid. The layout control ships with two options.
+2. **Anything with no backend behind it is specified, not built.** That is the whole of
+   M2.8d, and it also covers parts of screens that otherwise exist. The clearest case is
+   the **failure banner**: its shape is a restyle, but its retryable/damaged/skipped
+   taxonomy, per-file retry, remediation text, ignore list and export are all new — the
+   record behind it carries far less and retry is all-or-nothing today. Build the drawing's
+   banner over the data that exists; write the rest down for the milestone that earns it.
+
+Everything else in the drawing is built as drawn: **Title Case throughout**, the accent set
+replaced, the scrubber's pointer, no scrollbar on the filmstrip, library totals in the
+navigation footer, the tick badge on a selected tile, the dry-run checkbox at first import,
+labels and tags on separate rows in both places that show them, sort in the band, and the
+band's full six-control strip.
+
+**Sort offers everything DESIGN §*Grid* names** — captured date, added date, size, duration
+and random — not only the four the drawing draws. The drawing is the authority on how a
+control looks and where it sits, not on how short a list may be.
+
+**The triage screen's standing *Send to* bar** is the one thing held back, because it is
+not a drawing question: the drawing makes the Sorting Box a screen with its own header
+where the build makes it a scope of the ordinary grid. That is structural and it is M4's.
+M2.8d writes it down rather than transcribing it.
 
 **M2.8b — tokens and primitives.** The drawing's colour, type, spacing, radius and motion
 values into the Tailwind token layer, and `src/components/ui/*` restyled against them.
@@ -900,6 +956,13 @@ reconstructed filenames, integrity check.
 
 Command palette, settings, keyboard reference, blur toggle, `library.jsonl` export and
 rebuild, backup verification.
+
+**Interface scaling — `Ctrl` `+` / `Ctrl` `-`, plus a Settings option.** Raised during
+M2.8, when the drawing's type came in smaller than decision 25's floor and the ruling was
+to build the drawing exactly. Scaling is the right answer to "this is too small for my
+monitor" — better than one more argument about a specific pixel size, since the answer
+differs per display and per person. One scale factor over the whole interface, media
+excluded.
 
 ### M10 — Multi-view
 

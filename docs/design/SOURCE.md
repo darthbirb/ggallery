@@ -50,5 +50,10 @@ Twelve screens, seven states and four accents. Beyond the built interface it dra
 and Tags (M8), and Multi-View (M10)** — so most of it is specification for milestones that
 have not started, not a restyling of what exists.
 
+**First Import is not one of those** — it is built, as of M2.6a, and the drawing's version
+is a restyle of a real screen. This file said otherwise until M2.8a diffed it and found
+the drawing had added a *Dry run first* checkbox that DESIGN §10 deliberately does not
+have.
+
 `docs/mockup.html` is a different and much older thing, superseded before any of this
 existed. It is not related to this directory.

@@ -32,6 +32,14 @@ root from config, and never commit anything that references a specific machine's
   [SOURCE.md](docs/design/SOURCE.md), which says how to read it and what not to copy
   out of it.
 
+**The drawing wins.** It is the specification for how the application looks, and where any
+older text disagrees — DESIGN.md, a locked decision, a comment in the code — the drawing is
+built and the older text is amended to say so, with its reasoning preserved in the
+amendment. Do not weigh a conflict on its merits and do not keep an earlier decision
+because it was well argued; it was argued without the drawing. The two exceptions are in
+PLAN §M2.8: masonry columns is not built, and anything with no backend behind it is written
+down rather than invented.
+
 **Two drawings exist and only one is live.** `docs/design/GGallery.dc.html` is the
 design being built to. `docs/mockup.html` is an early sketch that predates the built
 interface and everything in `docs/design/`; it is superseded and should be ignored.

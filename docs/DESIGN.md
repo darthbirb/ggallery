@@ -358,10 +358,16 @@ machine-specific path in permanent chrome is noise. Both live in Settings.
 Width and folded state remembered; **never summoned by a keypress**. Folded, it becomes a
 44px icon strip that keeps queue badges on screen and every root a drop target.
 
-**A footer pinned below the tree** holds Settings and background-job status, separated by a
-hairline so neither scrolls away with the tree and neither is mistaken for a destination —
-Settings opens a dialog; it is not a place. Both survive folding: in the 44px strip the
-footer is the gear and the job indicator alone.
+**A footer pinned below the tree** holds Settings, background-job status, and — when
+nothing is running — the library's totals, `41,236 items · 1.84 TB`. Separated by a
+hairline so none of it scrolls away with the tree and none is mistaken for a destination:
+Settings opens a dialog; it is not a place. All of it survives folding: in the 44px strip
+the footer is the gear and the job indicator alone.
+
+*(The totals arrived with the drawing in M2.8, and they are the app's own state rather than
+the grid's — the whole library, always the same number, not the count of whatever you have
+open. That is what keeps them clear of the folder band's counts, which change as you
+navigate. Total size is not computed anywhere yet.)*
 
 Groups, in order: **Library** (Everything, Sorting Box, Favourites — above the tree, never
 nodes in it), **Pinned**, **Folders**, **Saved searches**, **Queues** (Pending Review,
@@ -436,8 +442,18 @@ width/mobile-sheet machinery to replace a handful of plain buttons. See
 
 **Folder band** — a collapsed strip above the grid, and the only chrome scoped to what the
 grid is showing. Closed, it is one line: chevron, title, status, counts on the left, and on
-the right the controls that change the grid — **tile size** and **this folder only**. Those
-were in the window bar, which owns the window, not the grid.
+the right **every control that changes the grid** — scope, sort, layout, tile size, pin,
+and an overflow menu for the folder's own actions. Those were in the window bar, which owns
+the window, not the grid.
+
+**Scope is a two-segment control**, *All items* / *Here only*, not one button that toggles
+its own label. **Sort** offers captured date, added date, size, duration and random (§*Grid*);
+**layout** offers justified rows and uniform grid.
+
+*(M2.8 filled this strip out from three controls to six, taking the drawing as-is. The band
+is the only chrome directly above what you are looking at, so its density is the thing to
+watch — if it stops reading as one line, the overflow menu is where the rarest of these go,
+and that is an M2.9 question rather than a reason to hold any of them back now.)*
 
 Clicking expands it to the cover, archetype labels edited in place, tags and notes.
 
@@ -460,7 +476,14 @@ spent on an empty form. The rules that follow all come from that.
 - **Weight follows importance.** The title identifies what you are looking at and should be
   the largest thing in the band. Notes are the least-used field and were the largest.
 - **Notes are one line that grows on focus**, never a reserved box.
-- **Labels and tags share one chip row**, with their add controls at its end.
+- **Labels and tags get a row each**, headed `LABELS` and `TAGS`, with their add controls
+  at the end of their own row. *(M2.5c merged them into one row, on the grounds that two
+  rows read as a data-entry form; M2.8 separated them again from the drawing, on the
+  grounds that a folder carrying many of both is unscannable in one flow. Both are true —
+  the merge was right for the empty folder, the split is right for the full one, and the
+  full one is what the app is for. The empty-folder cost is real and is what M2.9 should
+  look at first.)* **The same rule applies to an item's details panel**, which carries the
+  same two kinds of thing and was merged in the same pass.
 - **Applying an archetype is a once-per-folder setup action** and belongs in the folder's
   context menu, not as a standing button competing with content.
 - **Favourite is a header control among the others**, not the heaviest thing in the band
@@ -547,10 +570,10 @@ only comparison surface the app needs:
   persists between items.
 - Chevrons and arrows move through the current filter, in the grid's order. A filmstrip
   shows position and allows jumping. Its height is dragged from its top edge and
-  remembered; its scrollbar runs the full width of the pane along the very bottom, clear of
-  the thumbnails rather than hard against them, with the chevrons overlaid at either end.
+  remembered; it has **no scrollbar**, and the chevrons are overlaid at either end.
   **No position counter** — the strip already shows where you are, and `6 / 15` is a number
-  nobody acts on.
+  nobody acts on. *(M2.5c specified a scrollbar along the very bottom; the drawing has none
+  and the drawing is the specification for appearance — M2.8.)*
 - **The pane header is the details header.** A chevron, the filename, and dimensions ·
   size, opening **downwards** into duration, codec, dates, source URL, the item's folder
   breadcrumb (folder itself last, per §2) and tags — inherited greyed, manual solid. An
@@ -955,10 +978,15 @@ Then the gallery opens.
 
 ### Keep it short
 
-The flow above is deliberately two screens and one checkbox. An import wizard that explains
-itself across six panels reads as nervous, and a user who is asked to confirm four times
-stops reading by the third. There is exactly one thing worth interrupting for — that a
-backup exists — because there is no undo.
+The flow above is deliberately two screens. An import wizard that explains itself across
+six panels reads as nervous, and a user who is asked to confirm four times stops reading by
+the third.
+
+Two checkboxes, both on the review screen: **that a backup exists**, because there is no
+undo, and **dry run first**, which walks the whole import and reports what it would do
+without touching a file. *(The second arrived with the drawing in M2.8. It is not a fourth
+confirmation — it is the same offer M2.6's storage migration makes, on the other operation
+that touches every file in the library at once.)*
 
 ### No reversal
 
