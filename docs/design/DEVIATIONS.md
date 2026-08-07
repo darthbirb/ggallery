@@ -284,6 +284,25 @@ rules the prose does not:
 
 ---
 
+### 2.12 Carried from the token pass
+
+Three things the token pass could not reach, and one measurement to settle.
+
+- **`--color-fg-faint`.** The drawing uses four greys darker than `--fgd` — `#5c636e`,
+  `#565d68`, `#4d545e`, `#414852`, 18 uses, all small print. The token pass rounded all four
+  *up* into `--color-fg-dim`, which makes them louder than drawn. One token at `#5c636e`, a
+  step below `fg-dim`, routed as each surface is reached.
+- **The `wip` status colour.** The tree's dot is `--color-warn` (`#c9963f`); migration 002
+  seeded the status row `#eab308`, so the band's status chip and the tree's dot disagree for
+  the default vocabulary. Needs a **new** migration that updates the row only where its
+  colour is still exactly the seeded value — statuses are a vocabulary the user owns, and
+  someone who has recoloured `wip` keeps their colour. Editing 002 reaches no library that
+  already ran it.
+- **Three buttons measure 31px** on `#kitchen-sink` where the scale says 32. Probably a
+  border rounding off-by-one. Find which, then fix it or record why 31 is right.
+
+---
+
 ## 3. New controls the data already supports
 
 Everything here could be built against what the app already stores and already exposes. That
