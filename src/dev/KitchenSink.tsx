@@ -1,6 +1,6 @@
 /**
  * Every primitive in every state, on one page. Dev-only — see App.tsx and
- * docs/STRUCTURE.md.
+ * docs/NOTES.md.
  *
  * Nothing here is a real control: hover and focus are forced with the
  * `force-hover:`/`force-focus` helpers in styles/index.css rather than
@@ -65,7 +65,7 @@ export function KitchenSink() {
           <h1 className="text-26 font-semibold tracking-[-0.02em]">Kitchen Sink</h1>
           <p className="mt-1 text-fg-mid">
             Every primitive, every state, forced rather than hovered. Dev-only —
-            see <span className="font-mono">docs/STRUCTURE.md</span>.
+            see <span className="font-mono">docs/NOTES.md</span>.
           </p>
         </header>
 

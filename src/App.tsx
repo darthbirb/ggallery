@@ -3,7 +3,7 @@
  *
  * The window is our own bar (decorations off — decision 28), a navigation
  * panel that folds, the grid, and a pane that resizes and closes. There is
- * no theatre view — full-window is the pane maximised (docs/DESIGN.md §2).
+ * no theatre view — full-window is the pane maximised (SPEC.md §2).
  */
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -66,7 +66,7 @@ function useHash(): string {
 export default function App() {
   const hash = useHash();
 
-  // Dev-only escape hatch to `dev/KitchenSink.tsx` — see docs/STRUCTURE.md.
+  // Dev-only escape hatch to `dev/KitchenSink.tsx` — see docs/NOTES.md.
   // Checked before any of the app's own providers mount, so the route needs
   // no library, no config file and no IPC round-trip to render. The literal
   // `import.meta.env.DEV` has to sit directly in this expression, not behind
@@ -112,8 +112,8 @@ function Shell() {
   let content: ReactNode;
 
   // Choose folder → Review → Progress → Gallery, as full-window screens —
-  // see docs/DESIGN.md#first-import. A real pre-existing library can also
-  // need PLAN.md §M2.6's storage migration first — its own, deliberately
+  // see SPEC.md#first-import. A real pre-existing library can also
+  // need ROADMAP.md §M2.6's storage migration first — its own, deliberately
   // smaller, screen.
   if (library.storageMigration) {
     content = (
@@ -528,7 +528,7 @@ function Gallery({
             {/* The selection bar, rebuilt on the primitives — and the
                 scrubber's width is reserved beside it rather than run
                 underneath, so the strip's line reaches the bottom edge
-                (DESIGN.md §2 "Timeline scrubber").
+                (SPEC.md §2 "Timeline scrubber").
 
                 *Revert* is gone from the bar. Inverting a selection lives
                 in the right-click menu, where the rest of the selection
@@ -559,7 +559,7 @@ function Gallery({
                   </Button>
                   {/* Status, not instruction — the one place a live count
                       could be, previously spent on "Right-click for more",
-                      a tutorial you read once (DESIGN.md §2, decision 28). */}
+                      a tutorial you read once (SPEC.md §2, decision 28). */}
                   <span className="ml-auto truncate pl-2 font-mono text-12 tabular-nums text-fg">
                     {formatCount(selection.count)} selected
                   </span>
@@ -593,7 +593,7 @@ function Gallery({
             folding tweens this width rather than swapping two different
             subtrees — the pane's own instance of the rule the nav panel
             fold and the maximise region above already follow
-            (ENGINEERING-NOTES.md §Motion, "animate a panel closing by
+            (NOTES.md §Motion, "animate a panel closing by
             tweening its size, not by unmounting it"). Both stay mounted and
             cross-fade; `inert` on whichever is not current keeps it out of
             tab order and off screen readers without the layout jump
@@ -666,7 +666,7 @@ function emptyLabel(scope: Scope): string {
       return "Nothing Favourited Yet";
     case "sorting":
       // The library root *is* the Sorting Box, so empty means filed, not
-      // missing — DESIGN.md §4.
+      // missing — SPEC.md §4.
       return "Nothing To Sort";
     default:
       return "Nothing Here Yet";

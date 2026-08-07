@@ -1,7 +1,7 @@
 import type { FolderNode } from "./types";
 
 /** A folder and every ancestor above it, root-first — by title, since there
- *  is nothing else left to walk by (PLAN.md decision 30 dropped `rel_path`
+ *  is nothing else left to walk by (decision 30 dropped `rel_path`
  *  entirely). There is no library-root row to stop short of any more: a
  *  top-level folder's own `parentId` is `null`, and the walk includes that
  *  folder itself as the last entry, which is what lets one function serve

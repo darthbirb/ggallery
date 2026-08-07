@@ -76,7 +76,7 @@ impl Kind {
     }
 
     /// `from_ext`, upgraded to `Video` for an animated GIF, WebP or APNG —
-    /// PLAN.md locked decision 17. Extension alone can't tell a still GIF
+    /// DECISIONS.md locked decision 17. Extension alone can't tell a still GIF
     /// from an animated one, so `gif`/`webp`/`png` get one extra, cheap read:
     /// a structural scan for an animation marker, never a full decode. Every
     /// other extension is classified exactly as before, with no extra I/O.

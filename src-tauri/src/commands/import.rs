@@ -3,7 +3,7 @@
 //! opened. See `fs::import` for the actual logic; these are the thin IPC
 //! shell around it.
 //!
-//! **PLAN.md §M2.6 removed this file's other half** — the database-backed
+//! **ROADMAP.md §M2.6 removed this file's other half** — the database-backed
 //! scan/dry-run/execute/verify commands behind Settings → *Normalise
 //! filenames*. See `fs::import`'s module docs for why that repair action's
 //! whole premise (a backlog of items not yet renamed to `<uuid>.<ext>`)
@@ -38,7 +38,7 @@ pub async fn prepare_import(state: State<'_, AppState>, path: String) -> Result<
 /// Mirror the tree `prepare_import` staged into folder records and indexed
 /// items, then mark the library imported. Refuses to run without an explicit
 /// backup acknowledgement — the one interruption that stays, now that there
-/// is no reversal tooling to fall back on. See docs/DESIGN.md#first-import.
+/// is no reversal tooling to fall back on. See SPEC.md#first-import.
 #[tauri::command]
 pub async fn execute_prepared_import(
     app: AppHandle,

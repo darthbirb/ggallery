@@ -5,7 +5,7 @@
 //! inline, by the caller — that table is small. Only the downstream fan-out
 //! into `item_effective_tag` across a subtree is meant to run off the UI
 //! thread; `rebuild_subtree`/`rebuild_item` here are the work, `jobs::kinds`
-//! is what queues them. See docs/DATA-MODEL.md#tag-resolution.
+//! is what queues them. See docs/SCHEMA.md#tag-resolution.
 
 use std::collections::HashMap;
 
@@ -18,7 +18,7 @@ use crate::error::{AppError, Result};
 /// Get or create the shared `tag` row for `(key, value)`. `key` is `None`
 /// for a flag. `IS` rather than `=` so `NULL` compares correctly.
 ///
-/// Case-folded on the way in (PLAN.md decision 31) — every tag/label/flag
+/// Case-folded on the way in (decision 31) — every tag/label/flag
 /// creation funnels through here, which is what makes this the one place
 /// that needs to fold rather than each of its callers.
 pub fn get_or_create_tag(conn: &Connection, key: Option<&str>, value: &str) -> Result<i64> {
@@ -134,7 +134,7 @@ pub fn rebuild_item(conn: &Connection, item_id: i64) -> Result<()> {
 /// already-computed set plus its own `folder_tag` rows. That is one pass
 /// over folders (thousands at most, per `db::folders::tree`'s own
 /// reasoning) rather than one recursive ancestry query per item, which is
-/// exactly the shape PLAN.md decision 20 warns is catastrophic at scale.
+/// exactly the shape decision 20 warns is catastrophic at scale.
 pub fn rebuild_subtree(conn: &Connection, folder_id: Option<i64>) -> Result<()> {
     let Some(folder_id) = folder_id else {
         return rebuild_whole_library(conn);
@@ -287,7 +287,7 @@ fn apply_folder_tags_to_items(
 // --- manual per-item tags ---------------------------------------------------
 //
 // No frontend caller in M2 — item-level tag UI is M2.5's preview panel, per
-// PLAN.md §M2. These exist so the data model is complete and testable now,
+// ROADMAP.md §M2. These exist so the data model is complete and testable now,
 // and so `commands/tags.rs` has something real to expose when M2.5 needs it.
 
 #[derive(Debug, Clone, Serialize)]
@@ -335,7 +335,7 @@ pub fn item_effective_tags(conn: &Connection, item_id: i64) -> Result<Vec<Effect
 
 /// A folder's *inherited* labels and flags — every ancestor's `folder_tag`
 /// rows, minus this folder's own (already surfaced by `get_detail`'s
-/// `fields`/`flags`). DESIGN.md §2's "inherited greyed, manual solid" rule
+/// `fields`/`flags`). SPEC.md §2's "inherited greyed, manual solid" rule
 /// applies to a folder's own band the same way it already does to an item's
 /// details.
 ///
@@ -391,7 +391,7 @@ pub fn remove_item_tag(conn: &Connection, item_id: i64, tag_id: i64) -> Result<(
 //
 // The minimum that stops the vocabulary rotting — a typo fix and a way to
 // remove one. Merge, aliases and usage counts stay M8's full tag-management
-// screen, per docs/DESIGN.md "Item operations".
+// screen, per SPEC.md "Item operations".
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -432,7 +432,7 @@ pub fn list_tags(conn: &Connection, filter: Option<&str>) -> Result<Vec<TagSumma
 /// so every place the tag renders picks the new value up through the join.
 pub fn rename_tag(conn: &Connection, tag_id: i64, new_value: &str) -> Result<()> {
     // Folded on the way in, same as `get_or_create_tag` — this is the one
-    // other place a tag's text is written (PLAN.md decision 31).
+    // other place a tag's text is written (decision 31).
     let new_value = crate::db::fold(new_value);
 
     let (key, old_value): (Option<String>, String) = conn
@@ -574,7 +574,7 @@ mod tests {
             .unwrap()
             .collect::<rusqlite::Result<_>>()
             .unwrap();
-        // Folded on the way in — PLAN.md decision 31.
+        // Folded on the way in — decision 31.
         assert_eq!(tags, vec!["ana".to_string()]);
     }
 
@@ -612,7 +612,7 @@ mod tests {
             .collect();
         values.sort();
         // people, ana (titles), family, beach (flags) — folded on the way in
-        // (PLAN.md decision 31), alphabetical once sorted.
+        // (decision 31), alphabetical once sorted.
         assert_eq!(values, vec!["ana", "beach", "family", "people"]);
     }
 
@@ -631,7 +631,7 @@ mod tests {
         assert!(!inherited.iter().any(|t| t.value == "beach"));
         // People's title, its manual flag and its label all come through,
         // each carrying People's id as the origin — folded on the way in
-        // (PLAN.md decision 31).
+        // (decision 31).
         assert!(inherited
             .iter()
             .any(|t| t.key.is_none() && t.value == "people" && t.origin_id == Some(people)));
@@ -753,7 +753,7 @@ mod tests {
 
     #[test]
     fn rebuild_subtree_with_no_folder_rebuilds_the_whole_library() {
-        // `None` is the whole-library case (PLAN.md decision 30 — there is
+        // `None` is the whole-library case (decision 30 — there is
         // no root folder any more for a "root-level edit" to mean anything
         // narrower than that).
         let conn = memory_conn();

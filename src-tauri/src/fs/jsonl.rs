@@ -1,4 +1,4 @@
-//! The standing `library.jsonl` writer. PLAN.md decision 30 makes this "the
+//! The standing `library.jsonl` writer. decision 30 makes this "the
 //! only other complete copy of the organisation" — `fs::shard::write_manifest`
 //! writes the one-shot version that precedes the physical migration; this is
 //! what keeps the same file current for as long as the library stays open

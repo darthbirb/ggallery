@@ -133,7 +133,7 @@ pub fn rollback_batch(conn: &Connection) {
     let _ = conn.execute_batch("ROLLBACK");
 }
 
-/// Case-folded on the way in — PLAN.md decision 31. One implementation,
+/// Case-folded on the way in — decision 31. One implementation,
 /// called from every place a folder title, a tag key, a tag value or a flag
 /// is written (`db::folders::{upsert,create_record,set_title_unjournalled}`,
 /// `db::tags::{get_or_create_tag,rename_tag}`), so what ends up stored is

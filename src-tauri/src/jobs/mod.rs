@@ -3,7 +3,7 @@
 //! Every worker is a plain OS thread with its own SQLite connection. Nothing
 //! here runs on a Tauri command thread: heavy work inside a `#[tauri::command]`
 //! blocks the native window message pump and Windows marks the app "Not
-//! Responding" — see docs/ENGINEERING-NOTES.md.
+//! Responding" — see docs/NOTES.md.
 
 pub mod kinds;
 pub mod worker;

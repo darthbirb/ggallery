@@ -33,7 +33,7 @@ pub const MAX_ATTEMPTS: i64 = 2;
 /// has actually been read and sharded into `files/`, so a row never exists
 /// without a hash. `inbox_rel` is relative to `inbox/` itself, not the
 /// library root — everything found there is flattened into the Sorting Box
-/// regardless of whatever subdirectory it arrived in (PLAN.md decision 30 —
+/// regardless of whatever subdirectory it arrived in (decision 30 —
 /// `inbox/` is the only place files arrive from outside the app, and it is
 /// flat by design).
 #[derive(Debug, Clone, Serialize, Deserialize)]

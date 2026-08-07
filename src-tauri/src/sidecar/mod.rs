@@ -1,7 +1,7 @@
 //! Sidecar binaries. **Nothing else in the application spawns a process.**
 //!
 //! M1 needs ffmpeg and ffprobe for video probing, poster frames and scrub
-//! strips. The pinned-version download and checksum verification that PLAN.md
+//! strips. The pinned-version download and checksum verification that DECISIONS.md
 //! describes belong to the tool updater in M5; until then the app looks for
 //! the binaries in `tools/` next to the executable, then falls back to PATH so
 //! a machine with ffmpeg already installed works today. Reading a binary from

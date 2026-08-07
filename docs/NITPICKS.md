@@ -14,8 +14,8 @@ Each one is asked a single question first: **is this an instance, or a class?**
 
 *"The fill-window icon points nowhere"* is an instance. *"An icon should name the action,
 not the state"* is the class underneath it, and the class is what stops the next four.
-Every locked decision in [PLAN.md](../PLAN.md) started as somebody's nitpick. An item
-that turns out to be a class is written into [DESIGN.md](DESIGN.md) or the decision list;
+Every locked decision in [DECISIONS.md](DECISIONS.md) started as somebody's nitpick. An item
+that turns out to be a class is written into [SPEC.md](../SPEC.md) or the decision list;
 fixing only the instance is how the same complaint comes back wearing different clothes.
 
 Then one of three outcomes, all of them legitimate:
@@ -28,7 +28,7 @@ Then one of three outcomes, all of them legitimate:
 ## Open
 
 - **Grid — no drag-marquee selection.** `state/selection.ts`'s own doc comment says
-  rubber-band selection "arrives with direct manipulation in M2.5b," but PLAN.md's actual
+  rubber-band selection "arrives with direct manipulation in M2.5b," but DECISIONS.md's actual
   M2.5b scope line only names the pane's Grid/Folders modes, the three drop targets,
   spring-loading and inline folder creation — marquee-select is a separate gesture (drag
   from empty grid background to select a rectangle of tiles, versus dragging a tile to move

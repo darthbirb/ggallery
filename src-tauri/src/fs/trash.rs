@@ -2,7 +2,7 @@
 //! the file moves into `.ggallery/trash/`, and the database row is
 //! soft-deleted (`deleted_at`) rather than removed.
 //!
-//! **Shard-based since PLAN.md §M2.6** — keyed by uuid, not by a mirrored
+//! **Shard-based since ROADMAP.md §M2.6** — keyed by uuid, not by a mirrored
 //! relative path. `trash_folder`'s physical side is a real behavioural
 //! change from before: with no directory to rename in one O(1) move, trashing
 //! a folder with many descendants is now one same-volume rename *per item*
@@ -56,7 +56,7 @@ pub fn trash_folder(paths: &LibraryPaths, conn: &Connection, folder_id: i64, bat
 }
 
 /// Undo's half of `trash_folder`. `parent_id`/`title` were never touched by
-/// the trash (PLAN.md §M2.6 — no path to free by rewriting them), so all
+/// the trash (ROADMAP.md §M2.6 — no path to free by rewriting them), so all
 /// this needs to do is put each item's file back and clear `deleted_at`.
 pub fn restore_folder(paths: &LibraryPaths, conn: &Connection, folder_id: i64, trashed_at: i64) -> Result<()> {
     db::folders::restore_subtree(conn, folder_id, trashed_at)?;

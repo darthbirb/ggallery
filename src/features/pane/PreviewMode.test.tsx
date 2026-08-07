@@ -4,7 +4,7 @@
  * end up with a single-pane viewer plus three bespoke comparison screens.
  *
  * These tests hold that open: the layout is exercised at every size
- * docs/DESIGN.md §2 names, and the component is rendered with more than one
+ * SPEC.md §2 names, and the component is rendered with more than one
  * slot even though nothing in M2.5a passes more than one yet.
  */
 
@@ -119,7 +119,7 @@ describe("preview", () => {
   it("at fit, has no zoom UI at all — scroll and drag are the whole interaction", async () => {
     renderPreview();
     await screen.findByAltText("beach.jpg");
-    // DESIGN.md §2: no fit button, no 1:1 button, no percentage readout.
+    // SPEC.md §2: no fit button, no 1:1 button, no percentage readout.
     expect(screen.queryByRole("button", { name: /^Fit$/ })).toBeNull();
     expect(screen.queryByRole("button", { name: "1:1" })).toBeNull();
     expect(screen.queryByText("fit")).toBeNull();

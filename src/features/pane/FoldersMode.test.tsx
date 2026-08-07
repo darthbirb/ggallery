@@ -1,5 +1,5 @@
 /**
- * The pane's Folders mode — DESIGN.md §2 *Folders mode*: single click drills
+ * The pane's Folders mode — SPEC.md §2 *Folders mode*: single click drills
  * in without moving the main grid, double click does move it, a "+ New
  * folder" tile is always present and creates inline, the filter box
  * searches flat and offers to create what does not match, and tiles accept

@@ -1,4 +1,4 @@
-//! Rolling copies of `library.db`. Since PLAN.md decision 30 the database is
+//! Rolling copies of `library.db`. Since decision 30 the database is
 //! the only *structured* copy of the organisation — `library.jsonl` is the
 //! plaintext rebuild path, this is the binary one — and it is small next to
 //! the media it describes, which is what makes keeping several copies cheap

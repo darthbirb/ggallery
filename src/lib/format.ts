@@ -71,7 +71,7 @@ export function formatDateTime(seconds: number): string {
 }
 
 /** Unix seconds to `"3 days ago"` / `"5 months ago"` — coarse, one unit,
- *  matching docs/DESIGN.md's folder header mockup ("last added: 5 months
+ *  matching SPEC.md's folder header mockup ("last added: 5 months
  *  ago"). Not meant to be precise; it's a staleness signal. */
 export function formatTimeAgo(seconds: number): string {
   const diff = Math.max(0, Date.now() / 1000 - seconds);

@@ -22,7 +22,7 @@ interface StatusesSectionProps {
 
 /**
  * Rename, recolour, reorder, add and remove folder status values — the app
- * ships a small unopinionated default set, fully editable (docs/DESIGN.md §1
+ * ships a small unopinionated default set, fully editable (SPEC.md §1
  * "Folder status"; decision 22's full lifecycle).
  *
  * Removing a status that folders are using asks where those folders should

@@ -15,7 +15,7 @@ use crate::AppState;
 /// hands it to the layout worker, and virtualises from there. Paging would buy
 /// nothing and cost the scrubber its knowledge of the full date range.
 ///
-/// `folderId` and `unsorted` together pick the scope (PLAN.md decision 30 —
+/// `folderId` and `unsorted` together pick the scope (decision 30 —
 /// there is no "root folder" any more): `unsorted: true` is the Sorting Box,
 /// `folderId: Some(id)` is that folder (optionally recursive), and neither
 /// set is Everything.
@@ -63,7 +63,7 @@ pub async fn get_item(state: State<'_, AppState>, item_id: i64) -> Result<db::it
 }
 
 /// Items in the Sorting Box — the sidebar badge's count. There is no folder
-/// row to read this off any more (PLAN.md decision 30), so it is its own
+/// row to read this off any more (decision 30), so it is its own
 /// small query rather than a field on `FolderNode`.
 #[tauri::command]
 pub async fn unsorted_count(state: State<'_, AppState>) -> Result<i64> {
@@ -75,7 +75,7 @@ pub async fn unsorted_count(state: State<'_, AppState>) -> Result<i64> {
     .await
 }
 
-/// Favourite is binary and first-class (PLAN.md decision 12), and acts on the
+/// Favourite is binary and first-class (decision 12), and acts on the
 /// whole selection.
 #[tauri::command]
 pub async fn set_items_favorite(
@@ -92,7 +92,7 @@ pub async fn set_items_favorite(
 }
 
 // --- M2.1: move, delete, and the OS-integration escape hatches an app that
-// renames everything to a UUID owes the user — see docs/DESIGN.md "Item
+// renames everything to a UUID owes the user — see SPEC.md "Item
 // operations".
 
 #[tauri::command]

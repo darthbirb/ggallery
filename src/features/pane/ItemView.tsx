@@ -7,14 +7,14 @@
  * and owns no knowledge of how many of it exist.
  *
  * **Images have no zoom UI at fit** — no fit button, no 1:1 button, no
- * percentage readout, nothing on screen (docs/DESIGN.md §2). Scroll and drag
+ * percentage readout, nothing on screen (SPEC.md §2). Scroll and drag
  * are the whole interaction there. Once zoom leaves fit, a single small
  * percentage readout appears in a corner and doubles as the discoverable
  * form of the double-click-to-fit gesture — the rule this replaced banned a
  * *permanent* strip of chrome competing with the photograph; a control
  * that is absent until it is relevant does not compete with anything.
  *
- * Volume is deliberately module-level: docs/DESIGN.md §2 asks for volume that
+ * Volume is deliberately module-level: SPEC.md §2 asks for volume that
  * persists between items, and an item change unmounts the `<video>`.
  */
 
@@ -99,7 +99,7 @@ function ImageView({ item, source }: { item: ItemDetail; source: string }) {
       ref={containerRef}
       className="relative h-full min-h-0 overflow-hidden"
       onWheel={(event) => {
-        // Scroll to zoom, drag to pan — DESIGN.md §2 "Preview mode". A point
+        // Scroll to zoom, drag to pan — SPEC.md §2 "Preview mode". A point
         // at image-space p lands at screen offset p·zoom + pan (offset from
         // the container's centre), so p = (cursor - pan) / zoom for whatever
         // sits under the pointer right now. Solving the same equation for
@@ -166,7 +166,7 @@ function ImageView({ item, source }: { item: ItemDetail; source: string }) {
         }
       />
 
-      {/* Absent at fit — DESIGN.md §2 "Preview mode". Once zoom leaves fit
+      {/* Absent at fit — SPEC.md §2 "Preview mode". Once zoom leaves fit
           this is the only zoom UI there is: a readout that doubles as the
           discoverable form of the double-click-to-fit gesture. Bright, not
           dimmed-until-hover — dimming a control that only appears when it is
@@ -220,7 +220,7 @@ function VideoView({ item, source }: { item: ItemDetail; source: string }) {
         <video
           ref={video}
           src={source}
-          // Loop is on by default — DESIGN.md §2 "Preview mode".
+          // Loop is on by default — SPEC.md §2 "Preview mode".
           loop
           autoPlay
           playsInline

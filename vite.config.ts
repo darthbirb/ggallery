@@ -26,7 +26,7 @@ export default defineConfig({
   worker: {
     format: "es",
   },
-  // Interaction tests, not appearance tests — see PLAN.md §M2.5 "Build
+  // Interaction tests, not appearance tests — see ROADMAP.md §M2.5 "Build
   // notes". `lib/ipc` is mocked per test file, so nothing here ever reaches
   // Tauri, and jsdom is enough.
   test: {

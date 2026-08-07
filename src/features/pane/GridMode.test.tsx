@@ -1,5 +1,5 @@
 /**
- * The pane's Grid mode — DESIGN.md §2 *Grid mode*: a second grid, scoped
+ * The pane's Grid mode — SPEC.md §2 *Grid mode*: a second grid, scoped
  * anywhere in the library, that accepts drops and moves whatever lands on
  * it into whatever folder it is currently showing. Dropping onto it while
  * it shows Everything has nowhere real to file into, so it must refuse.

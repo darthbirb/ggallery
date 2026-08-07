@@ -2,7 +2,7 @@
  * Every mutating operation the interface can perform, in one place, each one
  * ending in a toast.
  *
- * Two rules from PLAN.md meet here. Decision 23: nothing is keyboard-only, and
+ * Two rules from DECISIONS.md meet here. Decision 23: nothing is keyboard-only, and
  * every destructive action ends in a toast naming what happened with an Undo
  * button — which is also the only thing that makes the journal discoverable.
  * Decision 22: every noun has a full lifecycle, so create, rename and remove

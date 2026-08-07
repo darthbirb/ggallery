@@ -30,7 +30,7 @@ pub struct LibraryInfo {
     /// no poster frame and no scrub strip.
     pub ffmpeg: Option<String>,
     /// Set only on the `open` that actually ran the lowercase fold-and-merge
-    /// (PLAN.md decision 31) and only if it merged something — surfaced
+    /// (decision 31) and only if it merged something — surfaced
     /// once, silently absent otherwise, same as `verifyIssue`.
     pub lowercase_merge_report: Option<LowercaseMergeReport>,
 }

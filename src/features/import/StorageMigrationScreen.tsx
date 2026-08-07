@@ -13,7 +13,7 @@ interface StorageMigrationScreenProps {
 }
 
 /**
- * PLAN.md §M2.6 — a real pre-existing library that has not yet moved every
+ * ROADMAP.md §M2.6 — a real pre-existing library that has not yet moved every
  * file to `files/<xx>/<uuid>.<ext>`. The single most dangerous operation the
  * app performs, so this reuses the M1.7 startup flow's shape (one Review, one
  * Progress, a backup checkbox) rather than inventing a new one — but stays

@@ -1,6 +1,6 @@
 /**
  * The band above the grid — the only chrome scoped to what the grid is
- * showing (docs/DESIGN.md §2). It renders for every scope, not only a real
+ * showing (SPEC.md §2). It renders for every scope, not only a real
  * folder: collapsed it is always one line, and the controls that change the
  * grid — tile size, and "this folder only" when a folder is open — live on
  * its right side, moved here from the window bar per decision 28.
@@ -11,7 +11,7 @@
  *
  * Expanded state is **global and remembered** — never per folder, which
  * would reflow the grid on every navigation and is state nobody would
- * curate (docs/DESIGN.md §2).
+ * curate (SPEC.md §2).
  *
  * #### The expanded band is identity, not a form
  *
@@ -107,7 +107,7 @@ export function FolderBand({
   const [inherited, setInherited] = useState<EffectiveTag[]>([]);
 
   // The same breadcrumb the item details panel renders, the folder itself
-  // as the last crumb (docs/DESIGN.md §2). A folder always shows where it
+  // as the last crumb (SPEC.md §2). A folder always shows where it
   // sits, including a top-level one, where the answer is "at the top" — the
   // crumb list there is just its own title, one entry.
   const crumbs = useMemo(
@@ -410,7 +410,7 @@ function Cover({
 }
 
 /** Fields and tags share one row, add controls at its end — the merge
- *  DESIGN.md §2 asks for, one flowing block instead of two separate ones.
+ *  SPEC.md §2 asks for, one flowing block instead of two separate ones.
  *  They still read as different kinds of things: a field is structured
  *  key/value data, so `FieldChip` is rectangular and two-toned; a flag is
  *  just a word, so it keeps `Chip`'s round pill. **Adding either one is the

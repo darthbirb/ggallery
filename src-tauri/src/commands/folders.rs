@@ -19,7 +19,7 @@ pub async fn get_folder(state: State<'_, AppState>, id: i64) -> Result<FolderDet
     .await
 }
 
-/// A folder has one name (PLAN.md decision 30) — one column, nothing on
+/// A folder has one name (decision 30) — one column, nothing on
 /// disk to keep in step with it. Returns the journal batch, so the toast
 /// that follows can offer Undo.
 #[tauri::command]
@@ -171,10 +171,10 @@ pub async fn list_archetypes(state: State<'_, AppState>) -> Result<Vec<Archetype
 }
 
 // --- folder lifecycle: create, retitle, move, delete (M2.1, rebuilt for
-// PLAN.md §M2.6 — none of this touches a file any more) -------------------
+// ROADMAP.md §M2.6 — none of this touches a file any more) -------------------
 //
 // There is no `reveal_folder` any more: a folder has no directory left to
-// reveal in Explorer (docs/DESIGN.md §1 specifies "Reveal in Explorer" only
+// reveal in Explorer (SPEC.md §1 specifies "Reveal in Explorer" only
 // for items, never folders — this command was extra, and decision 30 removed
 // the thing it revealed).
 
@@ -221,7 +221,7 @@ pub async fn delete_folder(state: State<'_, AppState>, id: i64) -> Result<String
     .await
 }
 
-// --- archetype lifecycle (M2.1 — nothing is seeded; see PLAN.md decision 21) --
+// --- archetype lifecycle (M2.1 — nothing is seeded; see decision 21) --
 
 #[tauri::command]
 pub async fn create_archetype(state: State<'_, AppState>, name: String) -> Result<i64> {

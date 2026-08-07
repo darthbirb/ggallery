@@ -1,5 +1,5 @@
 /**
- * The scrubber, and what docs/DESIGN.md §2 asks of it: no permanent column of
+ * The scrubber, and what SPEC.md §2 asks of it: no permanent column of
  * year and month labels, and — since M2.5a.2 — no date at all, in any state.
  * Two passes tried to make a date readable next to a thumb held for under a
  * second; the position is the information.

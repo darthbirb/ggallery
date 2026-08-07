@@ -26,7 +26,7 @@ export function Chip({
   colour?: string;
   onRemove?: () => void;
   removeLabel?: string;
-  /** Inherited tags read greyed, manual ones solid — DESIGN.md §2. */
+  /** Inherited tags read greyed, manual ones solid — SPEC.md §2. */
   muted?: boolean;
   className?: string;
 }) {

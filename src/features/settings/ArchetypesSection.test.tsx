@@ -1,8 +1,8 @@
 /**
  * The archetype editor, which is mandatory now that the app ships no
- * vocabulary at all (PLAN.md decision 21).
+ * vocabulary at all (decision 21).
  *
- * This is also the exact bug class PLAN.md §M2.5 names when it asks for
+ * This is also the exact bug class ROADMAP.md §M2.5 names when it asks for
  * frontend tests: "does picking an archetype call the right command" — M2
  * shipped a dropdown that focused the notes field instead of registering the
  * selection, and neither Rust tests nor `tsc` could see it.

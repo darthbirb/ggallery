@@ -15,7 +15,7 @@ interface ArchetypesSectionProps {
 
 /**
  * Create, rename and delete an archetype; add, reorder and remove its fields.
- * Mandatory now that nothing is seeded (PLAN.md decision 21): with no default
+ * Mandatory now that nothing is seeded (decision 21): with no default
  * vocabulary, an editor is the only way to have one at all.
  *
  * **A field is a name and a position.** It carried a type until M2.5a.1 —
@@ -23,7 +23,7 @@ interface ArchetypesSectionProps {
  * app then ignored: decision 21 had already removed the platform linking
  * `handle` existed for, and nothing else ever read it.
  *
- * Two edits are never silent, per docs/DESIGN.md §1 "Archetypes": adding a
+ * Two edits are never silent, per SPEC.md §1 "Archetypes": adding a
  * field asks whether folders already using the archetype should get it, and
  * removing one that holds values names the folders it would empty.
  *

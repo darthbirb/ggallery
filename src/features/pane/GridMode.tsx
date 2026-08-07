@@ -1,8 +1,8 @@
 /**
  * The pane's Grid mode — a second grid, scoped anywhere in the library, with
- * its own tile size. DESIGN.md §2 *Grid mode*.
+ * its own tile size. SPEC.md §2 *Grid mode*.
  *
- * One of the app's three drop targets (DESIGN.md §*Drops*): drag items onto
+ * One of the app's three drop targets (SPEC.md §*Drops*): drag items onto
  * it and they move into whatever folder it is currently showing. There is
  * no navigation control specified beyond "scoped anywhere" — this reuses the
  * same flat title/path picker `Dialogs.tsx` already built for "Move to…",

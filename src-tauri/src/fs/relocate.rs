@@ -1,6 +1,6 @@
 //! Folder creation, retitling, move, and item move.
 //!
-//! **PLAN.md §M2.6 removed the whole directory half of this module.** Before
+//! **ROADMAP.md §M2.6 removed the whole directory half of this module.** Before
 //! decision 30, every function here was disk-first-then-database, because
 //! the filesystem was authoritative — a folder had a real directory, moving
 //! or renaming it meant moving or renaming that directory, and a failed disk
@@ -52,7 +52,7 @@ pub fn retitle_folder(conn: &Connection, folder_id: i64, new_title: &str, batch_
 
 /// Moves a folder to a new parent — the effective-tag cache rebuilds for the
 /// subtree, because inherited tags are recomputed from the new ancestry
-/// (docs/DESIGN.md "Folder operations").
+/// (SPEC.md "Folder operations").
 pub fn move_folder(conn: &Connection, folder_id: i64, new_parent_id: Option<i64>, batch_id: &str) -> Result<()> {
     move_folder_inner(conn, folder_id, new_parent_id, Some(batch_id))
 }

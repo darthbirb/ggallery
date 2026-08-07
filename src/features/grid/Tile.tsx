@@ -4,7 +4,7 @@
  * M0 measured mount/unmount churn during a fling generating enough garbage
  * (a fresh `<img>` and decode object per tile) to force a major GC, producing
  * 88–105ms frames and failing the "no blank frame held over 100ms" target.
- * See docs/ENGINEERING-NOTES.md §1. So: a fixed pool of nodes is created once
+ * See docs/NOTES.md §1. So: a fixed pool of nodes is created once
  * and repositioned as the visible range moves, `<img>` elements are reused by
  * setting `src`, and every piece of decoration (duration, favourite badge,
  * selection border, scrub strip) is a permanent child toggled by class rather
@@ -16,7 +16,7 @@
  * then read as ambiguous. The anchor is invisible bookkeeping and is not
  * drawn, so the pool no longer tracks it at all.
  *
- * The file keeps its `Tile.tsx` name from docs/STRUCTURE.md; it exports the
+ * The file keeps its `Tile.tsx` name from docs/NOTES.md; it exports the
  * pool that owns tile DOM rather than a component.
  */
 

@@ -18,9 +18,9 @@ interface ReviewScreenProps {
 /**
  * The startup flow's one substantive screen — counts, one sentence, one
  * checkbox. Everything the old six-step wizard asked across scan / dry run /
- * backup collapses into this, per docs/DESIGN.md#first-import.
+ * backup collapses into this, per SPEC.md#first-import.
  *
- * PLAN.md §M2.6a: the directory tree is read once and mirrored into
+ * ROADMAP.md §M2.6a: the directory tree is read once and mirrored into
  * folders, so the folder count is real again and worth showing.
  */
 export function ReviewScreen({

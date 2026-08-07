@@ -61,8 +61,8 @@ fn run_index(ctx: &QueueInner, conn: &mut Connection) -> Result<()> {
 /// exists in a half-known state, and once this returns it is sharded too —
 /// there is no separate "renamed later" step. `folder_id` is `None` for an
 /// inbox arrival (nothing in `inbox/` carries any organisational
-/// information worth keeping, PLAN.md decision 30) and whatever the caller
-/// resolved from the source tree for a first import (PLAN.md §M2.6a).
+/// information worth keeping, decision 30) and whatever the caller
+/// resolved from the source tree for a first import (ROADMAP.md §M2.6a).
 pub fn index_file(
     paths: &LibraryPaths,
     tools: &Tools,
@@ -373,7 +373,7 @@ mod tests {
     fn a_modified_arrival_is_a_brand_new_item_not_a_second_row_of_an_old_one() {
         // Unlike the pre-M2.6 tree watcher, an inbox arrival has no path
         // identity to anchor on — every settle is a fresh file, by design
-        // (PLAN.md decision 30: `inbox/` is flat and disposable). Modifying
+        // (decision 30: `inbox/` is flat and disposable). Modifying
         // an *already-filed* item's own file is not something this app ever
         // does outside of a job it controls (compression, etc.), so there is
         // no "identity on modification" case left for the watcher to get

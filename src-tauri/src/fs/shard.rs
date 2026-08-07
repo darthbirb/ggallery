@@ -1,10 +1,10 @@
 //! `files/<xx>/<uuid>.<ext>` — resolving an item's location from its own
-//! identity (PLAN.md decision 30), and the one-time migration that flattens
+//! identity (decision 30), and the one-time migration that flattens
 //! an existing directory-shaped library into it.
 //!
 //! **The migration is the single most dangerous operation this app performs**:
 //! it physically touches every file in what will eventually be a real 300GB
-//! library. The order below is not negotiable (see PLAN.md §M2.6):
+//! library. The order below is not negotiable (see ROADMAP.md §M2.6):
 //!
 //! 1. [`plan`] reads the *pre-migration* schema (folders still have
 //!    `rel_path`) and writes the complete `library.jsonl` manifest — every
@@ -50,7 +50,7 @@ const BATCH: i64 = 200;
 
 /// `<uuid>` → its shard directory name, the first two hex characters. 256-way
 /// sharding — a single directory holding 100k entries is slow to enumerate
-/// and painful for every backup tool that walks it (PLAN.md's on-disk
+/// and painful for every backup tool that walks it (DECISIONS.md's on-disk
 /// layout). Deliberately one level, unlike the cache's two-level
 /// `fs::paths::shard` — library content and cache entries are sized
 /// differently and were sharded independently in the design.
@@ -106,7 +106,7 @@ mod resolver_tests {
 // --- manifest (step 1: write before anything moves) -------------------------
 
 /// One folder's worth of `library.jsonl` — the rebuild path, not a
-/// convenience (PLAN.md decision 30). `tags` is every label (`key:value`)
+/// convenience (decision 30). `tags` is every label (`key:value`)
 /// and flag this folder itself carries — human-readable in a text editor,
 /// which is the whole point.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -771,7 +771,7 @@ mod tests {
         assert_eq!(empty, 2, "People/Ana and People are both now empty");
     }
 
-    /// PLAN.md decision 20: verified at scale before this ever runs against
+    /// decision 20: verified at scale before this ever runs against
     /// the real library. `cargo test --release shard_scale_100k -- --ignored --nocapture`.
     #[test]
     #[ignore]

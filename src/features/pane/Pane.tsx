@@ -45,7 +45,7 @@ export interface PaneProps {
   /** Grid and Folders modes need the whole tree — Preview does not. */
   folders: FolderNode[];
   /** Folders mode's double-click — the one gesture that moves the main
-   *  grid, per DESIGN.md §2 *Folders mode*. */
+   *  grid, per SPEC.md §2 *Folders mode*. */
   onOpenInMain: (folder: FolderNode) => void;
 }
 

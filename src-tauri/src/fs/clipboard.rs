@@ -1,6 +1,6 @@
 //! Copies a file onto the Windows clipboard as a real file (`CF_HDROP`), so
 //! pasting into Explorer, Discord, etc. produces the actual file — not its
-//! path as text. This is the escape hatch DESIGN.md's item operations
+//! path as text. This is the escape hatch SPEC.md's item operations
 //! promise; a plain text path would defeat the purpose, since the whole
 //! reason it's needed is that filenames on disk are opaque UUIDs.
 //!
@@ -8,7 +8,7 @@
 //! on-disk UUID name, not a reconstructed one. Fixing that means staging a
 //! renamed copy before putting it on the clipboard, and that naming logic
 //! belongs with M8's Export feature, which already owns filename
-//! reconstruction — see docs/DESIGN.md's item-operations note.
+//! reconstruction — see SPEC.md's item-operations note.
 
 use std::path::Path;
 

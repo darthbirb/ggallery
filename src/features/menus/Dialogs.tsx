@@ -180,7 +180,7 @@ export function useDialogs(): Dialogs {
 }
 
 /** A folder and everything under it, walked by `parentId` — there is no
- *  `rel_path` prefix left to match on (PLAN.md decision 30). */
+ *  `rel_path` prefix left to match on (decision 30). */
 function descendants(folders: FolderNode[], folder: FolderNode): Set<number> {
   const childrenOf = new Map<number, FolderNode[]>();
   for (const candidate of folders) {
@@ -282,7 +282,7 @@ function NewFolderDialog({
   const trimmed = name.trim();
 
   // The picker is empty until the user has made an archetype — the app ships
-  // with none (PLAN.md decision 21), so this is the normal case, not an edge.
+  // with none (decision 21), so this is the normal case, not an edge.
   useEffect(() => {
     let cancelled = false;
     void ipc
@@ -355,7 +355,7 @@ function NewFolderDialog({
   );
 }
 
-/** Flat, filtered by title or path — the same shape DESIGN.md §2 *Folders
+/** Flat, filtered by title or path — the same shape SPEC.md §2 *Folders
  *  mode* specifies for its own bottom filter box, reused here as a modal for
  *  every other "pick a folder" need (moving a folder or a selection, and
  *  `GridMode`'s "show a different folder" control). */
@@ -382,7 +382,7 @@ export function FolderPickerDialog({
   const [filter, setFilter] = useState("");
   const needle = filter.trim().toLowerCase();
 
-  // A folder's path is its ancestry, by title (PLAN.md decision 30 — there
+  // A folder's path is its ancestry, by title (decision 30 — there
   // is no `rel_path` left to filter or display).
   const pathFor = (folder: FolderNode) => ancestorTitles(folders, folder.id).join("/");
 

@@ -11,7 +11,7 @@ export interface LibraryInfo {
   folderCount: number;
   /** Path of the ffmpeg in use, or null when videos cannot be thumbnailed. */
   ffmpeg: string | null;
-  /** Set only on the `open` that ran the lowercase fold-and-merge (PLAN.md
+  /** Set only on the `open` that ran the lowercase fold-and-merge (DECISIONS.md
    *  decision 31) and only if it merged something — surfaced once. */
   lowercaseMergeReport: LowercaseMergeReport | null;
 }
@@ -86,7 +86,7 @@ export interface Progress {
   lastError: string | null;
   /** True while the current pass is a reconcile the filesystem watcher
    *  triggered after an overflow or error, rather than the ordinary startup
-   *  pass — see docs/DESIGN.md §10 "The library is live". */
+   *  pass — see SPEC.md §10 "The library is live". */
   rescanning: boolean;
 }
 
@@ -133,7 +133,7 @@ export interface ReviewReport {
   byKind: KindTotal[];
   totalItems: number;
   totalBytes: number;
-  /** Directories that will become folder records — PLAN.md §M2.6a: the
+  /** Directories that will become folder records — ROADMAP.md §M2.6a: the
    *  directory tree is read once and mirrored into folders. */
   folderCount: number;
   /** Entries the scan could not read at all. */
@@ -275,7 +275,7 @@ export interface ItemDetail {
   thumb: string;
   diskName: string;
   origName: string | null;
-  /** `null` for an item in the Sorting Box (PLAN.md decision 30). */
+  /** `null` for an item in the Sorting Box (decision 30). */
   folderId: number | null;
   /** Root-first ancestry, empty for the Sorting Box. */
   folderBreadcrumb: BreadcrumbCrumb[];
@@ -287,7 +287,7 @@ export interface ItemDetail {
   bitrate: number | null;
   capturedAt: number | null;
   /** Where `capturedAt` came from, so a guess is never mistaken for
-   *  metadata — DESIGN.md §1 "Items". */
+   *  metadata — SPEC.md §1 "Items". */
   capturedSrc: string | null;
   addedAt: number;
   favorite: boolean;
@@ -304,7 +304,7 @@ export interface UndoReport {
 
 // --- M2.6: storage migration ----------------------------------------------
 //
-// Folders are data now (PLAN.md decision 30): every file moves to
+// Folders are data now (decision 30): every file moves to
 // `files/<xx>/<uuid>.<ext>`. `openLibrary` fails with `kind ===
 // "needs-storage-migration"` for a real pre-existing library that has not
 // been through this yet; the frontend switches to this flow instead of

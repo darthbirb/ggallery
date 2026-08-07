@@ -1,7 +1,7 @@
 # Engineering notes
 
 Platform behaviour learned the expensive way. Everything here cost real time to discover,
-so read it before rediscovering it. Full evidence in [M0-RESULTS.md](M0-RESULTS.md).
+so read it before rediscovering it. Full evidence in [NOTES.md](NOTES.md).
 
 ---
 
@@ -46,7 +46,7 @@ drag and drop APIs on the frontend on Windows." Set in `lib.rs`'s `build_window`
 **This is a trade, not a free win, and M4 is where the other half comes due.** Disabling
 the native handler also disables Tauri's `onDragDropEvent`, which is the obvious way to
 implement *"dragging from Explorer onto the window"* — a source of items that
-[DESIGN.md](DESIGN.md) §4 specifies and that M4 builds. Nothing relies on it today, which
+[SPEC.md](../SPEC.md) §4 specifies and that M4 builds. Nothing relies on it today, which
 is why the trade was correct here; nothing will still be true when someone reaches for it
 and finds an event that never fires. **Explorer drops must be read from the HTML5 drop
 event's `dataTransfer.files` instead.** Do not "fix" the dead Tauri API by re-enabling the
@@ -93,7 +93,7 @@ exception safe.
 ## Motion
 
 All of this is from M2.5a.2, the pass that added animation. Decision 27 in
-[PLAN.md](../PLAN.md) sets the policy; these are the mechanics that cost time.
+[DECISIONS.md](DECISIONS.md) sets the policy; these are the mechanics that cost time.
 
 **Do not use View Transitions to reflow a toast stack.** Tried it for the gap that closes
 when one toast dismisses. It required delaying the actual dismiss until the transition had
@@ -160,7 +160,7 @@ to this exact problem: `Dialog > Sidebar(collapsible="none") + content pane`, th
 shape `SettingsPanel` independently converged on. Adopting the actual `Sidebar` primitive
 for a static four-row list would pull in `SidebarProvider` and its width/mobile-sheet
 machinery to replace roughly fifteen lines of plain buttons — more code, not less. **Stays
-hand-rolled**, but `sidebar-13` is now the citation DESIGN.md §2 was missing.
+hand-rolled**, but `sidebar-13` is now the citation SPEC.md §2 was missing.
 
 **Resizable split** (`components/Resizer.tsx`) — the registry's `resizable` wraps
 `react-resizable-panels`: a panel-*group* that owns the whole layout and sizes panels in
@@ -317,7 +317,7 @@ image decode and React commits on the main thread, and costs nothing.
 
 ## The two defects M0 found — both fixed in M1, keep them fixed
 
-Interaction-tagged re-testing (§1a of [M0-RESULTS.md](M0-RESULTS.md)) turned the earlier
+Interaction-tagged re-testing (interaction-tagged re-test, M0) turned the earlier
 vague "frame times are mostly fine" into two specific, located defects. Neither
 invalidated the layout architecture above — first paint, relayout and scrubber-jump
 latency all passed with wide margins. Both lived in the tile component and the scrubber,
@@ -382,3 +382,85 @@ Treat this as an environmental characteristic of the target machine class, not s
 to chase in the app. Note that the causal attribution is by elimination — the overlay was
 never toggled off for a clean control — but the heap-flat signature rules out GC, which
 is what matters for deciding it is not ours.
+
+---
+
+## Module boundaries
+
+Not negotiable. Each exists because the alternative already caused a bug or would hide one.
+
+**Backend — `src-tauri/src/`**
+
+- **`commands/` is a thin shell.** Every command is `async fn`, wraps real work in
+  `spawn_blocking`, and holds no business logic — validate, call into `db/`, `media/` or
+  `jobs/`, map errors. A synchronous command freezes the native window message pump.
+- **`fs/paths.rs` is the only place that converts between absolute and library-relative
+  paths.** This is the single chokepoint enforcing *no absolute paths in the database*,
+  which the whole portability promise rests on. Path handling anywhere else is a bug
+  regardless of whether it currently works.
+- **`db/` owns SQL.** No query strings outside it. Commands call functions, not queries.
+- **`sidecar/` owns process spawning.** Nothing else shells out to ffmpeg, HandBrake,
+  yt-dlp or gallery-dl.
+- **The job queue splits along that line, not against it**: `jobs/` decides what to run and
+  when, `db/jobs.rs` is the only file that writes the `job` table.
+- **No `assert!` or `debug_assert!` in a command handler.** A failed assert aborts the
+  process instead of returning an error. Return `Result`.
+
+**Frontend — `src/`**
+
+- **A `features/` folder owns its surface completely** — components, hooks and local state
+  together. Cross-feature imports go through `lib/` or `state/`, never by reaching into
+  another feature's internals.
+- **`components/` is for primitives with no domain knowledge.** If it knows what an item or
+  a folder is, it belongs to a feature.
+- **`lib/ipc.ts` is the only file that calls `invoke()`.** Everything else calls typed
+  functions, so a backend signature change breaks at compile time in one place.
+- **`grid/Tile.tsx` exports a DOM pool, not a component**, despite the `.tsx` name — see §1
+  above for why. The filename is kept so the grid's files stay where they are expected.
+- **Tests sit beside the thing they test**, named `Thing.test.tsx`, and mock `lib/ipc`
+  rather than Tauri. They cover interaction, not appearance: which command a control calls,
+  what a menu contains, what a toast offers. Only shared setup lives in `src/test/`.
+
+**Naming**
+
+- Rust files and modules `snake_case`; React components `PascalCase.tsx`; hooks
+  `useThing.ts`; everything else in `src/` `camelCase.ts`.
+- Migrations `NNN_short_description.sql`, zero-padded, **never edited after shipping** — a
+  library that already ran one will not run it again.
+- No `utils.rs`, `helpers.ts`, `common/` or `misc/`. If a home is not obvious, the module
+  boundary is wrong; fix that rather than adding a drawer.
+
+---
+
+## On-disk layout
+
+```
+<root>/
+  .ggallery/
+    library.db            ← SQLite, WAL, checkpointed on exit
+    library.jsonl         ← plaintext export, and the rebuild path
+    backups/              ← rolling copies of library.db
+    cache/
+      thumbs/ab/cd/<uuid>.webp
+      sprites/ab/cd/<uuid>.webp    ← 10-frame scrub strip per video
+    trash/                ← soft-deleted files, flat, same sharding
+    pending/              ← compressed candidates awaiting review
+    lock                  ← single-instance guard
+  files/
+    a3/a3f2c1d4-….jpg     ← every file, sharded by the uuid's first two chars
+  inbox/                  ← watched; drop files here from Explorer
+```
+
+**There is no folder structure on disk.** `files/` is sharded 256 ways because one
+directory holding 100k entries is slow to enumerate and painful for every backup tool that
+touches it. The shard derives from the uuid, so finding a file needs no lookup.
+
+Cache runs ~4–6GB at 100k items and stays inside the root, so copying the folder gives a
+working library immediately rather than a 30-minute thumbnail rebuild. One setting
+relocates it; it is safe to delete at any time.
+
+`library.jsonl` is written on a debounce — one line per item keyed by uuid carrying its
+folder path, title, tags and labels, plus one record per folder. **It is the rebuild path,
+not a convenience**: the database is the only structured copy of the organisation, so the
+plaintext one has to be complete enough to reconstruct it and readable in Notepad when it
+matters.

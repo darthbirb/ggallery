@@ -35,7 +35,7 @@ export const ACCENTS = [
 export type Accent = (typeof ACCENTS)[number]["key"];
 
 /**
- * What the pane holds. All three modes keep a remembered width — DESIGN.md §2
+ * What the pane holds. All three modes keep a remembered width — SPEC.md §2
  * says widths are per mode, and Settings lists all three so the numbers are
  * already there when the modes arrive.
  */
@@ -85,7 +85,7 @@ export interface UiPrefs {
   paneWidth: number;
   filmstripHeight: number;
   /** Global, not per folder: per-folder state would reflow the grid on every
-   *  navigation, and nobody would curate it. DESIGN.md §2 "Folder band". */
+   *  navigation, and nobody would curate it. SPEC.md §2 "Folder band". */
   bandExpanded: boolean;
   /** The preview's details block, likewise global. */
   detailsExpanded: boolean;

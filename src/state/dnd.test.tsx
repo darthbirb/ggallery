@@ -1,5 +1,5 @@
 /**
- * Spring-loading (DESIGN.md §*Drops*): hovering a drop target during a drag
+ * Spring-loading (SPEC.md §*Drops*): hovering a drop target during a drag
  * opens it after a dwell, but plain mouse hover — no drag in progress —
  * must never trigger it.
  */

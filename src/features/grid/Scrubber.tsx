@@ -8,7 +8,7 @@
  * single date that followed the thumb while dragging instead; M2.5a.2 drops
  * that too, after two passes trying to make it readable next to a thumb held
  * for under a second landed on the same conclusion both times — the position
- * *is* the information (docs/DESIGN.md §2).
+ * *is* the information (SPEC.md §2).
  *
  * The strip is part of the grid's own width — `SCRUBBER_WIDTH` is exported so
  * the bar beneath the grid can inset by it rather than running underneath.

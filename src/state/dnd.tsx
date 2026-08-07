@@ -1,5 +1,5 @@
 /**
- * In-app drag and drop — PLAN.md §M2.5b, DESIGN.md §2 *Drops*.
+ * In-app drag and drop — ROADMAP.md §M2.5b, SPEC.md §2 *Drops*.
  *
  * Since M2.6 a drop is a row update (`folder_id` for an item, `parent_id`
  * for a folder), not a file move — instant, and one journal entry to
@@ -8,11 +8,11 @@
  * context, rather than serialised through `dataTransfer`.
  *
  * **WebView2 swallows HTML5 drag and drop unless told not to** — see
- * `docs/ENGINEERING-NOTES.md`. `lib.rs`'s `build_window` calls
+ * `docs/NOTES.md`. `lib.rs`'s `build_window` calls
  * `disable_drag_drop_handler()`, which is what makes any of this fire at
  * all on Windows.
  *
- * Three targets, per DESIGN.md §*Drops*: folder tiles (`FoldersMode.tsx`),
+ * Three targets, per SPEC.md §*Drops*: folder tiles (`FoldersMode.tsx`),
  * tree rows (`Nav.tsx`), and the pane in Grid mode (`GridMode.tsx`). All
  * three resolve a drop the same way — `resolveDrop`, below — so a folder
  * dropped onto any of them nests the same way an item dropped onto any of
@@ -99,7 +99,7 @@ export function resolveDrop(payload: DragPayload, dest: FolderNode, ops: Operati
 
 /** Spring-loading: hovering a drop target while dragging opens it after a
  *  dwell, so a nested destination can be reached without setting it up
- *  first (DESIGN.md §*Drops*). Only armed while a drag is actually in
+ *  first (SPEC.md §*Drops*). Only armed while a drag is actually in
  *  progress — plain mouse hover must never trigger navigation.
  *
  * `dragenter`/`dragleave` fire on every child element a cursor crosses, not

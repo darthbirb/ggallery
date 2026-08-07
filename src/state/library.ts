@@ -17,12 +17,12 @@ import type {
 } from "../lib/types";
 
 /**
- * The navigation roots docs/DESIGN.md §2 requires are distinct things, not
+ * The navigation roots SPEC.md §2 requires are distinct things, not
  * three shapes of one folder query: *Everything* ignores folder structure,
  * the *Sorting Box* is `folder_id IS NULL` and nothing beneath it, and a
  * folder is a folder. Favourites is a fourth root, filtered from Everything.
  *
- * **The Sorting Box is "no folder", not a place** (PLAN.md decision 30).
+ * **The Sorting Box is "no folder", not a place** (decision 30).
  * There is no folder row standing in for it — an unfiled item simply has no
  * `folderId`. The root is never presented as a folder either; see
  * `features/nav`.
@@ -33,7 +33,7 @@ export interface Scope {
   kind: ViewKind;
   /** Set only when `kind === "folder"`. */
   folderId: number | null;
-  /** Folder views are recursive by default — PLAN.md decision 10. */
+  /** Folder views are recursive by default — decision 10. */
   recursive: boolean;
 }
 
@@ -89,7 +89,7 @@ export interface LibraryController {
   remembered: string | null;
   folders: FolderNode[];
   items: GridItem[];
-  /** Items with no folder at all — the Sorting Box's badge (PLAN.md decision
+  /** Items with no folder at all — the Sorting Box's badge (decision
    *  30: there is no folder row to read this off any more). */
   unsortedCount: number;
   progress: Progress | null;
@@ -110,7 +110,7 @@ export interface LibraryController {
    *  rest of the time. */
   storageMigration: StorageMigrationState | null;
   /** What the one-time lowercase fold merged, if this `open` was the one
-   *  that ran it and it merged something (PLAN.md decision 31) — surfaced
+   *  that ran it and it merged something (decision 31) — surfaced
    *  once, silently absent otherwise. */
   lowercaseMergeReport: LowercaseMergeReport | null;
   /** Pick a library folder — the first one, or a different one later. */
@@ -203,7 +203,7 @@ export function useLibrary(): LibraryController {
       ]);
       // Favourites is filtered here rather than in SQL on purpose: the grid
       // already takes the whole manifest in one call (see `list_items`), so
-      // this adds no query path for PLAN.md decision 20 to have to verify at
+      // this adds no query path for decision 20 to have to verify at
       // 100k, and no index to maintain.
       setItems(next.kind === "favourites" ? rows.filter((row) => row.favorite) : rows);
       setFolders(tree);
@@ -324,7 +324,7 @@ export function useLibrary(): LibraryController {
 
       if (executed.errors.length > 0) {
         // Not fatal — anything missed here is picked up automatically once
-        // indexing renames it on the way in, per docs/DESIGN.md#first-import,
+        // indexing renames it on the way in, per SPEC.md#first-import,
         // "After the first import". Nothing to surface but pressing on.
       }
 

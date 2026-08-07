@@ -1,7 +1,7 @@
 /**
  * A drag handle between two panels.
  *
- * Mouse-first (PLAN.md §M2.5, "Settled in phase 1"): panels are resized by
+ * Mouse-first (ROADMAP.md §M2.5, "Settled in phase 1"): panels are resized by
  * dragging their edge and double-clicking resets to the default. Arrow keys
  * move it too, because a control you can focus should do something.
  *

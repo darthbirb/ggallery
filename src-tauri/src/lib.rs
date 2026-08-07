@@ -48,7 +48,7 @@ pub struct Library {
     /// What `fs::lowercase_migration::run` merged on the way in, if this
     /// `open` is the one that ran it — `describe` (`commands/library.rs`)
     /// takes it exactly once, so it is shown once, the same as `verifyIssue`
-    /// (docs/DESIGN.md §M2.5d).
+    /// (SPEC.md §M2.5d).
     lowercase_report: Mutex<Option<fs::lowercase_migration::LowercaseMergeReport>>,
     _lock: LockFile,
 }
@@ -66,7 +66,7 @@ impl Library {
         paths.migrate_legacy_dir()?;
         paths.ensure_dirs()?;
 
-        // Single instance per library, per DESIGN.md. Two copies of the app
+        // Single instance per library, per SPEC.md. Two copies of the app
         // sharing one database would each run a full job queue against it.
         let lock = LockFile::acquire(&paths.lock_path())?;
 
@@ -85,7 +85,7 @@ impl Library {
         // Jobs abandoned by a crash go back in the queue.
         db::jobs::requeue_running(&conn)?;
 
-        // PLAN.md decision 31 — folds what this library already had before
+        // decision 31 — folds what this library already had before
         // every write path started folding on its own, merging whatever
         // that fold collides with. Before the watcher starts, so nothing it
         // moves gets fed back to itself. Folder-directory collisions are a
@@ -405,7 +405,7 @@ fn build_window(app: &AppHandle) -> Result<()> {
         // Decision 28: the window bar is ours, not Windows'. Snap Layouts'
         // flyout is knowingly given up — it only appears over a native
         // maximise button — but edge-drag resizing and edge-snap are
-        // unaffected; see docs/DESIGN.md §2.
+        // unaffected; see SPEC.md §2.
         .decorations(false)
         // Windows' DWM computes the minimize/restore genie-effect animation
         // from the window's frame, which an undecorated window has none of —

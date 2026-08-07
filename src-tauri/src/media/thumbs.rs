@@ -2,7 +2,7 @@
 //!
 //! Settled by measurement in M0: AVIF encoded 41x slower for a 12% size win
 //! and would not decode at all through the `image` crate on this platform. See
-//! docs/ENGINEERING-NOTES.md before reopening that.
+//! docs/NOTES.md before reopening that.
 
 use std::path::Path;
 

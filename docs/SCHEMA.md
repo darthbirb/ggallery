@@ -304,7 +304,7 @@ the table lands around 1M rows at full scale, which SQLite handles without compl
 
 **Live inheritance means a move recomputes, it does not accumulate.** When a move would
 drop inherited tags, the UI offers to convert specific ones into `item_tag` rows before
-committing — see [DESIGN.md](DESIGN.md#core-concepts).
+committing — see [SPEC.md](../SPEC.md#core-concepts).
 
 ---
 
@@ -378,6 +378,6 @@ bar stays directly editable, and it is always the reason the grid holds what it 
   own tags. **Since decision 30 it is the only other complete copy of the organisation**,
   so it must be sufficient to rebuild the database rather than merely helpful — folders
   included, not just items. It doubles as the disaster-recovery record of what the
-  first-import rename did; see docs/DESIGN.md#first-import.
+  first-import rename did; see SPEC.md#first-import.
 - **`.ggallery/backups/`** keeps rolling copies of `library.db`, for the same reason.
   Cheap: the database is small next to the media it describes.

@@ -1,4 +1,4 @@
-//! Move, trash, restore, undo — the commands docs/STRUCTURE.md assigns to
+//! Move, trash, restore, undo — the commands docs/NOTES.md assigns to
 //! this file. M4 owns most of it; M2.5a needs one piece of it early.
 //!
 //! Locked decision 23 requires every destructive action to end in a toast

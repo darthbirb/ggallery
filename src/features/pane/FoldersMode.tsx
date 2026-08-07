@@ -1,7 +1,7 @@
 /**
  * The pane's Folders mode — destination tiles, and the reason the
  * two-Explorer-window workflow this app replaces is beaten rather than tied.
- * DESIGN.md §2 *Folders mode*.
+ * SPEC.md §2 *Folders mode*.
  *
  * - **One flat field per level.** No sections, no reordering, no sorting by
  *   recency — a folder is where it was last time, which is what lets the
@@ -122,7 +122,7 @@ export function FoldersMode({
     };
     // Bounded by whatever is on screen — one level's siblings, or a filtered
     // result set — never the whole tree, unlike fetching a cover per row in
-    // `db::folders::tree` itself would be (PLAN.md decision 20).
+    // `db::folders::tree` itself would be (decision 20).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shown, refreshToken]);
 

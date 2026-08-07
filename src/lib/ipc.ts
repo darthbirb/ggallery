@@ -63,7 +63,7 @@ export function folderTree(): Promise<FolderNode[]> {
   return invoke<FolderNode[]>("folder_tree");
 }
 
-/** `folderId`/`unsorted` together pick the scope (PLAN.md decision 30 — there
+/** `folderId`/`unsorted` together pick the scope (decision 30 — there
  *  is no "root folder" any more): `unsorted: true` is the Sorting Box,
  *  `folderId: <id>` is that folder (optionally recursive), and neither set is
  *  Everything. */
@@ -76,7 +76,7 @@ export function listItems(
 }
 
 /** Items in the Sorting Box — the sidebar badge's count. There is no folder
- *  row to read this off any more (PLAN.md decision 30). */
+ *  row to read this off any more (decision 30). */
 export function unsortedCount(): Promise<number> {
   return invoke<number>("unsorted_count");
 }
@@ -224,7 +224,7 @@ export function getFolder(id: number): Promise<FolderDetail> {
 }
 
 /** A folder has one name — one column, nothing on disk to keep in step with
- *  it (PLAN.md decision 30). */
+ *  it (decision 30). */
 export function setFolderTitle(id: number, title: string): Promise<string> {
   return invoke<string>("set_folder_title", { id, title });
 }
@@ -287,7 +287,7 @@ export function itemEffectiveTags(itemId: number): Promise<EffectiveTag[]> {
 }
 
 /** A folder's own labels and flags come back from `getFolder`; this is only
- *  the part it inherits from its ancestors — DESIGN.md §2's "inherited
+ *  the part it inherits from its ancestors — SPEC.md §2's "inherited
  *  greyed, manual solid" rule, applied to a folder's own band the same way
  *  it already applies to an item's details. */
 export function folderInheritedTags(folderId: number): Promise<EffectiveTag[]> {
@@ -465,7 +465,7 @@ export function errorMessage(error: unknown): string {
 
 /** Whether a command failed specifically because this library still needs
  *  `fs::shard`'s storage migration — `openLibrary`'s one distinguishable
- *  failure kind, per PLAN.md §M2.6. */
+ *  failure kind, per ROADMAP.md §M2.6. */
 export function errorNeedsStorageMigration(error: unknown): boolean {
   return (
     typeof error === "object" &&

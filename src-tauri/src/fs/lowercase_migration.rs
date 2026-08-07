@@ -1,4 +1,4 @@
-//! The one-time fold-and-merge behind PLAN.md decision 31 -- "everything the
+//! The one-time fold-and-merge behind decision 31 -- "everything the
 //! tag system stores is lowercase". Every write path (`db::tags::
 //! get_or_create_tag`, `db::folders::{upsert,create_record,
 //! set_title_unjournalled}`) already folds new text on the way in; this is
@@ -14,7 +14,7 @@
 //! directories, something only `fs::relocate`'s Rust functions used to know
 //! how to do.
 //!
-//! **Split in two since PLAN.md §M2.6.** [`merge_tags`] is schema-agnostic
+//! **Split in two since ROADMAP.md §M2.6.** [`merge_tags`] is schema-agnostic
 //! and keeps running from `Library::open` right after `db::migrate`, gated
 //! by its own `setting` marker, same as always. [`merge_folders`] is not: it
 //! resolves an on-disk *directory* collision -- `Ana` and `ana` as two real
@@ -45,7 +45,7 @@ use crate::fs::paths::LibraryPaths;
 const MARKER: &str = "lowercase_folded_at";
 
 /// What the fold merged, so the caller can tell the user rather than doing
-/// this silently (PLAN.md §M2.5d).
+/// this silently (ROADMAP.md §M2.5d).
 #[derive(Debug, Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct LowercaseMergeReport {
@@ -70,7 +70,7 @@ pub struct FolderMerge {
     pub originals: Vec<String>,
     pub folded: String,
     /// `None` for a top-level folder -- the library root is never one of
-    /// these (docs/DESIGN.md §2 "Navigation roots").
+    /// these (SPEC.md §2 "Navigation roots").
     pub parent_title: Option<String>,
 }
 

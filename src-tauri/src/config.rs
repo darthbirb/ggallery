@@ -44,7 +44,7 @@ pub struct Config {
     pub library_root: Option<String>,
     pub window: Option<WindowState>,
     /// Panel widths, the folded and expanded states, the accent, tile size —
-    /// everything docs/DESIGN.md §2 says "persists between sessions alongside
+    /// everything SPEC.md §2 says "persists between sessions alongside
     /// window geometry", and explicitly never in the database.
     ///
     /// Deliberately opaque here. The shape belongs to `src/state/ui.ts`, which

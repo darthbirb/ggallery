@@ -1,6 +1,6 @@
 //! The undo stack. Replaying a batch into an actual `Ctrl+Z` is still M4's
 //! job — these functions only write rows with enough information for that
-//! future replayer to act on. See docs/DATA-MODEL.md#queues-and-history.
+//! future replayer to act on. See docs/SCHEMA.md#queues-and-history.
 
 use rusqlite::{params, Connection};
 use serde_json::{json, Value};
@@ -90,7 +90,7 @@ pub fn record_folder_move(
 /// `trashed_at` is the timestamp `db::folders::trash_subtree` stamped on
 /// every row it retired — enough for `db::folders::restore_subtree` to
 /// re-derive the whole subtree by walking `parent_id` (untouched by the
-/// trash) and restoring only rows stamped exactly this. PLAN.md §M2.6 is
+/// trash) and restoring only rows stamped exactly this. ROADMAP.md §M2.6 is
 /// what makes this so much smaller than it used to be: with no `rel_path` to
 /// free by rewriting, there is nothing left to capture up front.
 pub fn record_folder_trash(conn: &Connection, batch_id: &str, folder_id: i64, trashed_at: i64) -> Result<()> {

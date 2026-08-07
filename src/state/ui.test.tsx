@@ -1,6 +1,6 @@
 /**
  * Interface preferences: one accent on the root, and panel state that
- * survives a restart. Locked decision 24, and docs/DESIGN.md §2 "Panels are
+ * survives a restart. Locked decision 24, and SPEC.md §2 "Panels are
  * resizable".
  */
 

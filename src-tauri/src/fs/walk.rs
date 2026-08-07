@@ -1,13 +1,13 @@
 //! The startup reconcile pass.
 //!
-//! PLAN.md §M2.6 deleted this module's whole reason for being a *walker*:
+//! ROADMAP.md §M2.6 deleted this module's whole reason for being a *walker*:
 //! folders are no longer directories, so there is nothing left to discover
 //! by walking one. What used to be "index the library root" is now two much
 //! smaller, uuid-driven jobs, both run once at startup by [`reconcile`] and
 //! otherwise handled live by `fs::watch`:
 //!
 //! 1. **Sweep the root.** `inbox/` is the only place a user is meant to put
-//!    files (PLAN.md decision 30), but nothing stops one landing directly in
+//!    files (decision 30), but nothing stops one landing directly in
 //!    the library root instead — by hand, or because `fs::watch`'s live
 //!    root watch was not running to catch it. [`sweep_root_into_inbox`] moves
 //!    every top-level entry that is not the app's own into `inbox/`, one
@@ -301,7 +301,7 @@ mod tests {
         assert_eq!(db::jobs::counts(&conn).unwrap().pending, 1);
     }
 
-    /// PLAN.md decision 20: verified at scale before this ever runs against
+    /// decision 20: verified at scale before this ever runs against
     /// the real library. `cargo test --release scale_check_reconcile --
     /// --ignored --nocapture`.
     #[test]

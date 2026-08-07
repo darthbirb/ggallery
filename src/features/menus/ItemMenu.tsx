@@ -2,7 +2,7 @@
  * The item, selection and empty-space right-click menus.
  *
  * "Complete, not a subset" (locked decision 23), audited against the list
- * docs/DESIGN.md §8 says must exist visibly: select all, invert, clear;
+ * SPEC.md §8 says must exist visibly: select all, invert, clear;
  * favourite; delete; reveal in Explorer; open with; copy file; copy path;
  * fold the navigation panel. Blur and negate-a-query-term belong to M9 and
  * M3 — the features themselves do not exist yet.

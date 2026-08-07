@@ -114,7 +114,7 @@ pub fn tree(conn: &Connection) -> Result<Vec<FolderNode>> {
 
 /// Root-first ancestry, including `folder_id` itself as the last crumb —
 /// what the folder band and `ItemDetail`'s breadcrumb both render (see
-/// docs/DESIGN.md §2). Bounded by tree depth via the primary-key join on
+/// SPEC.md §2). Bounded by tree depth via the primary-key join on
 /// `folder.id`, same shape as `db::tags::resolve_ancestor_tags`.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -383,13 +383,13 @@ fn subtree_totals(conn: &Connection, folder_id: i64) -> Result<(i64, i64, i64)> 
 }
 
 /// The record's half of a retitle — title, its tag, and the journal entry.
-/// Pure DB, no filesystem access — since PLAN.md decision 30 that is now the
+/// Pure DB, no filesystem access — since decision 30 that is now the
 /// *whole* of a retitle, not just the half `fs::relocate::retitle_folder`
 /// used to call before deciding whether a directory needed to follow.
 pub fn set_title(conn: &Connection, id: i64, title: &str, batch_id: &str) -> Result<()> {
     // Folded before comparing, not just before storing — otherwise retyping
     // "Ana" over an already-folded "ana" reads as a real change and journals
-    // a rename that did nothing (PLAN.md decision 31).
+    // a rename that did nothing (decision 31).
     let title = crate::db::fold(title);
     let previous: String = conn.query_row(
         "SELECT title FROM folder WHERE id = ?1",
@@ -645,7 +645,7 @@ pub fn list_archetypes(conn: &Connection) -> Result<Vec<ArchetypeInfo>> {
 }
 
 // --- archetype lifecycle (M2.1 — nothing is seeded, so an editor is
-// mandatory; see PLAN.md locked decision 21) ------------------------------
+// mandatory; see DECISIONS.md locked decision 21) ------------------------------
 
 pub fn create_archetype(conn: &Connection, name: &str) -> Result<i64> {
     conn.execute("INSERT INTO archetype (name) VALUES (?1)", params![name])?;
@@ -766,7 +766,7 @@ pub fn archetype_field_usage(conn: &Connection, archetype_id: i64, key: &str) ->
 /// Removes the field definition and, for every folder on this archetype,
 /// the matching label — real deletion, meant to run only after the caller
 /// has shown `archetype_field_usage` in a named confirmation (or found it
-/// empty and skipped the prompt). See docs/DESIGN.md "Archetypes".
+/// empty and skipped the prompt). See SPEC.md "Archetypes".
 pub fn remove_archetype_field(conn: &Connection, archetype_id: i64, key: &str) -> Result<()> {
     conn.execute(
         "DELETE FROM archetype_field WHERE archetype_id = ?1 AND key = ?2",
@@ -898,7 +898,7 @@ pub fn remove_folder_status(conn: &Connection, key: &str, reassign_to: Option<&s
     Ok(())
 }
 
-// --- create / retitle / move / trash (M2.1, rebuilt for PLAN.md §M2.6 —
+// --- create / retitle / move / trash (M2.1, rebuilt for ROADMAP.md §M2.6 —
 // none of this touches a file any more; see fs::relocate and fs::trash for
 // the journal-writing orchestration around these) --------------------------
 
@@ -937,7 +937,7 @@ pub fn set_parent(conn: &Connection, id: i64, new_parent_id: Option<i64>) -> Res
 /// descendant folder. `parent_id`/`title` are left exactly as they are —
 /// `UNIQUE(parent_id, title)` is a partial index scoped `WHERE deleted_at IS
 /// NULL`, so a trashed folder never blocks a new one at the same spot, and
-/// there is nothing left to free by rewriting anything (PLAN.md §M2.6 — this
+/// there is nothing left to free by rewriting anything (ROADMAP.md §M2.6 — this
 /// used to rewrite `rel_path` to `.trashed/<id>` for exactly that purpose).
 /// Returns the timestamp stamped on every row, which `db::journal` records so
 /// undo can recognise exactly this batch's rows later.
@@ -1003,7 +1003,7 @@ pub fn restore_subtree(conn: &Connection, folder_id: i64, trashed_at: i64) -> Re
 /// from its own segment and giving the leaf `leaf_title` — replicates the
 /// pre-M2.6 walker's `upsert(rel_path, title)` ergonomics for the many tests
 /// across this crate that build a folder tree by path, without any
-/// production code depending on path-based lookup any more (PLAN.md decision
+/// production code depending on path-based lookup any more (decision
 /// 30 — folders are created explicitly, one at a time, by id).
 pub fn ensure_path(conn: &Connection, path: &str, leaf_title: &str) -> Result<i64> {
     let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
@@ -1314,7 +1314,7 @@ mod folder_metadata_tests {
         assert!(get_detail(&conn, trip).unwrap().is_some(), "descendant restored too");
     }
 
-    /// PLAN.md decision 20 / §M2.1: "verify subtree cases at scale with
+    /// decision 20 / §M2.1: "verify subtree cases at scale with
     /// synth_library". §M2.6 replaces the rel_path-prefix rewrite this used
     /// to time with the new `parent_id`-recursive queries — the fan-out a
     /// folder-level tag edit still needs (`db::tags::rebuild_subtree`), and

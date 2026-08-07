@@ -37,7 +37,7 @@ pub enum AppError {
     #[error("filesystem watcher: {0}")]
     Watch(String),
 
-    /// This library predates PLAN.md decision 30 (folders as data) and has
+    /// This library predates decision 30 (folders as data) and has
     /// not yet run the `fs::shard` storage migration. `Library::open` refuses
     /// to apply schema migration 008 until that migration has physically
     /// moved every file and verified clean — see `db::needs_storage_migration`.

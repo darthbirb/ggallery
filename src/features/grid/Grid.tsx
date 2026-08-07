@@ -63,7 +63,7 @@ export function Grid({
 
   // `selection.click` changes identity whenever `items` or the shift-click
   // anchor changes — e.g. on every reload while indexing. The tile pool must
-  // still be built exactly once (ENGINEERING-NOTES.md §1: recreating it on
+  // still be built exactly once (NOTES.md §1: recreating it on
   // every items reload would reintroduce the GC-churn fling regression), so
   // the pool's stable callbacks read through refs to whatever the latest
   // handlers are, rather than closing over them directly.

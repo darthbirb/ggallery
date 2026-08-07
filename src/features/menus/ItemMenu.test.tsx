@@ -1,5 +1,5 @@
 /**
- * The item menu, audited against docs/DESIGN.md §8.
+ * The item menu, audited against SPEC.md §8.
  *
  * "Controls that must exist visibly, not only as bindings: select all, invert,
  * clear; favourite; delete; reveal in Explorer; open with; copy file; copy

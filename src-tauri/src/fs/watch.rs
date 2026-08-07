@@ -1,4 +1,4 @@
-//! The filesystem watcher — narrowed by PLAN.md §M2.6 to `<root>/inbox/` and
+//! The filesystem watcher — narrowed by ROADMAP.md §M2.6 to `<root>/inbox/` and
 //! the root's own top level, replacing the whole-tree watch M1.8 built.
 //! `notify::recommended_watcher` on Windows is `ReadDirectoryChangesW`: two
 //! handles on the same watcher, one recursive and one not, so this is still
@@ -286,7 +286,7 @@ fn check_settled(paths: &LibraryPaths, conn: &Connection, pending: &mut HashMap<
 
 /// A path that stopped changing: queue it. A directory dropped straight into
 /// `inbox/` is walked flat — every file beneath it, regardless of depth,
-/// lands in the Sorting Box exactly like a single dropped file (PLAN.md
+/// lands in the Sorting Box exactly like a single dropped file (DECISIONS.md
 /// decision 30 — `inbox/` carries no organisational meaning).
 fn handle_settled(paths: &LibraryPaths, conn: &Connection, abs: &Path) -> Result<()> {
     let meta = match std::fs::metadata(abs) {

@@ -1,41 +1,51 @@
-# Design
+# Specification
 
-Product and UX specification. See [DATA-MODEL.md](DATA-MODEL.md) for schema and query
-syntax.
+**What GGallery is and does.** Behaviour, not appearance — the interface is
+[`docs/design/GGallery.dc.html`](docs/design/GGallery.dc.html), and where this text and the
+drawing disagree the drawing is right.
 
-**Read this first.** GGallery is a gallery viewer and collection organiser, in that order.
-The main activity is looking at things: browsing the grid, opening an item, moving through
-a folder, comparing two shots. Folders and tags exist so you can find something again;
-search so you can find it faster; downloads so there is more to look at; compression and
-duplicate detection so the collection stays worth keeping; triage so filing never becomes
-the reason you stop adding to it.
+| Also | |
+| --- | --- |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | The numbered locked decisions, cited from code |
+| [docs/SCHEMA.md](docs/SCHEMA.md) | Tables, tag resolution, query language |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | What is built, what is next, what is excluded |
+| [docs/design/DEVIATIONS.md](docs/design/DEVIATIONS.md) | Where we differ from the drawing, and what it does not say |
 
-Every section below serves the viewing experience. When a decision trades off between
-making the app better to look through and making it better to administer, looking through
-wins.
+GGallery is a gallery viewer and collection organiser, **in that order**. The main activity
+is looking at things: browsing the grid, opening an item, moving through a folder, comparing
+two shots. Folders and tags exist so you can find something again; search so you can find it
+faster; downloads so there is more to look at; compression and duplicate detection so the
+collection stays worth keeping; triage so filing never becomes the reason you stop adding to
+it.
+
+**When a decision trades off between making the app better to look through and better to
+administer, looking through wins.**
+
+One user, on one Windows 11 machine, on a single 1440p display. There is no second audience
+— no team, no sharing, no accounts. Decisions do not have to survive a stranger's first five
+minutes; they have to survive daily use by someone who knows exactly what everything does,
+in long repetitive sessions where the same controls are used hundreds of times an hour.
 
 ## Prior art
 
-**The viewer is designed here. Everything else is copied from something that already
-works.** The grid, the pane, the folder band and triage have no adequate prior art, so they
-get specified in detail. Settings, the command palette, the tag manager and every other
-ordinary surface do have prior art, and inventing a shape for them is how Settings ended up
-as four dialogs that each replaced the last.
+**The drawing is the first citation**, and it covers most surfaces. Where it is silent —
+[DEVIATIONS.md](docs/design/DEVIATIONS.md) §5 lists what it does not say — the rule below
+applies.
 
 **A citation has to be lookable, not recallable.** Naming an application is not a
-specification: model recall of a specific interface is unversioned, unverifiable, and fails
-by confabulating a plausible layout rather than by admitting the gap. So, in order:
+specification: model recall of an interface is unversioned, unverifiable, and fails by
+confabulating a plausible layout rather than admitting the gap. In order:
 
-1. **A screenshot in `docs/reference/`.** Unambiguous, dated, and readable by whoever
-   builds it. This is what makes citing prior art stronger than describing it.
-2. **A `shadcn/ui` block.** Real code, fetched through the registry MCP server configured
-   in `.mcp.json` and read before use — not remembered.
+1. **A screenshot in `docs/reference/`.** Unambiguous, dated, readable by whoever builds it.
+2. **A `shadcn/ui` block**, fetched through the registry MCP server and read before use.
 3. **An application name plus one sentence describing the layout.** The name cross-checks
    the sentence; it never replaces it. If the sentence alone would not be enough, the name
    does not rescue it.
 
-Capturing the screenshot is the user's job and belongs in the prompt that precedes the
-milestone, not in the milestone itself.
+Capturing a screenshot is the user's job and belongs in the prompt before the milestone.
+
+**Do not invent a shape for an ordinary surface.** Inventing one is how Settings became four
+dialogs that each replaced the last.
 
 ---
 
@@ -172,7 +182,7 @@ belongs in `Places / Beach`.
 
 Effective tags are materialised into a cache table for query speed, invalidated when an
 item moves, a folder's tags change, a folder moves or is renamed, or an archetype is
-applied. See [DATA-MODEL.md](DATA-MODEL.md#tag-resolution).
+applied. See [SCHEMA.md](docs/SCHEMA.md#tag-resolution).
 
 ### Clicking vocabulary
 
@@ -258,9 +268,12 @@ Folders can be favorited too; that is what pins them to the top of the sidebar.
 
 ## 2. Window layout
 
-The layout below is **one proposal, drawn early**. M2.5 designs the interface from scratch
-and may reject it. The two subsections that follow are different: they are requirements any
-design must satisfy, not suggestions.
+**[`docs/design/GGallery.dc.html`](docs/design/GGallery.dc.html) is the layout.** Every
+position, size, colour and glyph is settled there, and this section does not repeat it —
+where the two ever disagree, the drawing is right and this text is amended.
+
+What is here instead is what a picture cannot carry: the requirements a layout has to
+satisfy whatever it looks like, and the behaviour behind the controls it draws.
 
 ### Navigation roots — a requirement
 
@@ -294,53 +307,16 @@ picking something up and putting it somewhere. An interface that can only move t
 through a context menu is a regression over what the user does today, however tidy the menu
 is.
 
-The gesture is M2.5's to design. That it must exist is not.
+The gesture is a design question. That it must exist is not.
 
 Dragging *into* the window from Explorer already works. Dragging *out* to Explorer is a
 separate, harder problem — clipboard copy (§1) covers that need for now.
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│ ◈ GGallery      ‹ People / Ana      ⌕ query            ─  □  ✕         │
-├──────────┬──────────────────────────────────┬──────────────────────────┤
-│   NAV    │ ▸ Ana ●WIP 2,481 items  ▦──● ☐  │ ▸ file.jpg      ⊡ ⊞ ▤ ⤢ ×│
-│          ├──────────────────────────────────┤──────────────────────────┤
-│Everything│                                  │                          │
-│SortingBox│                                  │                          │
-│Favourites│                                  │                          │
-│          │           MEDIA GRID           │s│        THE PANE          │
-│Pinned    │      (justified, virtualized)  │c│                          │
-│ Ana      │                                │r│   one of three modes     │
-│          │                                │u│                          │
-│Folders   │                                │b│                          │
-│ People   │                                │ │                          │
-│  Ana   ● │                                │ │                          │
-│ Places   │                                  │                          │
-│Searches  │                                  │                          │
-│Queues    │                                  │                          │
-│ Pending⁷ │                                  │                          │
-├──────────┤                                  │                          │
-│ ⚙  ◍ 42  │                                  │                          │
-└──────────┴──────────────────────────────────┴──────────────────────────┘
-      ↑                    ↑                              ↑
- folds to 44px    folder band, collapsed     drag-resizable, fully closable
-```
 
 ### Every band owns one job
 
-The window had grown a bar holding the library name, its full path, index status, a scope
-checkbox, the tile-size slider, an *Open pane* button and a hamburger — seven unrelated
-things with no organising idea, sitting under a Windows title bar that repeated the app's
-name. A control with no obvious home ended up there, which is what made "where does tile
-size go" unanswerable.
-
-Three bands, and nothing lives in one that belongs in another:
-
-| Band | Owns |
-| --- | --- |
-| **Window bar** | The window and the app — mark, name, window controls. Search and the breadcrumb join it in M3. |
-| **Folder band** | The current grid — what you are looking at, and the controls that change it. |
-| **Navigation footer** | The app's own state — Settings, background work. Ambient and ignorable. |
+Three bands, each with an owner — **decision 28** states the rule and what it excludes.
+The consequences that are behaviour rather than layout:
 
 **The window bar is the app's own**, not Windows'. Native decorations are off: the mark and
 *GGallery* sit at the left, minimise / maximise / close at the right in Windows order, and
@@ -364,10 +340,9 @@ hairline so none of it scrolls away with the tree and none is mistaken for a des
 Settings opens a dialog; it is not a place. All of it survives folding: in the 44px strip
 the footer is the gear and the job indicator alone.
 
-*(The totals arrived with the drawing in M2.8, and they are the app's own state rather than
-the grid's — the whole library, always the same number, not the count of whatever you have
-open. That is what keeps them clear of the folder band's counts, which change as you
-navigate. Total size is not computed anywhere yet.)*
+The totals are the app's own state, not the grid's — the whole library, always the same
+number, never the count of whatever is open. That is what keeps them clear of the folder
+band's counts, which change as you navigate.
 
 Groups, in order: **Library** (Everything, Sorting Box, Favourites — above the tree, never
 nodes in it), **Pinned**, **Folders**, **Saved searches**, **Queues** (Pending Review,
@@ -405,7 +380,6 @@ in under a second competes with the thing you are actually looking at. The scrub
 of the grid's own width — the bar beneath it must account for it rather than running
 underneath.
 
-*(M2.5a.1 removed the year column and kept a date on the thumb; M2.5a.2 removed that too.)*
 
 **There is exactly one scrollbar.** The scrubber *is* the scroll affordance — the native
 scrollbar is hidden with `scrollbar-width: none` while the scroll container stays fully
@@ -438,7 +412,7 @@ dialog" — is the same shape, `Dialog > Sidebar(collapsible="none") + content p
 was checked against this section in M2.5a.3. The registry's own `Sidebar` primitive was
 not adopted for the row list itself — it would pull in `SidebarProvider` and its
 width/mobile-sheet machinery to replace a handful of plain buttons. See
-[ENGINEERING-NOTES.md](ENGINEERING-NOTES.md#shadcnui--audit-vs-adopt-m25a3).)*
+[NOTES.md](docs/NOTES.md#shadcnui--audit-vs-adopt-m25a3).)*
 
 **Folder band** — a collapsed strip above the grid, and the only chrome scoped to what the
 grid is showing. Closed, it is one line: chevron, title, status, counts on the left, and on
@@ -450,10 +424,9 @@ the window, not the grid.
 its own label. **Sort** offers captured date, added date, size, duration and random (§*Grid*);
 **layout** offers justified rows and uniform grid.
 
-*(M2.8 filled this strip out from three controls to six, taking the drawing as-is. The band
-is the only chrome directly above what you are looking at, so its density is the thing to
-watch — if it stops reading as one line, the overflow menu is where the rarest of these go,
-and that is an M2.9 question rather than a reason to hold any of them back now.)*
+The band is the only chrome directly above what you are looking at, so **its density is the
+thing to watch**. If it stops reading as one line, the overflow menu is where the rarest of
+these go.
 
 Clicking expands it to the cover, archetype labels edited in place, tags and notes.
 
@@ -581,11 +554,8 @@ only comparison surface the app needs:
   chip; a manual tag sharing the same text still is. The media gives way; the filmstrip
   does not move.
 
-  *(M2.5a.1 reversed this. Details first had a strip of their own above the filmstrip that
-  grew upward, which left the pane with two headers and a band of chrome between the media
-  and the strip. A pane has one header, and naming what you are looking at is what a header
-  is for — which also retired the "Preview" tab, a label wearing a control's clothes while
-  it was the only mode. M2.5b's switcher returns to that slot.)*
+  **A pane has one header.** Details opening upward into a strip of their own gives the pane
+  two, with a band of chrome between the media and the filmstrip.
 - With nothing selected the pane shows an empty state. Folder identity belongs to the band.
 
 Multi-pane preview is one mechanism with three uses: **compression review** (M6) and
@@ -656,7 +626,7 @@ WebP and APNG follow the same rule.
 ## 3. Search
 
 One bar, focused with `/` or `Ctrl+F`. It accepts plain text and query syntax
-interchangeably — see [DATA-MODEL.md](DATA-MODEL.md#query-language).
+interchangeably — see [SCHEMA.md](docs/SCHEMA.md#query-language).
 
 **While typing**, a dropdown shows instant matches grouped as Folders, Tags, and Labels,
 with an item count against each. Enter on a suggestion filters by it. Enter on raw text
@@ -887,7 +857,7 @@ what a selected, active or drop-accepting surface fills with. Green and red are 
 for meaning — kept, saved, deleted, failed — and are never the accent. Amber is reserved
 too, as `warn`: unfinished rather than wrong. Locked decision 24.
 
-*(M2.8b replaced the set, which was Slate, Teal, Violet, Rose, Moss and Amber. Teal is
+*(Accent set: see decision 24. Teal is
 byte-identical in both and carried over; the drawing ships four and the drawing is the
 specification.)*
 

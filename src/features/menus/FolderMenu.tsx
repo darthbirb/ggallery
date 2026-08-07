@@ -97,7 +97,7 @@ export function FolderMenu({
 }
 
 /** The same menu opened from a surface where no folder is under the pointer —
- *  the empty part of the navigation panel. `null` is the top level (PLAN.md
+ *  the empty part of the navigation panel. `null` is the top level (DECISIONS.md
  *  decision 30 — there is no library-root row standing in for it any more). */
 export function FolderTreeBackgroundMenu() {
   const dialogs = useDialogs();

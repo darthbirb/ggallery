@@ -1,5 +1,5 @@
 /**
- * Test setup. Interaction tests, not appearance tests — see PLAN.md §M2.5
+ * Test setup. Interaction tests, not appearance tests — see ROADMAP.md §M2.5
  * "Build notes": does picking an archetype call the right command, does
  * editing a label persist, does adding a flag update the tag set. That is the
  * class of bug M2 hit (an archetype dropdown that focused the notes field

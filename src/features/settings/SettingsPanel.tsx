@@ -17,10 +17,10 @@
  * (M2.1, decision 21), and the accent, which is a preference and nothing else.
  *
  * **Panel widths are not here.** M2.5a put sliders for them in this dialog on
- * the strength of a DESIGN.md line about being editable "not only by
+ * the strength of a SPEC.md line about being editable "not only by
  * dragging"; in use they were a number to type at a thing you had already got
  * right with the mouse. Dragging an edge sizes a panel, double-clicking it
- * resets — that is the whole interaction, and DESIGN.md now says so.
+ * resets — that is the whole interaction, and SPEC.md now says so.
  *
  * **The library's path lives here, and nowhere else** — M2.5c deleted it
  * from the window bar entirely (decision 28): one library, chosen once, and

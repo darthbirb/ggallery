@@ -16,7 +16,7 @@ interface TagsSectionProps {
 
 /**
  * Rename or delete a tag across the whole library — the minimum that stops
- * the vocabulary rotting, per docs/DESIGN.md "Item operations". Merge,
+ * the vocabulary rotting, per SPEC.md "Item operations". Merge,
  * aliases and usage counts stay M8's full tag-management screen.
  *
  * A section inside `SettingsPanel`'s single dialog, not a dialog of its own.

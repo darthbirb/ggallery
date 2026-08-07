@@ -1,11 +1,11 @@
-//! PLAN.md decision 20's synthetic-library generator. Dev tool only, not
-//! shipped — see docs/STRUCTURE.md's `bin/` entry.
+//! decision 20's synthetic-library generator. Dev tool only, not
+//! shipped — see docs/NOTES.md's `bin/` entry.
 //!
 //! Populates a scratch database directly through `db::*` (no real files, no
 //! thumbnailing) and times the query paths that scale with folder or item
 //! count: the effective-tag cache's full-library and single-folder rebuilds,
 //! the per-item rebuild `jobs::worker::run_hash` now does inline for every
-//! new item, the sidebar's folder-tree query, and — since PLAN.md §M2.6 —
+//! new item, the sidebar's folder-tree query, and — since ROADMAP.md §M2.6 —
 //! the `parent_id`-recursive subtree queries that replaced every
 //! `rel_path`-prefix one: a folder move (now a pure column write plus the
 //! same retag fan-out) and `set_title`'s own subtree fan-out.
@@ -90,7 +90,7 @@ fn run() -> Result<()> {
     let tree = db::folders::tree(&conn)?;
     let tree_query = t5.elapsed();
 
-    // PLAN.md §M2.6: a folder move is now a pure `parent_id` write plus the
+    // ROADMAP.md §M2.6: a folder move is now a pure `parent_id` write plus the
     // same effective-tag fan-out `rebuild_subtree` already exercises above —
     // there is no descendant path rewrite left to time, since hierarchy is
     // `parent_id`, not a path prefix.
@@ -111,7 +111,7 @@ fn run() -> Result<()> {
     db::tags::rebuild_subtree(&conn, Some(retitle_cat))?;
     let retitle_subtree = t7.elapsed();
 
-    // Trash and restore a whole category's subtree — PLAN.md §M2.6's partial
+    // Trash and restore a whole category's subtree — ROADMAP.md §M2.6's partial
     // `UNIQUE(parent_id, title)` index is what makes this cheap: no path to
     // free by rewriting, so trashing is exactly two bulk `UPDATE`s regardless
     // of subtree size.
@@ -168,7 +168,7 @@ fn run() -> Result<()> {
 /// thousands" scale `db::folders::tree`'s own doc comment already assumes.
 /// Every tenth leaf gets a synthetic archetype applied, so archetype
 /// resolution is exercised at scale too, not just for one folder. Nothing
-/// is seeded (PLAN.md decision 21), so the archetype used here is created
+/// is seeded (decision 21), so the archetype used here is created
 /// on the spot, the same way a real user would from Settings.
 fn build_tree(conn: &rusqlite::Connection) -> Result<(Vec<i64>, Vec<i64>)> {
     let person = db::folders::create_archetype(conn, "Person")?;

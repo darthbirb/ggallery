@@ -14,22 +14,22 @@ back up, integrated downloads, a compression pipeline, duplicate detection, and 
 flow quick enough that filing never becomes the reason you stop adding to it.
 
 > **Status: pre-alpha, but it runs.**
-> Built through M2.5a. The app opens a library folder, imports it, indexes it, and scrolls
-> the grid — and the library stays live: files added, changed or removed on disk by any
-> means show up without a refresh and without a re-index button. Folders are real entities
-> with tags, labels, statuses and inheritance; they can be created, renamed, moved and
-> trashed from inside the app, and every destructive action is journalled and undoable from
-> the toast it raises.
+> The app opens a library folder, imports it, indexes it, and scrolls the grid — and the
+> library stays live: files added, changed or removed on disk by any means show up without
+> a refresh and without a re-index button. Folders are real entities with tags, labels,
+> statuses and inheritance; they can be created, renamed, moved, trashed and reorganised by
+> drag, and every destructive action is journalled and undoable from the toast it raises.
 >
-> The interface is the split layout — navigation panel, folder band, grid, and a pane in
-> Preview mode. **No search yet, no triage, no downloads.** Sorting by drag lands in M2.5b.
+> The interface is the split layout — navigation panel, folder band, grid, and a pane with
+> Preview, Grid and Folders modes. It is currently being rebuilt against a checked-in
+> design; see [docs/design/](docs/design/). **No search yet, no triage, no downloads.**
 >
 > **Opening a library it has never seen renames every file to a UUID first, then
 > indexes it** — a full-window Choose folder → Review → Progress flow, gated behind one
 > backup acknowledgement because there is no undo. Original filenames live on as
 > searchable metadata (`item.orig_name`); the uuid-to-original mapping is also kept in
 > `library.jsonl` as a disaster-recovery export, but no tooling reconstructs names from
-> it — there is no reversal feature. See [docs/DESIGN.md](docs/DESIGN.md#first-import).
+> it — there is no reversal feature. See [SPEC.md](SPEC.md#first-import).
 
 ---
 
@@ -118,7 +118,7 @@ npx tauri build --no-bundle
 
 Always build and measure through the `tauri` CLI. `cargo build --release` on its own
 produces a binary that still points at the dev server — see
-[docs/ENGINEERING-NOTES.md](docs/ENGINEERING-NOTES.md).
+[docs/NOTES.md](docs/NOTES.md).
 
 Backend tests, including an end-to-end index of a scratch library:
 
@@ -140,12 +140,12 @@ unchanged files are skipped by size and mtime.
 
 ```
 CLAUDE.md                  instructions for Claude Code — read first
-PLAN.md                    stack, locked decisions, non-goals, roadmap
+SPEC.md                    what the app is and does
 README.md                  this file
 src/                       frontend — React + TypeScript
   features/grid/           the justified virtualized grid and its layout worker
   features/nav/            the navigation panel — roots, pinned, folder tree
-  features/pane/           the right half of the split — preview, and later grid and folders
+  features/pane/           the right half of the split — preview, grid, folders
   components/ui/           shadcn/ui primitives, restyled against the app's own tokens
   lib/                     ipc wrappers, shared types, formatting
   state/                   library and UI state
@@ -160,14 +160,12 @@ src-tauri/                 backend — Rust
   settings.json            permission rules (committed)
   launch.json              the dev server the preview tools drive
 docs/
-  design/                  the interface design from Claude Design — the drawing
-  DESIGN.md                product and UX specification
-  DATA-MODEL.md            schema, tag resolution, query language
-  STRUCTURE.md             where every file goes — spec, not description
-  ENGINEERING-NOTES.md     Tauri/Windows gotchas, validated grid architecture
-  M0-SPIKE.md              the grid spike brief
-  M0-RESULTS.md            measured results from that spike
-  mockup.html              early drawing, superseded by the built interface
+  design/                  the interface design, and where we differ from it
+  DECISIONS.md             the numbered locked decisions
+  ROADMAP.md               milestones, and what is deliberately excluded
+  SCHEMA.md                tables, tag resolution, query language
+  NOTES.md                 gotchas, grid architecture, module boundaries
+  NITPICKS.md              interface complaints awaiting M2.9
 ```
 
 ---
@@ -176,43 +174,24 @@ docs/
 
 | | Milestone | State |
 | --- | --- | --- |
-| M0 | Grid performance spike | Complete — architecture validated, two defects located |
-| M1 | Core library — index, hash, thumbnails, job queue, grid. Read-only | Built |
-| M1.1 | M1 defects — index failures, stale state, scrollbars, context menu | Built |
-| M1.5 | First-import wizard — the UUID rename, with dry run and verification | Built |
-| M1.6 | Wizard placement, rename on arrival, dev-mode grid | Built |
-| M1.7 | Import as a startup flow — rename before index, two screens, no reversal tooling | Built |
-| M1.8 | The library is live — filesystem watcher, no re-index button | Built |
-| M2 | Folders as entities — archetypes, labels, tag inheritance | Built |
-| M2.1 | Folder and item operations — create, rename, move, delete | Built |
-| M2.2 | One folder name — retitling renames the directory | Superseded |
-| M2.5a | The shell and the viewer — split layout, nav panel, pane, accent | Built |
-| M2.5a.1 | Make it look built — shadcn/ui adopted, sizing and selection decided | Built |
-| M2.5a.2 | The rest of the finish — motion, cursors, one Settings dialog | Built |
-| M2.5a.3 | Build versus adopt — audited, nothing adopted, kitchen-sink route added | Built |
-| M2.5c | The shell decided — own window bar, the mark, nav footer, band rework | Built |
-| M2.5d | Follow-ups — lowercase, cursor zoom, footer count, folder breadcrumb | Built |
-| M2.6 | Folders as data — flat sharded storage, DB hierarchy, inbox | Built |
-| M2.6a | Import mirrors the tree — directories become folders, not Sorting Box | Built |
+| M0–M1.8 | Core library, first import, live filesystem watching | Built |
+| M2–M2.1 | Folders as entities, and every operation on them | Built |
+| M2.5a–M2.5d | The shell and the viewer — split layout, window bar, pane, accent system | Built |
+| M2.6–M2.6a | Folders as data — flat sharded storage, hierarchy in the database | Built |
 | M2.5b | The sorting surfaces — pane grid and folder modes, drops | Built |
-| M2.8 | The interface, drawn — the Claude Design document reconciled and built | Next |
+| M2.8 | The interface, drawn — building to the checked-in design | **Now** |
 | M2.9 | The nitpick pass — the whole interface reviewed in use, then fixed | |
 | M3 | Search — query parser, sectioned results | |
-| M4 | Sorting Box and triage — hotkey culling, undo, trash | |
+| M4 | Sorting Box and triage — hotkey culling, trash | |
 | M5 | Downloads — yt-dlp and gallery-dl integration | |
 | M6 | Compression and review — side-by-side comparison | |
 | M7 | Duplicates — perceptual hashing, tag merging | |
 | M8 | Utility screens — storage, tag management, export, integrity | |
-| M9 | Polish — command palette, settings, blur toggle | |
-| M10 | Multi-view — up to twelve items playing at once in theatre view | |
+| M9 | Polish — command palette, interface scaling, blur toggle | |
+| M10 | Multi-view — several items playing at once | |
 
-**M2.5 is the milestone that decides whether this is a good viewer**, since the viewing
-experience is the product. M4 removes the two-Explorer-window sorting chore, which is the
-single most tedious thing the app replaces — but it is one job among several, not the
-reason the app exists.
-
-Full detail in [PLAN.md](PLAN.md). **PLAN.md also has a Non-goals section** — those
-features are excluded deliberately, not overlooked.
+Full detail in [docs/ROADMAP.md](docs/ROADMAP.md), which also lists what is **deliberately
+excluded** — those features are not oversights.
 
 ---
 
@@ -256,8 +235,8 @@ prompts, while a bare `git status --short` is already allowed.
 
 ## Status
 
-Pre-alpha and moving. The app indexes and browses a real library, organises it into
-folders with inherited tags, and looks the way it is meant to. Next is sorting by drag —
-see the roadmap above.
+Pre-alpha and moving. The app indexes and browses a real library and organises it into
+folders with inherited tags. The interface is being rebuilt against the design checked in
+at [docs/design/](docs/design/) — see the roadmap above.
 
 Not accepting contributions — this is a personal tool built in the open.

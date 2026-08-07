@@ -2,7 +2,7 @@
  * The navigation panel.
  *
  * Resident, around 200px, drag-resizable, folded away by a visible control and
- * never summoned by a keypress (PLAN.md §M2.5, "Settled in phase 1"). Folded,
+ * never summoned by a keypress (ROADMAP.md §M2.5, "Settled in phase 1"). Folded,
  * it becomes a 44px icon strip that keeps badges on screen.
  *
  * Groups, in order: Library, Pinned, Folders, Saved searches, Queues.
@@ -16,12 +16,12 @@
  *
  * - **The library root is not a node.** Everything, the Sorting Box and
  *   Favourites are their own rows above the tree, never inside it, and an
- *   empty tree renders as empty rather than as a lone root (DESIGN.md §2).
+ *   empty tree renders as empty rather than as a lone root (SPEC.md §2).
  * - **The tree never reorders.** Pinned folders get their own group above it,
  *   so favouriting something never moves the row you reach for.
  * - **There is no `Sorting Box/` directory.** The library root *is* the
  *   Sorting Box — anything sitting loose at the top level is unfiled by
- *   definition (DESIGN.md §2 and §4). A real folder of that name would be a
+ *   definition (SPEC.md §2 and §4). A real folder of that name would be a
  *   second way of saying the same thing, so nothing here looks for one.
  *
  * The fold control was M2.5a's worst offender against decision 25 — a bare
@@ -61,10 +61,10 @@ import { FolderMenu, FolderTreeBackgroundMenu } from "../menus/FolderMenu";
 import { useOperations } from "../menus/operations";
 
 /** The one status that gets a mark in the tree. One mark, not four:
- *  docs/DESIGN.md §1 "Folders" — absence means nothing to say. */
+ *  SPEC.md §1 "Folders" — absence means nothing to say. */
 const MARKED_STATUS = "wip";
 
-/** The three navigation roots, in the order DESIGN.md §2 fixes them:
+/** The three navigation roots, in the order SPEC.md §2 fixes them:
  *  Everything, Sorting Box, Favourites, then the tree. */
 interface Root {
   key: string;
@@ -250,7 +250,7 @@ function ExpandedNav({
 }: NavProps) {
   const [collapsed, setCollapsed] = useState<Set<number>>(() => new Set());
 
-  // There is no library-root row any more (PLAN.md decision 30) — every
+  // There is no library-root row any more (decision 30) — every
   // folder with `parentId === null` is itself a real top-level tree node,
   // not a child of one.
   const { topLevel, childrenOf } = useMemo(() => {
@@ -390,7 +390,7 @@ function ExpandedNav({
             {tree}
             {tree.length === 0 && (
               // An empty tree renders as empty — not as a root node, not as a
-              // placeholder branch. DESIGN.md §2 "Navigation roots".
+              // placeholder branch. SPEC.md §2 "Navigation roots".
               <p className="px-3 py-1.5 text-13 text-fg-dim">
                 No folders yet. Right-click here to make one.
               </p>
@@ -572,7 +572,7 @@ function FolderRow({
       {/* `mb-0.5` is the tree's own tighter rhythm — a visible gap between a
           folder and its subfolders, and between siblings, without stretching
           to the roots list's `gap-2`. One of the app's three drop targets
-          (DESIGN.md §*Drops*) — draggable itself (a folder can be dragged
+          (SPEC.md §*Drops*) — draggable itself (a folder can be dragged
           onto another) and a target for both an item drag and a folder
           drag, resolved identically by `resolveDrop`. Spring-loads open on
           hover during a drag so a nested destination never has to be set up

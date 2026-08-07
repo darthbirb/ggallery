@@ -31,7 +31,7 @@ export const EVERYTHING_SCOPE: Scope = {
   recursive: true,
 };
 
-/** A top-level folder — PLAN.md decision 30 dropped the library-root row
+/** A top-level folder — decision 30 dropped the library-root row
  *  that `parentId: null` used to be reserved for; every folder with no
  *  parent is a real top-level tree node now. */
 export function folderNode(over: Partial<FolderNode> = {}): FolderNode {

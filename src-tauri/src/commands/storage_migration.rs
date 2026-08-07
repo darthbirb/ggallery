@@ -1,4 +1,4 @@
-//! `fs::shard`'s storage migration (PLAN.md §M2.6), as a startup-flow wizard —
+//! `fs::shard`'s storage migration (ROADMAP.md §M2.6), as a startup-flow wizard —
 //! same shape as `commands::import`'s M1.7 flow: filesystem-and-database work
 //! against the *pre-migration* (v7) schema, run before `Library::open` ever
 //! calls `db::migrate`, driven by a `path` the frontend already has from the

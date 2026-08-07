@@ -6,7 +6,7 @@ use crate::error::Result;
 
 /// What the indexer knows about a file before anything has been opened.
 /// `folder_id` is `None` for everything — every item is indexed into the
-/// Sorting Box first; filing it is a separate, later operation (PLAN.md
+/// Sorting Box first; filing it is a separate, later operation (DECISIONS.md
 /// decision 30, "`NULL` is the Sorting Box").
 #[derive(Debug, Clone)]
 pub struct NewItem {
@@ -38,7 +38,7 @@ pub struct ExistingItem {
 }
 
 /// `id`, `uuid` and `ext` are all a caller needs to resolve an item's file —
-/// its location is a pure function of those two (PLAN.md decision 30), so
+/// its location is a pure function of those two (decision 30), so
 /// nothing here ever needs to know which folder the item is filed in.
 #[derive(Debug, Clone)]
 pub struct ItemLocation {
@@ -194,7 +194,7 @@ pub fn detail(conn: &Connection, id: i64) -> Result<Option<ItemDetail>> {
         .optional()?)
 }
 
-/// Favourite is first-class, not a tag (PLAN.md decision 12), and binary.
+/// Favourite is first-class, not a tag (decision 12), and binary.
 /// Takes the whole selection so one keystroke or one menu click covers it.
 pub fn set_favorite(conn: &Connection, ids: &[i64], favorite: bool) -> Result<()> {
     let mut stmt = conn.prepare("UPDATE item SET favorite = ?1 WHERE id = ?2")?;
@@ -204,7 +204,7 @@ pub fn set_favorite(conn: &Connection, ids: &[i64], favorite: bool) -> Result<()
     Ok(())
 }
 
-/// What the grid asks for. "Root is a folder" is gone (PLAN.md decision 30) —
+/// What the grid asks for. "Root is a folder" is gone (decision 30) —
 /// there are three real states, not a folder id plus a magic empty string.
 #[derive(Debug, Clone, Default)]
 pub enum Scope {
@@ -213,7 +213,7 @@ pub enum Scope {
     Everything,
     /// The Sorting Box: `folder_id IS NULL`. Flat by definition — "not
     /// everything recursively; just what has not been filed yet"
-    /// (docs/DESIGN.md §2 "Navigation roots").
+    /// (SPEC.md §2 "Navigation roots").
     Unsorted,
     Folder { id: i64, recursive: bool },
 }
@@ -343,7 +343,7 @@ pub fn count(conn: &Connection) -> Result<i64> {
     )?)
 }
 
-/// Items in the Sorting Box — `folder_id IS NULL` (PLAN.md decision 30).
+/// Items in the Sorting Box — `folder_id IS NULL` (decision 30).
 /// There is no folder row to read a count off any more, so the sidebar badge
 /// needs its own small query rather than a folder's `direct_count`.
 pub fn unsorted_count(conn: &Connection) -> Result<i64> {
@@ -392,7 +392,7 @@ pub fn counts_by_kind(conn: &Connection) -> Result<Vec<KindTotal>> {
 
 /// The item's current folder — `None` (outer) if no such live item exists,
 /// `Some(None)` if it exists but is unfiled (the Sorting Box). Two levels of
-/// `Option` because `folder_id` itself is nullable now (PLAN.md decision 30):
+/// `Option` because `folder_id` itself is nullable now (decision 30):
 /// this is the one place that distinction actually matters to a caller, so
 /// it is spelled out rather than collapsed.
 pub fn folder_id_of(conn: &Connection, id: i64) -> Result<Option<Option<i64>>> {
@@ -406,7 +406,7 @@ pub fn folder_id_of(conn: &Connection, id: i64) -> Result<Option<Option<i64>>> {
 }
 
 /// The move operation's DB half — a pure column write. A file's location
-/// never depended on its folder to begin with (PLAN.md decision 30), so
+/// never depended on its folder to begin with (decision 30), so
 /// there is nothing else for a move to do.
 pub fn set_folder(conn: &Connection, id: i64, folder_id: Option<i64>) -> Result<()> {
     conn.execute(
@@ -479,7 +479,7 @@ pub fn list(conn: &Connection, scope: &Scope) -> Result<Vec<GridItem>> {
             // Folder counts stay in the thousands at most (see
             // `db::folders::tree`'s own reasoning), so a recursive CTE over
             // `folder` alone — joined against, never iterated per item — is
-            // not the shape PLAN.md decision 20 warns about. Verified
+            // not the shape decision 20 warns about. Verified
             // against `synth_library` at scale regardless.
             let sql = format!(
                 "WITH RECURSIVE subtree(id) AS (
@@ -504,7 +504,7 @@ pub fn list(conn: &Connection, scope: &Scope) -> Result<Vec<GridItem>> {
 // `fs::walk`'s startup reconcile records the uuid of every item whose shard
 // file it actually found, then soft-deletes the rows it did not — bookkeeping
 // only, nothing on disk is touched, and a file that comes back clears its own
-// `deleted_at` through `upsert`. Keyed by uuid (PLAN.md decision 30), not by
+// `deleted_at` through `upsert`. Keyed by uuid (decision 30), not by
 // a folder and a filename — there is no directory tree left to walk, only
 // `files/` itself, sharded by uuid.
 

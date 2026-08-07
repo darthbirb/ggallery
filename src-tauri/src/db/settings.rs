@@ -1,7 +1,7 @@
 //! The generic `setting` key/value table.
 //!
 //! First real use: the `imported_at` marker that decides whether the
-//! first-import wizard is still owed. See docs/DESIGN.md#first-import.
+//! first-import wizard is still owed. See SPEC.md#first-import.
 
 use rusqlite::{params, Connection, OptionalExtension};
 
@@ -40,7 +40,7 @@ pub fn mark_imported(conn: &Connection) -> Result<()> {
 /// file and `verify` has confirmed it — set from the *pre-schema-migration*
 /// (v7) connection the wizard commands open directly, since `Library::open`
 /// refuses to apply migration 008 until this is set. See
-/// `db::needs_storage_migration` and PLAN.md §M2.6.
+/// `db::needs_storage_migration` and ROADMAP.md §M2.6.
 pub fn storage_migration_verified_at(conn: &Connection) -> Result<Option<i64>> {
     Ok(get(conn, STORAGE_MIGRATION_VERIFIED_AT)?.and_then(|v| v.parse().ok()))
 }

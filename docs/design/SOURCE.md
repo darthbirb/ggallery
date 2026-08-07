@@ -13,7 +13,8 @@ reach for the original.
 Original project: `https://claude.ai/design/p/9e4a734b-856b-4e01-b72c-50ee81adaa83`
 
 Re-fetching needs the `claude_design` MCP server (`https://api.anthropic.com/v1/design/mcp`)
-and an interactive `/design-login`. **It should not be necessary.** These files are the
+and an interactive `/design-login`, which only the user can run. **It should not be
+necessary.** These files are the
 copy of record; if the design changes, replace them here in one commit and say what moved.
 
 ## Reading it
@@ -50,10 +51,5 @@ Twelve screens, seven states and four accents. Beyond the built interface it dra
 and Tags (M8), and Multi-View (M10)** — so most of it is specification for milestones that
 have not started, not a restyling of what exists.
 
-**First Import is not one of those** — it is built, as of M2.6a, and the drawing's version
-is a restyle of a real screen. This file said otherwise until M2.8a diffed it and found
-the drawing had added a *Dry run first* checkbox that DESIGN §10 deliberately does not
-have.
-
-`docs/mockup.html` is a different and much older thing, superseded before any of this
-existed. It is not related to this directory.
+**First Import is not one of those** — it is built, and the drawing's version is a restyle
+of a real screen.

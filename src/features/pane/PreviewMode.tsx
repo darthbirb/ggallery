@@ -36,7 +36,7 @@ export interface PreviewSlot {
 }
 
 /**
- * The layout docs/DESIGN.md §2 specifies: 2 side by side, 3–4 as 2×2, 5–6 as
+ * The layout SPEC.md §2 specifies: 2 side by side, 3–4 as 2×2, 5–6 as
  * 3×2, 7–9 as 3×3, 10–12 as 4×3. Pure, so it is testable on its own and
  * cannot drift when M10 starts asking it for twelve.
  */

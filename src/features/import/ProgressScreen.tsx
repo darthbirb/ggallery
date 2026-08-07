@@ -10,7 +10,7 @@ interface ProgressScreenProps {
 
 /**
  * Rename, then index, then thumbnails, as one continuous readout — per
- * docs/DESIGN.md#first-import. Verification runs after this, silently; it
+ * SPEC.md#first-import. Verification runs after this, silently; it
  * has no screen of its own, and only ever surfaces if it fails.
  */
 export function ProgressScreen({

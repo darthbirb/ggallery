@@ -1,5 +1,5 @@
 /**
- * The folder band. Things it must get right, from docs/DESIGN.md §2:
+ * The folder band. Things it must get right, from SPEC.md §2:
  * expanded state is global rather than per folder, it looks right with no
  * archetype at all — the default and commonest state, since the app ships
  * with none — and counts appear exactly once.

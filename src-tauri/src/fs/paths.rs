@@ -104,7 +104,7 @@ impl LibraryPaths {
         self.ggallery_dir().join("backups")
     }
 
-    /// Every file in the library, sharded by uuid (PLAN.md decision 30).
+    /// Every file in the library, sharded by uuid (decision 30).
     /// Nothing outside `fs::shard` and this method should ever construct a
     /// path beneath it directly.
     pub fn files_dir(&self) -> PathBuf {
@@ -162,14 +162,14 @@ impl LibraryPaths {
     }
 
     /// Absolute path of the file backing an item — a pure function of its own
-    /// uuid (PLAN.md decision 30). Delegates the actual sharding to
+    /// uuid (decision 30). Delegates the actual sharding to
     /// `fs::shard`, the one module that owns it.
     pub fn item_path(&self, uuid: &str, ext: &str) -> PathBuf {
         self.files_dir().join(crate::fs::shard::item_rel(uuid, ext))
     }
 
     /// Where a trashed item's file lives — same sharding as `item_path`, per
-    /// PLAN.md decision 30: "the old 'relative path preserved' no longer
+    /// decision 30: "the old 'relative path preserved' no longer
     /// describes anything."
     pub fn trash_item_path(&self, uuid: &str, ext: &str) -> PathBuf {
         self.trash_dir().join(crate::fs::shard::item_rel(uuid, ext))

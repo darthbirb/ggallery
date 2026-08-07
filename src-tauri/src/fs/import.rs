@@ -1,9 +1,9 @@
 //! The startup flow for a library that has never been imported — `prepare` /
 //! `execute_prepared`, M1.7's Choose → Review → Progress shape. Filesystem-only
 //! and runs before any database exists, so it works directly against a raw
-//! directory tree. See docs/DESIGN.md#first-import for the flow.
+//! directory tree. See SPEC.md#first-import for the flow.
 //!
-//! **PLAN.md §M2.6 removed this module's other half.** Before decision 30,
+//! **ROADMAP.md §M2.6 removed this module's other half.** Before decision 30,
 //! this also carried the database-backed scan/dry-run/execute/verify used by
 //! Settings → *Normalise filenames* — repairing a library where some items
 //! had fallen behind `disk_name == <uuid>.<ext>`. Once every item's location
@@ -14,7 +14,7 @@
 //! matching row, or a row whose shard file has gone missing — is
 //! `fs::shard`'s own reconcile pass, not a rename.
 //!
-//! **Rewritten a third time, for PLAN.md §M2.6a.** The M2.6 rewrite (see git
+//! **Rewritten a third time, for ROADMAP.md §M2.6a.** The M2.6 rewrite (see git
 //! history) swept every top-level entry into `inbox/` and let the ordinary
 //! inbox pipeline flatten it all into the Sorting Box — correct for a drop,
 //! wrong for an import: it discarded the entire organisation a user built
@@ -25,7 +25,7 @@
 //! written), so `execute_prepared` now reads the tree once: every directory
 //! becomes a folder record with matching parentage, and every file is filed
 //! into the folder it was already found in. Only files genuinely loose at
-//! the top level land in the Sorting Box. See docs/DESIGN.md#first-import.
+//! the top level land in the Sorting Box. See SPEC.md#first-import.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -73,7 +73,7 @@ pub struct ReviewReport {
     pub by_kind: Vec<db::items::KindTotal>,
     pub total_items: i64,
     pub total_bytes: i64,
-    /// Directories that will become folder records — PLAN.md §M2.6a restored
+    /// Directories that will become folder records — ROADMAP.md §M2.6a restored
     /// this once there was something real to count again.
     pub folder_count: i64,
     /// Entries the scan could not read at all — a locked file, a permission
@@ -162,7 +162,7 @@ fn scan_filesystem(paths: &LibraryPaths) -> Result<FsScan> {
         };
 
         if entry.file_type().is_dir() {
-            // The root itself (depth 0) is never a folder — DESIGN.md §2
+            // The root itself (depth 0) is never a folder — SPEC.md §2
             // *Navigation roots*: it exists in the database for items with
             // nowhere else to belong, but is never presented, or counted,
             // as one the user made.
@@ -233,7 +233,7 @@ pub struct FsExecuteReport {
     pub errors: Vec<FsMoveError>,
 }
 
-/// The Progress screen's actual work, and PLAN.md §M2.6a's whole point: read
+/// The Progress screen's actual work, and ROADMAP.md §M2.6a's whole point: read
 /// the directory tree once and turn it into folders rather than flattening
 /// everything into the Sorting Box.
 ///
@@ -241,7 +241,7 @@ pub struct FsExecuteReport {
 /// before child — `WalkDir`'s default pre-order guarantees a directory is
 /// yielded before anything inside it, so `folder_ids` already holds an
 /// entry for a file or subdirectory's parent by the time it is reached.
-/// Titles are lowercased like any other (PLAN.md decision 31); a sibling
+/// Titles are lowercased like any other (decision 31); a sibling
 /// that collides with one already created once folded is **merged onto the
 /// existing record** (`db::folders::id_for` finds it) rather than
 /// suffixed. Files are only collected here, not yet indexed, so the total
@@ -251,7 +251,7 @@ pub struct FsExecuteReport {
 /// via the same `jobs::worker::index_file` an inbox arrival uses — into the
 /// folder its own directory resolved to above. A file directly at the root
 /// (no directory of its own) gets `folder_id: None`: it was genuinely loose
-/// and lands in the Sorting Box, exactly as DESIGN.md#first-import
+/// and lands in the Sorting Box, exactly as SPEC.md#first-import
 /// specifies.
 ///
 /// Resumable for free, the same way the old inbox-sweep was: a file already
@@ -279,7 +279,7 @@ pub fn execute_prepared(
 
     for entry in walker.flatten() {
         if entry.depth() == 0 {
-            continue; // the root itself is never a folder — DESIGN.md §2
+            continue; // the root itself is never a folder — SPEC.md §2
         }
         let path = entry.path().to_path_buf();
 
@@ -375,7 +375,7 @@ mod tests {
         id
     }
 
-    /// The actual bug PLAN.md §M2.6a exists to fix: several levels deep,
+    /// The actual bug ROADMAP.md §M2.6a exists to fix: several levels deep,
     /// files sitting at an intermediate level (not just the leaves), an
     /// empty directory, and one file genuinely loose at the root. Every
     /// directory becomes a folder with the matching parentage; only the
@@ -417,7 +417,7 @@ mod tests {
             "parentage is preserved several levels deep, folder itself last"
         );
 
-        // Titles fold lowercase like any other (PLAN.md decision 31).
+        // Titles fold lowercase like any other (decision 31).
         let title: String = conn
             .query_row("SELECT title FROM folder WHERE id = ?1", params![people], |r| r.get(0))
             .unwrap();
@@ -469,7 +469,7 @@ mod tests {
         assert_eq!(db::items::count(&conn).unwrap(), 2);
     }
 
-    /// PLAN.md §M2.6a: "siblings that collide once folded are merged, not
+    /// ROADMAP.md §M2.6a: "siblings that collide once folded are merged, not
     /// suffixed." Two directories differing only by case can only coexist as
     /// siblings on disk with NTFS per-directory case sensitivity opted in —
     /// an obscure, normally WSL-only flag not worth exercising here just to

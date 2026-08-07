@@ -1,5 +1,5 @@
 //! Manual per-item tags and the effective-tag cache they feed. No frontend
-//! caller in M2 — item-level tag UI is M2.5's preview panel, per PLAN.md
+//! caller in M2 — item-level tag UI is M2.5's preview panel, per DECISIONS.md
 //! §M2 — but the commands exist for that milestone to pick up, and are
 //! covered by `db::tags`'s own tests.
 
@@ -63,7 +63,7 @@ pub async fn remove_item_tag(state: State<'_, AppState>, item_id: i64, tag_id: i
 }
 
 // --- rename / delete a tag (M2.1) — the minimum that stops the vocabulary
-// rotting; see docs/DESIGN.md "Item operations" and PLAN.md §M2.1.
+// rotting; see SPEC.md "Item operations" and ROADMAP.md §M2.1.
 
 #[tauri::command]
 pub async fn list_tags(
