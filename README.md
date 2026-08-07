@@ -158,7 +158,7 @@ src-tauri/                 backend — Rust
   src/sidecar/             ffmpeg — the only thing that spawns processes
 .claude/
   settings.json            permission rules (committed)
-  hooks/guard.ps1          blocks destructive git, confirms commits and pushes
+  launch.json              the dev server the preview tools drive
 docs/
   design/                  the interface design from Claude Design — the drawing
   DESIGN.md                product and UX specification
@@ -218,25 +218,39 @@ features are excluded deliberately, not overlooked.
 
 ## Working on this with Claude Code
 
-Permissions are configured in two layers.
+Permissions are declarative, in `settings.json`, and split so neither layer repeats the
+other. There is no hook — an earlier `guard.ps1` scanned whole command strings and was
+removed as more machinery than the rules needed.
 
-`.claude/settings.json` in this repo is committed, so the rules travel with the code. It
-allows read-only inspection and ordinary build commands without prompting, requires
-confirmation for anything that publishes or deletes, and denies reading credentials
-outright.
+`~/.claude/settings.json`, global, carries the **whole safety policy**: what is always
+confirmed, and what is never permitted. It applies to every project.
 
-`~/.claude/hooks/guard.ps1` is installed in your global Claude config and applies to
-every project, not just this one. It scans the full command string rather than matching
-prefixes, so `cd src && git push` is caught the same as a bare `git push`.
+`.claude/settings.json`, committed here, carries **only this project's toolchain** —
+`npx tauri`, `vite`, `vitest`, the `cargo` subcommands the global layer does not list,
+the shadcn registry MCP tools — plus a restatement of the destructive-git and
+machine-reconfiguration denials, so the rules that matter most hold even in a checkout
+with no global config.
+
+There is deliberately **no `settings.local.json`** in this repo. One person owns it, so a
+private override layer only splits the rules in two and lets stale grants accumulate
+unread. Claude Code recreates the file whenever a permission is granted for the session,
+and it stays in `.gitignore` for that reason — but anything worth keeping belongs in the
+committed file.
 
 **Always confirmed with you:** commit, push, anything via `gh`, rebase, merge,
-cherry-pick, revert, remote and config changes, installs, network fetches, deletes.
+cherry-pick, revert, remote and config changes, `git restore`, `stash drop`, branch
+deletion, deletes and moves, installs, and network fetches.
 
 **Never permitted:** `git clean`, force push, `git reset --hard`, `git checkout -- .`,
-history rewriting, and reading credentials, SSH keys or cookie files.
+history rewriting, publishing a package, reading credentials, SSH keys or cookie files,
+and anything that reconfigures Windows — `fsutil`, `reg`, `netsh`, `bcdedit`,
+`Set-ExecutionPolicy`, service and scheduled-task creation, registry writes. That last
+group is the [CLAUDE.md](CLAUDE.md) "nothing changes the machine" rule with a rule
+behind it.
 
-The hook fails open by design — if it errors, the declarative rules in `settings.json`
-still apply. It is a second net, not the only one.
+Rules match on command *prefixes*, which is why CLAUDE.md asks that commands never be
+prefixed with `cd` and never chained: `Set-Location …; git status` matches nothing and
+prompts, while a bare `git status --short` is already allowed.
 
 ---
 
