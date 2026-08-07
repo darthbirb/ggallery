@@ -145,7 +145,7 @@ export function FolderBand({
       {folder ? (
         <button
           type="button"
-          aria-label={expanded ? "Collapse folder details" : "Expand folder details"}
+          aria-label={expanded ? "Collapse Folder Details" : "Expand Folder Details"}
           aria-expanded={expanded}
           onClick={() => onExpandedChange(!expanded)}
           className="flex h-8 min-w-0 items-center gap-2 rounded-[4px] px-1.5 text-left hover:bg-hover"
@@ -159,10 +159,10 @@ export function FolderBand({
               expanded && "rotate-90",
             )}
           />
-          <span className="truncate text-[16px] font-semibold text-fg">{folder.title}</span>
+          <span className="truncate text-16 font-semibold text-fg">{folder.title}</span>
         </button>
       ) : (
-        <span className="truncate px-1.5 text-[16px] font-semibold text-fg">{scopeLabel}</span>
+        <span className="truncate px-1.5 text-16 font-semibold text-fg">{scopeLabel}</span>
       )}
 
       {/* Absence means nothing to say — the same rule the tree's WIP dot
@@ -177,7 +177,7 @@ export function FolderBand({
 
       {/* Counts appear exactly once, here, in prose — never repeated in the
           expanded panel below. */}
-      <span className="truncate font-mono tabular-nums text-fg-dim">
+      <span className="truncate font-mono text-12 tabular-nums text-fg-dim">
         {counts ? (
           <>
             {formatCount(counts.directCount)} here
@@ -209,7 +209,7 @@ export function FolderBand({
                 active={!recursive}
                 onClick={() => onRecursiveChange(!recursive)}
               >
-                {recursive ? "All items" : "Here only"}
+                {recursive ? "All Items" : "Here Only"}
               </Button>
             </Tooltip>
             <Separator />
@@ -223,7 +223,7 @@ export function FolderBand({
         <span className="flex items-center gap-2">
           <LayoutGrid aria-hidden fill="currentColor" className="size-4 shrink-0 text-fg-dim" />
           <Slider
-            aria-label="Tile size"
+            aria-label="Tile Size"
             className="w-24"
             min={0}
             max={TILE_SIZES.length - 1}
@@ -237,11 +237,11 @@ export function FolderBand({
           <>
             <Separator />
             <Tooltip
-              label={folder.favorite ? "Unpin from the top" : "Pin to the top"}
+              label={folder.favorite ? "Unpin From The Top" : "Pin To The Top"}
               side="bottom"
             >
               <IconButton
-                aria-label={folder.favorite ? "Unpin from the top" : "Pin to the top"}
+                aria-label={folder.favorite ? "Unpin From The Top" : "Pin To The Top"}
                 active={folder.favorite}
                 onClick={() =>
                   ops.setFolderFavorite(folder.id, folder.title, !folder.favorite)
@@ -347,14 +347,14 @@ function StatusControl({
       trigger={
         <button
           type="button"
-          aria-label="Folder status"
-          className="h-7 shrink-0 rounded-full border bg-raised px-2.5 text-[13px] hover:bg-hover"
+          aria-label="Folder Status"
+          className="h-7 shrink-0 rounded-full border bg-raised px-2.5 text-13 hover:bg-hover"
           style={{
             borderColor: status?.colour ?? "var(--color-line)",
             color: status?.colour ?? "var(--color-fg-dim)",
           }}
         >
-          {status?.label ?? "No status"}
+          {status?.label ?? "No Status"}
         </button>
       }
     >
@@ -380,7 +380,7 @@ function Cover({
   onClear: () => void;
 }) {
   return (
-    <div className="relative size-14 shrink-0 overflow-hidden rounded-[5px] border border-line bg-raised">
+    <div className="relative size-14 shrink-0 overflow-hidden rounded-[6px] border border-line bg-sunk">
       {thumb ? (
         <img
           src={ipc.assetUrl(thumbsDir, thumb)}
@@ -394,12 +394,12 @@ function Cover({
         </div>
       )}
       {chosen && (
-        <Tooltip label="Clear cover" side="bottom">
+        <Tooltip label="Clear Cover" side="bottom">
           <button
             type="button"
-            aria-label="Clear cover"
+            aria-label="Clear Cover"
             onClick={onClear}
-            className="absolute right-0.5 top-0.5 grid size-4 place-items-center rounded-full bg-ground/85 text-fg-dim hover:text-fg"
+            className="absolute right-0.5 top-0.5 grid size-5 place-items-center rounded-full bg-sunk/80 text-fg-mid hover:text-fg"
           >
             <X className="size-3" />
           </button>
@@ -484,7 +484,7 @@ function ChipRow({
           }}
         />
       ) : (
-        <AddChipButton label="＋ add label" onClick={() => setAddingLabel(true)} />
+        <AddChipButton label="＋ Add Label" onClick={() => setAddingLabel(true)} />
       )}
 
       {addingTag ? (
@@ -496,7 +496,7 @@ function ChipRow({
           }}
         />
       ) : (
-        <AddChipButton label="＋ add tag" onClick={() => setAddingTag(true)} />
+        <AddChipButton label="＋ Add Tag" onClick={() => setAddingTag(true)} />
       )}
     </div>
   );
@@ -510,7 +510,7 @@ function AddChipButton({ label, onClick }: { label: string; onClick: () => void 
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-7 shrink-0 items-center rounded-[4px] border border-dashed border-line px-2.5 text-[13px] text-fg-dim hover:border-fg-dim hover:text-fg"
+      className="inline-flex h-7 shrink-0 items-center rounded-[4px] border border-dashed border-line px-2.5 text-13 text-fg-dim hover:border-fg-dim hover:text-fg"
     >
       {label}
     </button>
@@ -551,13 +551,13 @@ function NewLabelInput({
           key.trim() ? onCommit(key.trim(), value.trim()) : onCancel();
         }
       }}
-      className="inline-flex h-7 shrink-0 items-stretch overflow-hidden rounded-[4px] border border-accent-d text-[13px]"
+      className="inline-flex h-7 shrink-0 items-stretch overflow-hidden rounded-[4px] border border-accent-d text-13"
     >
       <input
         autoFocus
         value={key}
-        placeholder="label"
-        aria-label="New label name"
+        placeholder="Label"
+        aria-label="New Label Name"
         onChange={(event) => setKey(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Enter") {
@@ -566,13 +566,13 @@ function NewLabelInput({
           }
           if (event.key === "Escape") cancel();
         }}
-        className="h-full w-20 border-r border-line-soft bg-ground px-2 text-fg placeholder:text-fg-dim focus:outline-none"
+        className="h-full w-20 border-r border-line-soft bg-sunk px-2 text-fg placeholder:text-fg-dim focus:outline-none"
       />
       <input
         ref={valueRef}
         value={value}
-        placeholder="value"
-        aria-label="New label value"
+        placeholder="Value"
+        aria-label="New Label Value"
         onChange={(event) => setValue(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Enter") event.currentTarget.blur();
@@ -598,8 +598,8 @@ function NewFlagInput({
     <input
       autoFocus
       value={value}
-      placeholder="tag"
-      aria-label="New tag"
+      placeholder="Tag"
+      aria-label="New Tag"
       onChange={(event) => setValue(event.target.value)}
       onBlur={() => (value.trim() ? onCommit(value.trim()) : onCancel())}
       onKeyDown={(event) => {
@@ -609,7 +609,7 @@ function NewFlagInput({
           onCancel();
         }
       }}
-      className="h-7 w-28 rounded-[4px] border border-accent-d bg-raised px-2.5 text-[13px] text-fg placeholder:text-fg-dim focus:outline-none"
+      className="h-7 w-28 rounded-[4px] border border-accent-d bg-raised px-2.5 text-13 text-fg placeholder:text-fg-dim focus:outline-none"
     />
   );
 }
@@ -639,11 +639,11 @@ function FieldChip({
 
   if (muted) {
     return (
-      <span className="inline-flex h-7 max-w-full shrink-0 items-stretch overflow-hidden rounded-[4px] border border-line-soft text-[13px]">
-        <span className="flex shrink-0 items-center border-r border-line-soft bg-ground px-2 text-fg-dim">
+      <span className="inline-flex h-7 max-w-full shrink-0 items-stretch overflow-hidden rounded-[4px] border border-line-soft text-13">
+        <span className="flex shrink-0 items-center border-r border-line-soft bg-sunk px-2 text-fg-dim">
           {fieldKey}
         </span>
-        <span className="flex min-w-0 items-center truncate bg-ground px-2 text-fg-dim">
+        <span className="flex min-w-0 items-center truncate bg-sunk px-2 text-fg-dim">
           {value || <span className="text-fg-dim">—</span>}
         </span>
       </span>
@@ -652,8 +652,8 @@ function FieldChip({
 
   if (editing) {
     return (
-      <span className="inline-flex h-7 shrink-0 items-stretch overflow-hidden rounded-[4px] border border-accent-d text-[13px]">
-        <span className="flex shrink-0 items-center border-r border-line-soft bg-ground px-2 text-fg-dim">
+      <span className="inline-flex h-7 shrink-0 items-stretch overflow-hidden rounded-[4px] border border-accent-d text-13">
+        <span className="flex shrink-0 items-center border-r border-line-soft bg-sunk px-2 text-fg-dim">
           {fieldKey}
         </span>
         <Input
@@ -685,9 +685,9 @@ function FieldChip({
         setDraft(value);
         setEditing(true);
       }}
-      className="inline-flex h-7 max-w-full shrink-0 items-stretch overflow-hidden rounded-[4px] border border-line text-[13px] hover:border-fg-dim"
+      className="inline-flex h-7 max-w-full shrink-0 items-stretch overflow-hidden rounded-[4px] border border-line text-13 hover:border-fg-dim"
     >
-      <span className="flex shrink-0 items-center border-r border-line-soft bg-ground px-2 text-fg-dim">
+      <span className="flex shrink-0 items-center border-r border-line-soft bg-sunk px-2 text-fg-dim">
         {fieldKey}
       </span>
       <span className="flex min-w-0 items-center truncate bg-raised px-2 text-fg-mid">
@@ -721,7 +721,7 @@ function NotesLine({
     return (
       <button
         type="button"
-        aria-label="Folder notes"
+        aria-label="Folder Notes"
         onClick={() => setEditing(true)}
         className="mt-2.5 block h-8 w-full truncate rounded-[4px] border border-transparent px-1.5 text-left leading-8 text-fg-mid hover:border-line hover:bg-raised hover:text-fg"
       >
@@ -734,7 +734,7 @@ function NotesLine({
     <textarea
       ref={ref}
       autoFocus
-      aria-label="Folder notes"
+      aria-label="Folder Notes"
       defaultValue={initial}
       rows={1}
       onFocus={autoGrow}

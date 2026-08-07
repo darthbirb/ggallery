@@ -200,8 +200,8 @@ export function FoldersMode({
         <Input
           value={filter}
           onChange={(event) => setFilter(event.target.value)}
-          placeholder="Filter by title or path…"
-          aria-label="Filter folders"
+          placeholder="Filter By Title Or Path…"
+          aria-label="Filter Folders"
         />
       </div>
     </PaneFrame>
@@ -238,9 +238,9 @@ function UpTarget({
   const springLoad = useSpringLoad(() => onNavigate(grandparentId));
 
   return (
-    <Tooltip label="Up a level" side="bottom">
+    <Tooltip label="Up A Level" side="bottom">
       <IconButton
-        aria-label="Up a level"
+        aria-label="Up A Level"
         disabled={!enabled}
         onClick={() => onNavigate(grandparentId)}
         onDragOver={(event) => {
@@ -320,7 +320,7 @@ function FolderTile({
         accepting && "outline outline-2 -outline-offset-2 outline-accent",
       )}
     >
-      <div className="flex aspect-square items-center justify-center overflow-hidden rounded-[4px] bg-ground">
+      <div className="flex aspect-square items-center justify-center overflow-hidden rounded-[4px] bg-sunk">
         {cover ? (
           <img
             src={assetUrl(thumbsDir, cover)}
@@ -333,8 +333,10 @@ function FolderTile({
         )}
       </div>
       <span className="truncate text-fg">{folder.title}</span>
-      {path !== undefined && <span className="truncate font-mono text-fg-dim">{path}</span>}
-      <span className="font-mono tabular-nums text-fg-dim">
+      {path !== undefined && (
+        <span className="truncate font-mono text-11 text-fg-dim">{path}</span>
+      )}
+      <span className="font-mono text-12 tabular-nums text-fg-dim">
         {previewCount !== null ? (
           <>
             {formatCount(folder.totalCount)} → <span className="text-accent">{formatCount(previewCount)}</span>
@@ -355,7 +357,7 @@ function NewFolderTile({ parentTitle, onClick }: { parentTitle: string; onClick:
       className="flex aspect-square flex-col items-center justify-center gap-1.5 rounded-[6px] border border-dashed border-line p-2 text-center text-fg-dim hover:border-accent-d hover:text-fg"
     >
       <Plus className="size-6" />
-      <span className="text-[12px] leading-tight">New folder in {parentTitle}</span>
+      <span className="text-12 leading-tight">New Folder In {parentTitle}</span>
     </button>
   );
 }
@@ -395,7 +397,7 @@ function NewFolderInput({
           if (event.key === "Escape") onCancel();
         }}
         onBlur={submit}
-        placeholder="Folder name"
+        placeholder="Folder Name"
       />
       <Button size="sm" onClick={submit}>
         Create

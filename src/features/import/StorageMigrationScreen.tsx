@@ -33,10 +33,10 @@ export function StorageMigrationScreen({
     <div className="flex h-full flex-col items-center justify-center gap-6 bg-ground px-8 py-10 text-fg">
       <div className="flex w-full max-w-[560px] flex-col gap-5">
         <div className="flex flex-col gap-1">
-          <h1 className="text-[22px] font-semibold tracking-tight">
+          <h1 className="text-26 font-semibold tracking-[-0.02em]">
             Move this library to the new storage layout
           </h1>
-          <p className="truncate font-mono text-fg-dim" title={state.path}>
+          <p className="truncate font-mono text-14 text-fg-dim" title={state.path}>
             {state.path}
           </p>
         </div>
@@ -137,7 +137,7 @@ function ReviewBody({
 
       <Label
         htmlFor="storage-migration-backup-confirmed"
-        className="items-start gap-2.5 rounded-[5px] border border-line bg-raised px-3 py-2.5 text-[14px] text-fg"
+        className="items-start gap-2.5 rounded-[5px] border border-line bg-raised px-3 py-2.5 text-14 text-fg"
       >
         <Checkbox
           id="storage-migration-backup-confirmed"
@@ -172,7 +172,7 @@ function ProgressBody({
       <div className="h-2 overflow-hidden rounded-full bg-raised">
         <div className="h-full bg-accent transition-[width]" style={{ width: `${pct}%` }} />
       </div>
-      <p className="font-mono tabular-nums text-fg-dim">
+      <p className="font-mono text-12 tabular-nums text-fg-dim">
         {formatCount(d)} / {formatCount(t)}
         {errors ? <span className="text-danger"> · {formatCount(errors)} errors</span> : null}
       </p>

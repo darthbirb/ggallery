@@ -62,11 +62,11 @@ export function Dialog({
         >
           <DialogHeader>
             <div className="min-w-0 flex-1">
-              <DialogTitle className="text-[16px] font-semibold text-fg">
+              <DialogTitle className="text-16 font-semibold text-fg">
                 {title}
               </DialogTitle>
               {description && (
-                <DialogDescription className="mt-0.5 text-[13px] text-fg-mid">
+                <DialogDescription className="mt-0.5 text-13 text-fg-mid">
                   {description}
                 </DialogDescription>
               )}
@@ -126,7 +126,7 @@ export function ConfirmDialog({
         </>
       }
     >
-      <p className="text-[14px] leading-relaxed text-fg-mid">{body}</p>
+      <p className="text-14 leading-relaxed text-fg-mid">{body}</p>
     </Dialog>
   );
 }

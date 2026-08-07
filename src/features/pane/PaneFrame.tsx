@@ -63,9 +63,9 @@ export function PaneFrame({
             close, which change whether the pane is there at all. The arrow
             points the direction the pane will actually travel, which only
             reads from the edge it grows from. */}
-        <Tooltip side="bottom" label={maximised ? "Back to the split" : "Fill the window"}>
+        <Tooltip side="bottom" label={maximised ? "Back To The Split" : "Fill The Window"}>
           <IconButton
-            aria-label={maximised ? "Back to the split" : "Fill the window"}
+            aria-label={maximised ? "Back To The Split" : "Fill The Window"}
             active={maximised}
             onClick={() => onMaximisedChange(!maximised)}
           >
@@ -95,8 +95,8 @@ export function PaneFrame({
 
         {/* Rightmost, always — the one control that never shares its
             position with a mode-dependent one. */}
-        <Tooltip side="bottom" label="Hide the pane">
-          <IconButton aria-label="Hide the pane" onClick={onClose}>
+        <Tooltip side="bottom" label="Hide The Pane">
+          <IconButton aria-label="Hide The Pane" onClick={onClose}>
             <PanelRightClose />
           </IconButton>
         </Tooltip>

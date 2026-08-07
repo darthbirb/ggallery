@@ -77,7 +77,7 @@ export function DetailsHeader({
           expanded && "rotate-90",
         )}
       />
-      <span className="shrink-0 font-mono tabular-nums text-fg-dim">
+      <span className="shrink-0 font-mono text-13 tabular-nums text-fg-dim">
         {dimensions} · {formatBytes(item.sizeBytes)}
       </span>
     </button>
@@ -149,7 +149,7 @@ export function DetailsBody({
     // `reveal-down` per decision 27, "details opening": mounted only while
     // expanded (PreviewMode.tsx), so this is the enter animation; there is no
     // exit animation to match, since collapsing unmounts it immediately.
-    <section className="reveal-down max-h-[45%] shrink-0 overflow-y-auto border-b border-line bg-panel px-2.5 pb-2.5 pt-1 text-[13px]">
+    <section className="reveal-down max-h-[45%] shrink-0 overflow-y-auto border-b border-line bg-panel px-2.5 pb-2.5 pt-1 text-13">
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
         {/* The header dropped the filename to make room for the pane's fold
             and mode controls — these two rows are where it reads now. Both
@@ -205,8 +205,8 @@ export function DetailsBody({
 
         <PillInput
           value={draft}
-          placeholder="＋ add tag"
-          aria-label="Add a tag to this item"
+          placeholder="＋ Add Tag"
+          aria-label="Add A Tag To This Item"
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") void addTag();
@@ -229,7 +229,7 @@ export function DetailsBody({
 function ItemFolderBreadcrumb({ titles }: { titles: string[] }) {
   if (titles.length === 0) {
     return (
-      <div className="mt-2 flex items-center font-mono text-[12px]">
+      <div className="mt-2 flex items-center font-mono text-12">
         <span className="truncate rounded-[3px] border border-danger/40 bg-danger/10 px-1.5 py-0.5 text-danger">
           Unsorted
         </span>
@@ -264,17 +264,17 @@ function ItemFieldChip({
   return (
     <span
       className={cn(
-        "inline-flex h-7 max-w-full shrink-0 items-stretch overflow-hidden rounded-[4px] border text-[13px]",
+        "inline-flex h-7 max-w-full shrink-0 items-stretch overflow-hidden rounded-[4px] border text-13",
         muted ? "border-line-soft" : "border-line",
       )}
     >
-      <span className="flex shrink-0 items-center border-r border-line-soft bg-ground px-2 text-fg-dim">
+      <span className="flex shrink-0 items-center border-r border-line-soft bg-sunk px-2 text-fg-dim">
         {label}
       </span>
       <span
         className={cn(
           "flex min-w-0 items-center truncate px-2",
-          muted ? "bg-ground text-fg-dim" : "bg-raised text-fg-mid",
+          muted ? "bg-sunk text-fg-dim" : "bg-raised text-fg-mid",
         )}
       >
         {value || <span className="text-fg-dim">—</span>}
@@ -286,7 +286,7 @@ function ItemFieldChip({
           onClick={onRemove}
           className={cn(
             "grid w-5 shrink-0 place-items-center text-fg-dim hover:bg-danger/20 hover:text-danger",
-            muted ? "bg-ground" : "bg-raised",
+            muted ? "bg-sunk" : "bg-raised",
           )}
         >
           <X className="size-3.5" />

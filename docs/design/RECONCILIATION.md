@@ -593,6 +593,14 @@ something.
 
 ## 7. What this means for M2.8b — read before starting it
 
+> **Superseded, and kept for the reasoning.** This section recommended holding the
+> drawing's type back until conflict C5 was ruled on. The user ruled on all ten conflicts
+> the same way — build the drawing — and decision 25 was rewritten around the drawing's
+> real sizes rather than the floor being defended. M2.8b took the type as drawn, 10px and
+> 11px mono included. The observation below still stands as fact; what changed is which
+> side gives way when a token contradicts a locked decision. See PLAN §M2.8, *The rule,
+> decided after M2.8a*.
+
 The premise is that "a token cannot contradict a layout decision", so tokens are safe to take
 before the conflicts are ruled on. **That holds for colour and does not hold for type.**
 

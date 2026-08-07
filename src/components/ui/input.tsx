@@ -13,10 +13,12 @@ import { forwardRef, type InputHTMLAttributes, type TextareaHTMLAttributes } fro
 
 import { cn } from "../../lib/utils";
 
+// `focus:border-accent`, not `-d`: the drawing's focused field takes the
+// bright hue, which is the one thing on screen saying where the caret is.
 const FIELD =
-  "w-full rounded-[4px] border border-line bg-ground text-[14px] text-fg " +
+  "w-full rounded-[4px] border border-line bg-ground text-13 text-fg " +
   "placeholder:text-fg-dim " +
-  "transition-[border-color] duration-100 focus:border-accent-d " +
+  "transition-[border-color] duration-100 focus:border-accent " +
   "disabled:pointer-events-none disabled:opacity-40";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
@@ -26,7 +28,7 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
         ref={ref}
         data-slot="input"
         type={type ?? "text"}
-        className={cn(FIELD, "h-8 px-2", className)}
+        className={cn(FIELD, "h-8 px-2.5", className)}
         {...rest}
       />
     );
@@ -62,9 +64,9 @@ export const PillInput = forwardRef<
       data-slot="pill-input"
       type="text"
       className={cn(
-        "h-7 w-24 rounded-full border border-dashed border-line bg-transparent px-2.5 text-[13px] text-fg-mid",
+        "h-[26px] w-24 rounded-full border border-dashed border-line bg-transparent px-2.5 text-12 text-fg-mid",
         "placeholder:text-fg-dim transition-[width,border-color] duration-100",
-        "focus:w-40 focus:border-accent-d focus:text-fg",
+        "focus:w-40 focus:border-accent focus:text-fg",
         className,
       )}
       {...rest}

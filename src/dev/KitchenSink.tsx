@@ -50,7 +50,7 @@ type Variant = (typeof VARIANTS)[number];
  *  applied statically via `force-hover:` instead of relying on `:hover`. */
 const BUTTON_FORCE_HOVER: Record<Variant, string> = {
   default: "force-hover:border-fg-dim force-hover:bg-hover force-hover:text-fg",
-  accent: "force-hover:bg-accent/25 force-hover:border-accent",
+  accent: "force-hover:bg-accent-t2 force-hover:border-accent",
   danger: "force-hover:border-danger/70 force-hover:bg-danger/22",
   good: "force-hover:border-good/70 force-hover:bg-good/22",
 };
@@ -62,7 +62,7 @@ export function KitchenSink() {
     <div className="h-full overflow-y-auto bg-ground p-8 text-fg">
       <div className="mx-auto flex max-w-[1100px] flex-col gap-10 pb-16">
         <header>
-          <h1 className="text-[20px] font-semibold">Kitchen sink</h1>
+          <h1 className="text-26 font-semibold tracking-[-0.02em]">Kitchen Sink</h1>
           <p className="mt-1 text-fg-mid">
             Every primitive, every state, forced rather than hovered. Dev-only —
             see <span className="font-mono">docs/STRUCTURE.md</span>.
@@ -198,11 +198,11 @@ export function KitchenSink() {
             <div className="force-hover flex h-8 items-center rounded-[4px] px-2.5 text-fg-mid force-hover:bg-hover force-hover:text-fg">
               Hovered
             </div>
-            <div className="flex h-8 items-center rounded-[4px] bg-accent/15 px-2.5 text-accent">
+            <div className="flex h-8 items-center rounded-[4px] bg-accent-t px-2.5 text-accent">
               Selected
             </div>
-            <div className="force-hover flex h-8 items-center rounded-[4px] bg-accent/15 px-2.5 text-accent force-hover:bg-accent/25">
-              Selected + hovered
+            <div className="force-hover flex h-8 items-center rounded-[4px] bg-accent-t px-2.5 text-accent force-hover:bg-accent-t2">
+              Selected + Hovered
             </div>
           </div>
         </Section>
@@ -239,7 +239,7 @@ export function KitchenSink() {
           </p>
           <div className="flex max-w-[720px] flex-col gap-4">
             <div className="rounded-[6px] border border-line bg-panel">
-              <BandRow label="New folder" hasChevron expanded counts="0 here" />
+              <BandRow label="New Folder" hasChevron expanded counts="0 here" />
               <BandExpanded />
             </div>
             <div className="rounded-[6px] border border-line bg-panel">
@@ -302,9 +302,9 @@ export function KitchenSink() {
             that outline; the "roo" tile hides the fact that the open already fired.
           </p>
           <div className="flex max-w-[280px] flex-col gap-0.5 rounded-[6px] border border-line bg-panel p-1">
-            <div className="flex h-8 items-center rounded-[4px] px-2.5 text-fg-mid">Idle row</div>
+            <div className="flex h-8 items-center rounded-[4px] px-2.5 text-fg-mid">Idle Row</div>
             <div className="flex h-8 items-center rounded-[4px] px-2.5 text-fg-mid outline outline-2 -outline-offset-2 outline-accent">
-              Accepting a drop
+              Accepting A Drop
             </div>
           </div>
         </Section>
@@ -319,12 +319,12 @@ export function KitchenSink() {
             <FolderTileDemo title="ana" count="2,481" />
             <FolderTileDemo title="trips" count="12" previewCount="18" accepting />
             <div className="flex aspect-square flex-col items-stretch justify-center gap-1.5 rounded-[6px] border border-accent-d bg-panel p-2">
-              <Input defaultValue="beach" placeholder="Folder name" />
+              <Input defaultValue="beach" placeholder="Folder Name" />
               <Button size="sm">Create</Button>
             </div>
             <div className="flex aspect-square flex-col items-center justify-center gap-1.5 rounded-[6px] border border-dashed border-line p-2 text-center text-fg-dim">
               <PlusIcon aria-hidden className="size-6" />
-              <span className="text-[12px] leading-tight">New folder in trips</span>
+              <span className="text-12 leading-tight">New Folder In trips</span>
             </div>
           </div>
         </Section>
@@ -344,10 +344,10 @@ export function KitchenSink() {
               second grid
             </div>
             <div className="flex h-9 items-center gap-2 border-t border-line bg-panel px-2">
-              <span className="text-fg-dim">Tile size</span>
+              <span className="text-fg-dim">Tile Size</span>
               <Slider className="w-24" defaultValue={[1]} min={0} max={4} />
               <Square aria-hidden fill="currentColor" className="size-4 shrink-0 text-fg-dim" />
-              <span className="ml-auto font-mono tabular-nums text-fg-dim">240 items</span>
+              <span className="ml-auto font-mono text-12 tabular-nums text-fg-dim">240 items</span>
             </div>
           </div>
         </Section>
@@ -361,14 +361,14 @@ export function KitchenSink() {
           </p>
           <div className="flex h-11 max-w-[720px] overflow-hidden rounded-[6px] border border-line bg-panel">
             <footer className="flex h-full min-w-0 flex-1 items-center gap-2 px-3">
-              <Button size="sm">Select all</Button>
+              <Button size="sm">Select All</Button>
               <Button size="sm">Clear</Button>
               <Separator />
-              <Button size="sm">Move to…</Button>
+              <Button size="sm">Move To…</Button>
               <Button size="sm" variant="danger">
                 Delete
               </Button>
-              <span className="ml-auto truncate pl-2 font-mono tabular-nums text-fg">
+              <span className="ml-auto truncate pl-2 font-mono text-12 tabular-nums text-fg">
                 12 selected
               </span>
             </footer>
@@ -378,9 +378,9 @@ export function KitchenSink() {
 
         <Section title="Chips">
           <div className="flex flex-wrap items-center gap-2">
-            <Chip>Manual tag</Chip>
-            <Chip muted>Inherited tag</Chip>
-            <Chip colour="#dc8199">Status colour</Chip>
+            <Chip>Manual Tag</Chip>
+            <Chip muted>Inherited Tag</Chip>
+            <Chip colour="#dc8199">Status Colour</Chip>
             <Chip onRemove={() => {}}>Removable</Chip>
           </div>
         </Section>
@@ -399,7 +399,7 @@ export function KitchenSink() {
             <Field label="Rest">
               <Input placeholder="Placeholder" />
             </Field>
-            <Field label="Focus (forced)">
+            <Field label="Focus (Forced)">
               <div className="force-focus">
                 <Input
                   defaultValue="Typed text"
@@ -419,9 +419,9 @@ export function KitchenSink() {
                 Checked
               </Label>
             </Field>
-            <Field label="Tag entry (pill)">
+            <Field label="Tag Entry (Pill)">
               <div className="flex gap-2">
-                <PillInput placeholder="+ tag" />
+                <PillInput placeholder="＋ Add Tag" />
                 <div className="force-focus">
                   <PillInput
                     defaultValue="focused"
@@ -435,7 +435,7 @@ export function KitchenSink() {
 
         <Section title="Empty states">
           <div className="grid grid-cols-2 gap-4">
-            <EmptyState>Nothing here yet.</EmptyState>
+            <EmptyState>Nothing Here Yet</EmptyState>
             <EmptyState>No folders yet. Right-click here to make one.</EmptyState>
           </div>
         </Section>
@@ -467,7 +467,7 @@ export function KitchenSink() {
                   wordmark beside it — see components/WindowBar.tsx. */}
               <div className="flex h-8 items-center gap-1.5 rounded-[4px] border border-line bg-panel pl-2 pr-4">
                 <Mark className="size-4" />
-                <span className="text-[13px] font-semibold text-fg">GGallery</span>
+                <span className="text-13 font-semibold text-fg">GGallery</span>
               </div>
               <span className="text-fg-dim">in the window bar</span>
             </div>
@@ -520,11 +520,11 @@ function FolderTileDemo({
         accepting && "outline outline-2 -outline-offset-2 outline-accent",
       )}
     >
-      <div className="flex aspect-square items-center justify-center overflow-hidden rounded-[4px] bg-ground">
+      <div className="flex aspect-square items-center justify-center overflow-hidden rounded-[4px] bg-sunk">
         <FolderIcon className="size-8 text-fg-dim" />
       </div>
       <span className="truncate text-fg">{title}</span>
-      <span className="font-mono tabular-nums text-fg-dim">
+      <span className="font-mono text-12 tabular-nums text-fg-dim">
         {previewCount ? (
           <>
             {count} → <span className="text-accent">{previewCount}</span>
@@ -540,7 +540,7 @@ function FolderTileDemo({
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="font-mono uppercase tracking-[0.1em] text-fg-dim">{title}</h2>
+      <h2 className="font-mono text-11 font-semibold uppercase tracking-[0.14em] text-fg-dim">{title}</h2>
       {children}
     </section>
   );
@@ -570,7 +570,7 @@ function Cell({ children }: { children?: ReactNode }) {
 
 function HeadCell({ children }: { children: ReactNode }) {
   return (
-    <div className="flex items-center font-mono text-[12px] uppercase tracking-[0.08em] text-fg-dim">
+    <div className="flex items-center font-mono text-12 uppercase tracking-[0.08em] text-fg-dim">
       {children}
     </div>
   );
@@ -623,22 +623,22 @@ function BandRow({
               expanded && "rotate-90",
             )}
           />
-          <span className="truncate text-[16px] font-semibold text-fg">{label}</span>
+          <span className="truncate text-16 font-semibold text-fg">{label}</span>
         </div>
       ) : (
-        <span className="truncate px-1.5 text-[16px] font-semibold text-fg">{label}</span>
+        <span className="truncate px-1.5 text-16 font-semibold text-fg">{label}</span>
       )}
 
       {status && (
         <span
-          className="h-7 shrink-0 rounded-full border bg-raised px-2.5 text-[13px] leading-7"
+          className="h-7 shrink-0 rounded-full border bg-raised px-2.5 text-13 leading-7"
           style={{ borderColor: status.colour, color: status.colour }}
         >
           {status.label}
         </span>
       )}
 
-      <span className="truncate font-mono tabular-nums text-fg-dim">{counts}</span>
+      <span className="truncate font-mono text-12 tabular-nums text-fg-dim">{counts}</span>
 
       <span className="ml-auto flex shrink-0 items-center gap-2">
         {thisFolderOnly && (
@@ -650,14 +650,14 @@ function BandRow({
 
         <span className="flex items-center gap-2">
           <LayoutGrid aria-hidden fill="currentColor" className="size-4 shrink-0 text-fg-dim" />
-          <Slider aria-label="Tile size" className="w-24" min={0} max={4} value={[1]} />
+          <Slider aria-label="Tile Size" className="w-24" min={0} max={4} value={[1]} />
           <Square aria-hidden fill="currentColor" className="size-4 shrink-0 text-fg-dim" />
         </span>
 
         {favourite && (
           <>
             <Separator />
-            <IconButton aria-label="Pin to the top">
+            <IconButton aria-label="Pin To The Top">
               <Star />
             </IconButton>
           </>
@@ -701,9 +701,9 @@ function BandExpanded({
           {fields.map(([key, value]) => (
             <span
               key={key}
-              className="inline-flex h-7 shrink-0 items-stretch overflow-hidden rounded-[4px] border border-line text-[13px]"
+              className="inline-flex h-7 shrink-0 items-stretch overflow-hidden rounded-[4px] border border-line text-13"
             >
-              <span className="flex items-center border-r border-line-soft bg-ground px-2 text-fg-dim">
+              <span className="flex items-center border-r border-line-soft bg-sunk px-2 text-fg-dim">
                 {key}
               </span>
               <span className="flex items-center bg-raised px-2 text-fg-mid">
@@ -716,10 +716,10 @@ function BandExpanded({
           ))}
           {/* Adding either one is the same gesture — a dashed ＋ button that
               is replaced in place by an inline input on click. */}
-          <span className="inline-flex h-7 shrink-0 items-center rounded-[4px] border border-dashed border-line px-2.5 text-[13px] text-fg-dim">
+          <span className="inline-flex h-7 shrink-0 items-center rounded-[4px] border border-dashed border-line px-2.5 text-13 text-fg-dim">
             ＋ add label
           </span>
-          <span className="inline-flex h-7 shrink-0 items-center rounded-[4px] border border-dashed border-line px-2.5 text-[13px] text-fg-dim">
+          <span className="inline-flex h-7 shrink-0 items-center rounded-[4px] border border-dashed border-line px-2.5 text-13 text-fg-dim">
             ＋ add tag
           </span>
         </div>
@@ -740,7 +740,7 @@ function BandExpanded({
 function PaneHeaderRow() {
   return (
     <div className="flex h-11 items-center gap-1 border-b border-line bg-panel px-2">
-      <ToolIconButton label="Fill the window">
+      <ToolIconButton label="Fill The Window">
         <ArrowLeftToLine />
       </ToolIconButton>
 
@@ -749,7 +749,7 @@ function PaneHeaderRow() {
         className="flex h-8 flex-1 items-center gap-2 rounded-[4px] px-1.5 text-left"
       >
         <ChevronRight className="size-[18px] shrink-0 text-fg-dim" />
-        <span className="shrink-0 font-mono tabular-nums text-fg-dim">
+        <span className="shrink-0 font-mono text-13 tabular-nums text-fg-dim">
           1200×800 · 2.4 MB
         </span>
       </button>
@@ -766,7 +766,7 @@ function PaneHeaderRow() {
         </ToolIconButton>
       </span>
 
-      <ToolIconButton label="Hide the pane">
+      <ToolIconButton label="Hide The Pane">
         <PanelRightClose />
       </ToolIconButton>
     </div>
@@ -779,7 +779,7 @@ function PaneStripRow() {
   return (
     <div className="flex h-full w-11 shrink-0 flex-col border-l border-line bg-panel">
       <div className="flex h-11 shrink-0 items-center justify-center border-b border-line-soft">
-        <ToolIconButton label="Show the pane">
+        <ToolIconButton label="Show The Pane">
           <PanelRightOpen />
         </ToolIconButton>
       </div>
@@ -817,7 +817,7 @@ function ToolIconButton({
       className={cn(
         "grid size-8 shrink-0 place-items-center rounded-[4px] border [&_svg]:size-[18px]",
         active
-          ? "border-accent-d bg-accent/15 text-accent"
+          ? "border-accent-d bg-accent-t text-accent"
           : "border-transparent text-fg-mid",
       )}
     >

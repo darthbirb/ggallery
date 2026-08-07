@@ -89,34 +89,34 @@ describe("collapsed", () => {
   it("is one line: title, status chip and counts", async () => {
     renderBand();
     expect(screen.getByText("Trips")).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: "Folder status" })).toHaveTextContent(
+    expect(await screen.findByRole("button", { name: "Folder Status" })).toHaveTextContent(
       "WIP",
     );
     expect(screen.getByText(/4 here/)).toBeInTheDocument();
     // Nothing from the expanded half is on screen.
-    expect(screen.queryByLabelText("Folder notes")).toBeNull();
+    expect(screen.queryByLabelText("Folder Notes")).toBeNull();
   });
 
   it("shows no status chip when the folder is Active — absence means nothing to say", async () => {
     mocked.getFolder.mockResolvedValue(detail({ status: "active" }));
     renderBand({ folder: folderNode({ status: "active" }) });
     await screen.findByText(/4 here/);
-    expect(screen.queryByRole("button", { name: "Folder status" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Folder Status" })).toBeNull();
   });
 
   it("expands through the caller, so the state can be global", async () => {
     const { onExpandedChange } = renderBand();
-    await userEvent.click(screen.getByRole("button", { name: /Expand folder details/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Expand Folder Details/ }));
     expect(onExpandedChange).toHaveBeenCalledWith(true);
   });
 
   it("carries the tile-size and here-only/all-items toggle, moved from the window bar", async () => {
     const { onRecursiveChange } = renderBand();
-    expect(screen.getByLabelText("Tile size")).toBeInTheDocument();
+    expect(screen.getByLabelText("Tile Size")).toBeInTheDocument();
 
-    // `recursive` starts true — "All items" is the current state, and
+    // `recursive` starts true — "All Items" is the current state, and
     // clicking it scopes down to here only.
-    const toggle = screen.getByRole("button", { name: "All items" });
+    const toggle = screen.getByRole("button", { name: "All Items" });
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     await userEvent.click(toggle);
     expect(onRecursiveChange).toHaveBeenCalledWith(false);
@@ -125,7 +125,7 @@ describe("collapsed", () => {
   it("reads 'Here only' and stays pressed once scoped to just this folder", async () => {
     const { onRecursiveChange } = renderBand({ recursive: false });
 
-    const toggle = screen.getByRole("button", { name: "Here only" });
+    const toggle = screen.getByRole("button", { name: "Here Only" });
     expect(toggle).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(toggle);
     expect(onRecursiveChange).toHaveBeenCalledWith(true);
@@ -135,10 +135,10 @@ describe("collapsed", () => {
     renderBand({ folder: null, scopeLabel: "Everything", itemCount: 42 });
     expect(screen.getByText("Everything")).toBeInTheDocument();
     expect(screen.getByText(/42 items/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Expand folder details/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /All items|Here only/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Expand Folder Details/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /All Items|Here Only/ })).toBeNull();
     // Tile size still applies to every scope.
-    expect(screen.getByLabelText("Tile size")).toBeInTheDocument();
+    expect(screen.getByLabelText("Tile Size")).toBeInTheDocument();
   });
 });
 
@@ -146,8 +146,8 @@ describe("expanded, with no archetype", () => {
   it("shows the cover, the counts once and an add-label control — not blank labels", async () => {
     renderBand({ expanded: true });
 
-    expect(await screen.findByText(/add label/)).toBeInTheDocument();
-    expect(screen.getByLabelText("Folder notes")).toBeInTheDocument();
+    expect(await screen.findByText(/Add Label/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Folder Notes")).toBeInTheDocument();
     // The header's "4 here · 12 below · 2 subfolders" is the only counts
     // line — nothing in the expanded panel repeats it.
     expect(screen.getAllByText(/4 here/)).toHaveLength(1);
@@ -158,11 +158,11 @@ describe("expanded, with no archetype", () => {
   it("adds a one-off label with both its name and value in one motion", async () => {
     renderBand({ expanded: true });
 
-    await userEvent.click(await screen.findByText(/add label/));
+    await userEvent.click(await screen.findByText(/Add Label/));
     // Enter in the name field moves to the value field rather than
     // committing — a label with no value typed yet is not necessarily done.
-    await userEvent.type(screen.getByLabelText("New label name"), "city{Enter}");
-    await userEvent.type(screen.getByLabelText("New label value"), "Lisbon{Enter}");
+    await userEvent.type(screen.getByLabelText("New Label Name"), "city{Enter}");
+    await userEvent.type(screen.getByLabelText("New Label Value"), "Lisbon{Enter}");
 
     await waitFor(() =>
       expect(mocked.setFolderLabel).toHaveBeenCalledWith(1, "city", "Lisbon"),
@@ -172,8 +172,8 @@ describe("expanded, with no archetype", () => {
   it("still allows a label with an empty value — it exists and renders anyway", async () => {
     renderBand({ expanded: true });
 
-    await userEvent.click(await screen.findByText(/add label/));
-    await userEvent.type(screen.getByLabelText("New label name"), "city{Enter}{Enter}");
+    await userEvent.click(await screen.findByText(/Add Label/));
+    await userEvent.type(screen.getByLabelText("New Label Name"), "city{Enter}{Enter}");
 
     await waitFor(() =>
       expect(mocked.setFolderLabel).toHaveBeenCalledWith(1, "city", ""),
@@ -206,7 +206,7 @@ describe("expanded, with no archetype", () => {
     ]);
     renderBand({ expanded: true });
 
-    await screen.findByText(/add label/);
+    await screen.findByText(/Add Label/);
     // Only the manual contribution renders — the title contribution is
     // suppressed structurally, not by comparing display text.
     expect(screen.getAllByText("People")).toHaveLength(1);
@@ -233,8 +233,8 @@ describe("expanded, with no archetype", () => {
   it("adds a flag to the folder's tag set", async () => {
     renderBand({ expanded: true });
 
-    await userEvent.click(await screen.findByText(/add tag/));
-    await userEvent.type(screen.getByLabelText("New tag"), "summer{Enter}");
+    await userEvent.click(await screen.findByText(/Add Tag/));
+    await userEvent.type(screen.getByLabelText("New Tag"), "summer{Enter}");
 
     await waitFor(() => expect(mocked.addFolderFlag).toHaveBeenCalledWith(1, "summer"));
   });
@@ -245,8 +245,8 @@ describe("expanded, with no archetype", () => {
     // exactly the bug this guards against.
     const { rerenderWithProviders, library } = renderBand({ expanded: true });
 
-    await userEvent.click(await screen.findByLabelText("Folder notes"));
-    await userEvent.type(screen.getByLabelText("Folder notes"), "a real note");
+    await userEvent.click(await screen.findByLabelText("Folder Notes"));
+    await userEvent.type(screen.getByLabelText("Folder Notes"), "a real note");
     await userEvent.tab();
 
     await waitFor(() =>
@@ -301,7 +301,7 @@ describe("ancestry", () => {
   it("shows its own crumb for a top-level folder — a folder always shows where it sits", async () => {
     const folder = folderNode({ parentId: null });
     renderBand({ folder, folders: [folder], expanded: true });
-    await screen.findByText(/add label/);
+    await screen.findByText(/Add Label/);
     // Once in the header, once as the breadcrumb's single (and only) crumb.
     expect(screen.getAllByText("Trips")).toHaveLength(2);
   });
@@ -311,7 +311,7 @@ describe("status", () => {
   it("sets the folder's status through the command", async () => {
     renderBand();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Folder status" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Folder Status" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Active" }));
 
     await waitFor(() => expect(mocked.setFolderStatus).toHaveBeenCalledWith(1, "active"));

@@ -160,9 +160,9 @@ function FoldedNav({
           it, rather than a smaller gap above than below. Every root ends up
           on the same baseline in both states. */}
       <div className="flex h-11 shrink-0 items-center justify-center border-b border-line-soft">
-        <Tooltip label="Show the navigation panel">
+        <Tooltip label="Show The Navigation Panel">
           <IconButton
-            aria-label="Show the navigation panel"
+            aria-label="Show The Navigation Panel"
             onClick={() => onFoldedChange(false)}
           >
             <PanelLeftOpen />
@@ -350,9 +350,9 @@ function ExpandedNav({
 
         <span className="flex-1" />
 
-        <Tooltip label="Hide the navigation panel" side="bottom">
+        <Tooltip label="Hide The Navigation Panel" side="bottom">
           <IconButton
-            aria-label="Hide the navigation panel"
+            aria-label="Hide The Navigation Panel"
             onClick={() => onFoldedChange(true)}
           >
             <PanelLeftClose />
@@ -391,7 +391,7 @@ function ExpandedNav({
             {tree.length === 0 && (
               // An empty tree renders as empty — not as a root node, not as a
               // placeholder branch. DESIGN.md §2 "Navigation roots".
-              <p className="px-3 py-1.5 text-[13px] text-fg-dim">
+              <p className="px-3 py-1.5 text-13 text-fg-dim">
                 No folders yet. Right-click here to make one.
               </p>
             )}
@@ -442,7 +442,7 @@ function FooterStatus({
       </Tooltip>
 
       {progress && progress.phase !== "idle" && (
-        <span className="min-w-0 flex-1 overflow-hidden truncate font-mono tabular-nums text-fg-dim">
+        <span className="min-w-0 flex-1 overflow-hidden truncate font-mono text-11 tabular-nums text-fg-dim">
           {progress.phase === "walking"
             ? progress.rescanning
               ? "rescanning…"
@@ -457,7 +457,7 @@ function FooterStatus({
           variant="danger"
           onClick={onToggleFailures}
           aria-expanded={showingFailures}
-          className="ml-auto shrink-0 font-mono"
+          className="ml-auto shrink-0 font-mono text-12"
         >
           {formatCount(failureCount)}
         </Button>
@@ -468,7 +468,7 @@ function FooterStatus({
 
 function GroupLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-3 pb-1 pt-4 font-mono uppercase tracking-[0.1em] text-fg-dim">
+    <div className="px-3 pb-1.5 pt-5 font-mono text-11 font-semibold uppercase tracking-[0.14em] text-fg-dim">
       {children}
     </div>
   );
@@ -496,7 +496,7 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
 const ROW =
   "flex h-8 w-[calc(100%-16px)] mx-2 items-center gap-2 rounded-[4px] pl-[5px] pr-2 text-left focus-visible:-outline-offset-2";
 
-const ROW_ACTIVE = "bg-accent/15 text-accent hover:bg-accent/25";
+const ROW_ACTIVE = "bg-accent-t text-accent hover:bg-accent-t2";
 const ROW_IDLE = "text-fg-mid hover:bg-hover hover:text-fg";
 
 /** No tooltip: the label is right there. The folded strip has one because it
@@ -603,7 +603,7 @@ function FolderRow({
           onClick={onToggle}
           disabled={!expandable}
           style={{ marginLeft: 6 + depth * 14 }}
-          className="grid size-5 shrink-0 place-items-center rounded-[3px] text-fg-dim hover:bg-hover hover:text-fg disabled:pointer-events-none disabled:opacity-0"
+          className="grid size-5 shrink-0 place-items-center rounded-[3px] text-fg-dim hover:bg-white/10 hover:text-fg disabled:pointer-events-none disabled:opacity-0"
         >
           {/* A single icon that rotates rather than swapping — decision 27:
               transform, not a conditional pair. */}
@@ -627,12 +627,18 @@ function FolderRow({
           {folder.status === MARKED_STATUS && (
             // One dot, meaning "needs more". Nothing is drawn for any other
             // status, so the mark stays glanceable without a legend.
+            //
+            // `--color-warn` and not the status's own colour: this is a fixed
+            // mark for a fixed key, and it is the token's one consumer today.
+            // Every other `warn` site in the drawing — the ffmpeg notice, the
+            // retryable-failure chip, the marginal-saving figure — is markup
+            // that does not exist yet.
             <span
-              title="Work in progress"
-              className="size-1.5 shrink-0 rounded-full bg-fg-mid"
+              title="Work In Progress"
+              className="size-1.5 shrink-0 rounded-full bg-warn"
             />
           )}
-          <span className="ml-auto shrink-0 pl-2 font-mono tabular-nums text-fg-dim">
+          <span className="ml-auto shrink-0 pl-2 font-mono text-12 tabular-nums text-fg-dim">
             {formatCount(folder.totalCount)}
           </span>
         </button>

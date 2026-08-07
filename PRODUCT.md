@@ -86,9 +86,9 @@ the product.
 - **Name:** GGallery. Fixed.
 - **Mark:** none exists. To be designed — must read at 16–20px in a title bar and work as
   the Windows `.ico`.
-- **One accent, chosen from a fixed set** — Slate (default), Teal, Violet, Rose, Moss,
-  Amber. Green and red are reserved for meaning (kept, saved, deleted, failed) and are
-  never the accent.
+- **One accent, chosen from a fixed set** — Azure (default), Steel, Teal, Indigo. Green
+  and red are reserved for meaning (kept, saved, deleted, failed) and are never the
+  accent, and nor is amber, which means unfinished.
 - Dark, dense, quiet. The interface recedes so the media does not compete with it.
 
 ## Evidence on Hand

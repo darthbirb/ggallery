@@ -19,14 +19,17 @@ export const TILE_SIZES = [96, 132, 180, 240, 320];
  * The fixed accent set — locked decision 24. Fixed rather than free so every
  * value can be contrast-checked against the same greys; the CSS for each lives
  * in `styles/index.css` under `:root[data-accent="…"]`.
+ *
+ * M2.8b replaced the set with the drawing's four. It was Slate, Teal, Violet,
+ * Rose, Moss and Amber; Teal is byte-identical in both and carries over, and
+ * a preferences file naming one of the five that went falls back to the
+ * default in `reconcile` below rather than leaving the app unthemed.
  */
 export const ACCENTS = [
-  { key: "slate", label: "Slate" },
+  { key: "azure", label: "Azure" },
+  { key: "steel", label: "Steel" },
   { key: "teal", label: "Teal" },
-  { key: "violet", label: "Violet" },
-  { key: "rose", label: "Rose" },
-  { key: "moss", label: "Moss" },
-  { key: "amber", label: "Amber" },
+  { key: "indigo", label: "Indigo" },
 ] as const;
 
 export type Accent = (typeof ACCENTS)[number]["key"];
@@ -99,7 +102,7 @@ const DEFAULTS: UiPrefs = {
   filmstripHeight: FILMSTRIP_DEFAULT,
   bandExpanded: false,
   detailsExpanded: false,
-  accent: "slate",
+  accent: "azure",
   tileHeight: TILE_SIZES[1],
 };
 

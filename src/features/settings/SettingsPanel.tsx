@@ -42,7 +42,7 @@ type Section = "general" | "archetypes" | "statuses" | "tags";
 const SECTIONS: { key: Section; label: string }[] = [
   { key: "general", label: "General" },
   { key: "archetypes", label: "Archetypes" },
-  { key: "statuses", label: "Folder statuses" },
+  { key: "statuses", label: "Folder Statuses" },
   { key: "tags", label: "Tags" },
 ];
 
@@ -76,7 +76,7 @@ export function SettingsPanel({
               className={cn(
                 "flex h-8 items-center rounded-[4px] px-2.5 text-left",
                 section === candidate.key
-                  ? "bg-accent/15 text-accent"
+                  ? "bg-accent-t text-accent"
                   : "text-fg-mid hover:bg-hover hover:text-fg",
               )}
             >
@@ -114,7 +114,7 @@ function GeneralSection({
       <SectionHeading>Library</SectionHeading>
       <div className="flex flex-col gap-2">
         <Action
-          title="Open a different library…"
+          title="Open A Different Library…"
           body={libraryRoot}
           mono
           onClick={onChooseLibrary}
@@ -138,7 +138,7 @@ function GeneralSection({
             // see the `[data-accent]` rules in `styles/index.css`.
             data-accent={accent.key}
             className={cn(
-              "flex h-8 w-full items-center gap-2 rounded-[4px] border bg-raised px-2.5 text-[13px]",
+              "flex h-8 w-full items-center gap-2 rounded-[4px] border bg-raised px-2.5 text-13",
               ui.accent === accent.key
                 ? "border-accent text-fg"
                 : "border-line text-fg-mid hover:bg-hover hover:text-fg",
@@ -155,7 +155,7 @@ function GeneralSection({
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="mb-2 mt-4 font-mono uppercase tracking-[0.1em] text-fg-dim first:mt-0">
+    <h3 className="mb-2 mt-4 font-mono text-11 font-semibold uppercase tracking-[0.14em] text-fg-dim first:mt-0">
       {children}
     </h3>
   );
@@ -184,7 +184,7 @@ function Action({
         <span className="block text-fg">{title}</span>
         <span
           className={cn(
-            "block text-[13px] text-fg-dim",
+            "block text-13 text-fg-dim",
             mono ? "truncate font-mono" : undefined,
           )}
         >

@@ -15,7 +15,7 @@ export function Label({
     <LabelPrimitive.Root
       data-slot="label"
       className={cn(
-        "flex select-none items-center gap-1.5 text-[13px] text-fg-mid",
+        "flex select-none items-center gap-1.5 text-13 text-fg-mid",
         "peer-disabled:pointer-events-none peer-disabled:opacity-40",
         className,
       )}

@@ -15,16 +15,18 @@ export function Checkbox({
     <CheckboxPrimitive.Root
       data-slot="checkbox"
       className={cn(
-        "peer size-4 shrink-0 rounded-[3px] border border-line bg-ground",
+        "peer size-[18px] shrink-0 rounded-[4px] border border-line bg-ground",
         "transition-[background-color,border-color] duration-100 hover:border-fg-dim",
-        "data-[state=checked]:border-accent-d data-[state=checked]:bg-accent data-[state=checked]:text-ground",
+        // The tick is `--sunk`, not `--ground`: it is punched out of the
+        // accent fill and wants the darkest grey in the set behind it.
+        "data-[state=checked]:border-accent data-[state=checked]:bg-accent data-[state=checked]:text-sunk",
         "disabled:pointer-events-none disabled:opacity-40",
         className,
       )}
       {...rest}
     >
       <CheckboxPrimitive.Indicator className="grid place-items-center text-current">
-        <Check className="size-3.5" strokeWidth={3} />
+        <Check className="size-[13px]" strokeWidth={3} />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
   );

@@ -880,10 +880,16 @@ Keys remain for everything, destination hotkeys are user-assigned, and a `?` ove
 them — as an accelerator layer over a fully usable mouse interface.
 
 **Colour** — exactly one accent hue carries selection, focus, the active tab, drop
-acceptance and the panel drag handles, chosen by the user from a fixed set: Slate (default), Teal, Violet,
-Rose, Moss, Amber. Fixed rather than free so every value is contrast-checked against the
-same greys. Green and red are reserved for meaning — kept, saved, deleted, failed — and are
-never the accent. Locked decision 24.
+acceptance and the panel drag handles, chosen by the user from a fixed set: **Azure
+(default), Steel, Teal, Indigo**. Fixed rather than free so every value is contrast-checked
+against the same greys. Each accent also carries two tint levels — 15% and 26% — which is
+what a selected, active or drop-accepting surface fills with. Green and red are reserved
+for meaning — kept, saved, deleted, failed — and are never the accent. Amber is reserved
+too, as `warn`: unfinished rather than wrong. Locked decision 24.
+
+*(M2.8b replaced the set, which was Slate, Teal, Violet, Rose, Moss and Amber. Teal is
+byte-identical in both and carried over; the drawing ships four and the drawing is the
+specification.)*
 
 **Single instance** — a lock file in `.ggallery/` prevents two copies opening the same
 library.

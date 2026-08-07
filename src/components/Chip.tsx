@@ -1,8 +1,11 @@
 /** Small labelled pills: folder status, tags, counts. No domain knowledge —
  *  the caller decides what the words mean.
  *
- *  Sized against decision 25: 28px tall with a real 20px remove target rather
- *  than a 3px cross, and 13px text. */
+ *  Sized against decision 25 as M2.8b rewrote it: 26px tall, 12px text, and
+ *  an 18px remove target. The remove `×` inherits the chip's own colour and
+ *  sits at 60% until hovered, rather than going red — a tag is removed all
+ *  the time and it is not a destructive act; the drawing reserves red for
+ *  things that reach the trash. */
 
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
@@ -30,10 +33,10 @@ export function Chip({
   return (
     <span
       className={cn(
-        "inline-flex h-7 max-w-full items-center gap-1 rounded-full border pl-2.5 text-[13px]",
+        "inline-flex h-[26px] max-w-full items-center gap-1.5 rounded-full border pl-2.5 text-12",
         onRemove ? "pr-1" : "pr-2.5",
         muted
-          ? "border-line-soft bg-ground text-fg-dim"
+          ? "border-line-soft bg-sunk text-fg-dim"
           : "border-line bg-raised text-fg-mid",
         className,
       )}
@@ -45,9 +48,9 @@ export function Chip({
           type="button"
           aria-label={removeLabel ?? "Remove"}
           onClick={onRemove}
-          className="grid size-5 shrink-0 place-items-center rounded-full text-fg-dim hover:bg-danger/20 hover:text-danger"
+          className="grid size-[18px] shrink-0 place-items-center rounded-full text-current opacity-60 hover:bg-white/12 hover:opacity-100"
         >
-          <X className="size-3.5" />
+          <X className="size-[11px]" />
         </button>
       )}
     </span>

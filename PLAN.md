@@ -155,25 +155,64 @@ folder holds everything, so backup is "copy the folder".
     the root; `--color-good` and `--color-danger` are fixed. `--color-info` is deleted; it
     collides with the default accent.
 
-25. **Controls are sized to be hit and seen.** Decided once, applied everywhere:
+25. **Controls are sized to be hit and seen.** Decided once, applied everywhere. The
+    numbers below were **inventoried from the drawing** in M2.8b — every `font-size` and
+    every control `height` across all twelve screens — not chosen here.
 
-    - Control heights `28 / 32 / 38px` for small, default, large. Icon buttons are never
-      smaller than `32×32`, whatever the glyph.
-    - The glyph fills roughly 55–60% of its button — an 18px icon in a 32px button, not 12px.
-    - **Every button has a visible surface at rest**: background and border. Ghost buttons
-      that only materialise on hover are how a control becomes invisible until you already
-      know it is there.
-    - Base UI text `14px`, mono `12px`. Both a step up from where M2.5a landed.
+    **Type — nine sizes, and nothing else exists.** In pixels, because the drawing thinks
+    in pixels and because `12px` means the same thing in `--font-ui` and `--font-mono`;
+    the family is chosen separately. Declared as `--text-10` … `--text-28` in
+    `styles/index.css`.
 
-    *(M2.8 replaces the type scale and the height scale with the drawing's own.* The
-    drawing in [docs/design/](docs/design/) goes below this floor deliberately — mono
-    section headings at `10–11px`, badges and shortcut columns at `11px` — and uses more
-    control heights than the three named above. The user ruled: build the drawing exactly.
-    **What does not change is that there is a scale and it is written down.** M2.8b
-    inventories the drawing's real type sizes and control heights, records them here in
-    place of these, and enforces them the same way — the point of this decision was never
-    the specific numbers, it was that a fourth height never appears because somebody
-    needed one. A separate idea came out of the same conversation and is parked in M9:
+    | | Sans (`--font-ui`) | Mono (`--font-mono`) |
+    | --- | --- | --- |
+    | `10` | — | section headings, `600`, `.12em` |
+    | `11` | the mark's glyph only | badges, shortcut column, metadata, group headings (`600`, `.14em`) |
+    | `12` | hints and sub-labels | **the default** — paths, names, counts, durations |
+    | `13` | **the default** — control labels, menu rows, chips' neighbours | dense data tables |
+    | `14` | body copy, rows, large controls | two readouts only |
+    | `15` | a pane header inside a dialog | — |
+    | `16` | screen and band titles, `600` | — |
+    | `26` | full-window headings and stat values, `600`, `-.02em` | — |
+    | `28` | the largest stat value, `600` | — |
+
+    **Heights — ten values in five families**, and the family is what fixes the number:
+
+    - **A control with a surface**: `26` (chip-height — the dashed ＋ add buttons, the
+      status chip) · `28` small · `32` default · `38` large. Square icon buttons are `32`
+      and `38`.
+    - **A sub-control inside another control**, transparent until hover: `16` (a field's
+      clear ×) · `18` (a chip's remove ×) · `20` (a row's chevron, `+`, `⋯`).
+    - **A segment** of a segmented control, or a toast's dismiss: `24`.
+    - **A menu row**, and the triage hotkey buttons that share its height: `30`.
+    - **The fullscreen culler's hotkeys**: `34`. M4's; no consumer yet.
+
+    Other rules, unchanged:
+
+    - The glyph is **smaller beside a label than alone** — `16px` in a labelled 32px
+      button, `18px` in a square one — which is what keeps a label and a glyph reading as
+      one centred group rather than as a glyph with text after it. `15px` at 28,
+      `12px` at 26, `22px` in a square 38.
+    - **Every button with a surface has a background and a border at rest.** The one
+      variant without a surface is `subtle`, which is not a ghost button: it is the
+      sub-control family above, and it hovers to a translucent white overlay rather than
+      to `--color-hover`, so it reads the same on a plain row and on an accent-tinted
+      selected one.
+    - **The enforcement point is `components/ui/button.tsx`'s `cva` variants.** The point
+      of this decision was never the specific numbers — it is that a height never appears
+      because somebody needed one and reached for it locally.
+
+    *(M2.8 replaced both scales with the drawing's.* The old ones were heights `28/32/38`
+    and "base UI text `14px`, mono `12px`", with a hard floor — `.font-mono` set every
+    mono element to 12px, so 10 and 11 were unreachable. The drawing goes below that floor
+    deliberately and uses ten heights rather than three. The user ruled: build the drawing
+    exactly. Two findings from the inventory are recorded rather than smoothed over:
+    **the drawing contradicts itself on the default button's type size** — its Components
+    spec sheet says 14px, its twelve screens say 13px, 24 instances to 6 — and 13px was
+    taken, because the screens are the drawing in use. And the drawing carries four
+    one-off greys outside its own `:root` block (`#5c636e`, `#565d68`, `#4d545e`,
+    `#414852`) which were folded into `--color-fg-dim` rather than becoming four more
+    tokens. A separate idea came out of the same conversation and is parked in M9:
     **`Ctrl` `+` / `Ctrl` `-` interface scaling with a Settings option**, which is the
     real answer if the drawing's sizes prove small in use. Not in M2.8's scope.)
     - **Anything clickable shows `cursor: pointer`.** *(Added in M2.5a.2 — nothing in the
@@ -876,6 +915,30 @@ user-configurable. A drawing that hard-codes one accent is adapted to the system
 other way round.
 
 **M2.8c — the surfaces**, one at a time, once the conflict list has been ruled on.
+
+**What M2.8b left visibly wrong, deliberately.** A token pass that starts moving things
+is a redesign, so these were applied as far as a class change reaches and no further:
+
+- **The selected tile's wash and its tick badge.** The drawing lays an `--act` overlay
+  *above* the thumbnail and puts a 20px accent tick in the corner (line 425). Both are new
+  nodes in `TilePool`, which is the one piece of the grid measured against a 100k library
+  — so they are markup, not tokens. M2.8b mixed the wash into the tile's *background*
+  instead, where a loaded image hides it. The tile is therefore correct only while its
+  thumbnail is missing, which is the wrong way round.
+- **The favourite badge is still the `★` character**, not lucide's `star` in a 22×22
+  plate. Same reason: a node swap in `TilePool`.
+- **The window bar is 32px and the drawing's is 36px**; the navigation panel defaults to
+  200px and the drawing's is 232px. Both move everything beside them.
+- **The `wip` status colour.** The tree's dot is now `--color-warn` (`#c9963f`), but the
+  seeded status row still carries `#eab308` from migration 002, so the band's status chip
+  and the tree's dot disagree for the default vocabulary. Statuses are user-recolourable,
+  so this is a seed-data question — and changing a migration does not reach a library that
+  already ran it.
+- **No `Switch` primitive exists.** The drawing's Settings needs one; nothing would
+  consume it until those preferences are built, so it was not added.
+- **`subtle`'s call sites.** The variant and its four sub-control sizes are in the `cva`,
+  and the toast's dismiss uses them, but the tree row's chevron is still a hand-rolled
+  `<button>` carrying the classes by hand. Converting it is a component swap.
 
 **M2.8d — the drawn-ahead screens into DESIGN.md** as prose, so M3 onwards build from a
 specification with a picture behind it rather than from the picture.

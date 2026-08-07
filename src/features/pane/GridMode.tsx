@@ -135,19 +135,19 @@ export function GridMode({
             selection={selection}
             refreshToken={refreshToken}
             onActivate={onPreview}
-            empty={folder ? `Nothing in ${folder.title}.` : "Nothing here yet."}
+            empty={folder ? `Nothing In ${folder.title}` : "Nothing Here Yet"}
             renderMenu={(target: GridMenuTarget) =>
               target.itemId === null ? (
                 <>
-                  <MenuLabel>{items.length === 0 ? "Nothing here" : `${items.length} items`}</MenuLabel>
+                  <MenuLabel>{items.length === 0 ? "Nothing Here" : `${items.length} items`}</MenuLabel>
                   <MenuItem onSelect={selection.selectAll} disabled={items.length === 0} shortcut="Ctrl+A">
-                    Select all
+                    Select All
                   </MenuItem>
                   <MenuItem onSelect={selection.invert} disabled={items.length === 0}>
-                    Invert selection
+                    Invert Selection
                   </MenuItem>
                   <MenuItem onSelect={selection.clear} disabled={selection.count === 0} shortcut="Esc">
-                    Clear selection
+                    Clear Selection
                   </MenuItem>
                 </>
               ) : (
@@ -167,9 +167,9 @@ export function GridMode({
         </div>
 
         <div className="flex h-9 shrink-0 items-center gap-2 border-t border-line px-2">
-          <span className="text-fg-dim">Tile size</span>
+          <span className="text-fg-dim">Tile Size</span>
           <Slider
-            aria-label="Tile size"
+            aria-label="Tile Size"
             className="w-24"
             min={0}
             max={TILE_SIZES.length - 1}
@@ -177,7 +177,7 @@ export function GridMode({
             onValueChange={([index]) => setTileHeight(TILE_SIZES[index])}
           />
           <Square aria-hidden fill="currentColor" className="size-4 shrink-0 text-fg-dim" />
-          <span className="ml-auto truncate font-mono tabular-nums text-fg-dim">
+          <span className="ml-auto truncate font-mono text-12 tabular-nums text-fg-dim">
             {items.length} item{items.length === 1 ? "" : "s"}
           </span>
         </div>
@@ -185,7 +185,7 @@ export function GridMode({
 
       {picking && (
         <FolderPickerDialog
-          title="Show in Grid mode…"
+          title="Show In Grid Mode…"
           folders={folders}
           allowTopLevel
           topLabel="Everything"

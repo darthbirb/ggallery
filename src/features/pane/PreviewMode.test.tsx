@@ -77,7 +77,7 @@ function renderPreview(over: Partial<React.ComponentProps<typeof PreviewMode>> =
 describe("preview", () => {
   it("shows an empty state when nothing is selected", () => {
     renderPreview({ slots: [{ key: "primary", itemId: null }] });
-    expect(screen.getByText(/Nothing selected/)).toBeInTheDocument();
+    expect(screen.getByText(/Nothing Selected/)).toBeInTheDocument();
   });
 
   it("loads the item it was given", async () => {
@@ -159,7 +159,7 @@ describe("preview", () => {
 
   it("keeps the filmstrip's height under the caller's control", async () => {
     renderPreview({ filmstripHeight: 140 });
-    const handle = await screen.findByRole("separator", { name: "Filmstrip height" });
+    const handle = await screen.findByRole("separator", { name: "Filmstrip Height" });
     expect(handle).toHaveAttribute("aria-valuenow", "140");
     expect(handle).toHaveAttribute("aria-orientation", "horizontal");
   });
@@ -201,7 +201,7 @@ describe("details", () => {
     renderPreview({ detailsExpanded: true });
 
     await userEvent.type(
-      await screen.findByLabelText("Add a tag to this item"),
+      await screen.findByLabelText("Add A Tag To This Item"),
       "blurry{Enter}",
     );
 
@@ -213,7 +213,7 @@ describe("details", () => {
     renderPreview({ detailsExpanded: true });
 
     await userEvent.type(
-      await screen.findByLabelText("Add a tag to this item"),
+      await screen.findByLabelText("Add A Tag To This Item"),
       "city: lisbon{Enter}",
     );
 

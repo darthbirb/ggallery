@@ -8,7 +8,7 @@
 
 export function Breadcrumb({ titles }: { titles: string[] }) {
   return (
-    <div className="flex flex-wrap items-center gap-1 font-mono text-[12px] text-fg-dim">
+    <div className="flex flex-wrap items-center gap-1 font-mono text-12 text-fg-dim">
       {titles.map((title, index) => (
         <span key={index} className="flex items-center gap-1">
           {index > 0 && <span aria-hidden>/</span>}

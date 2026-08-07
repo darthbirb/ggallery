@@ -8,83 +8,147 @@
    shadcn's light defaults. There is one colour vocabulary, this one; the
    vendored components speak it. */
 @theme {
-  --color-ground: #15171b;
+  /* The greys are the drawing's `:root`, lines 13–20, taken exactly. Only the
+     names are ours — the drawing's `--bg` / `--pnl` / `--rsd` abbreviations
+     stay in the drawing. */
+  --color-ground: #14161a;
   --color-panel: #1b1e23;
   --color-raised: #22262d;
   --color-hover: #2a2f37;
-  --color-line: #2f353e;
+  --color-line: #30363f;
   --color-line-soft: #262b32;
-  --color-fg: #e3e6ec;
-  --color-fg-mid: #a2a9b4;
-  --color-fg-dim: #6f7783;
+  --color-fg: #e4e7ed;
+  --color-fg-mid: #a3aab5;
+  --color-fg-dim: #717985;
+
+  /* A recess *below* `ground`, and the one grey the app did not have. It is
+     what a scrollbar track, a scrubber channel, the key half of a label chip,
+     an inherited chip and a media stage are cut into. Every one of those
+     faked it with `ground` before M2.8b, which made a recess and the page
+     behind it the same colour. */
+  --color-sunk: #0f1114;
 
   /* One accent, swapped wholesale by `data-accent` below — locked decision
-     24. These are Slate's values; `:root` carries the default so anything
-     rendered before the preference loads is already correct rather than
-     briefly wrong. */
-  --color-accent: #8ba6cc;
-  --color-accent-d: #47597a;
+     24. These are Azure's values, the drawing's default; `:root` carries them
+     so anything rendered before the preference loads is already correct
+     rather than briefly wrong.
+
+     `-t` and `-t2` are the accent at 15% and 26%, and they are the fill
+     behind every selected, active and drop-accepting surface in the app.
+     Before M2.8b that fill was three different ad-hoc values — `accent/15`,
+     `accent/25` and a `color-mix` at 18% — so the same state read three
+     slightly different ways depending on which component drew it. */
+  --color-accent: #6f9bdb;
+  --color-accent-d: #3f5c85;
+  --color-accent-t: rgba(111, 155, 219, 0.15);
+  --color-accent-t2: rgba(111, 155, 219, 0.26);
 
   /* Fixed, and never the accent: green and red mean kept/saved and
      deleted/failed. `--color-info` is deleted — it collided with the default
-     accent, which is exactly the confusion decision 24 exists to prevent. */
+     accent, which is exactly the confusion decision 24 exists to prevent.
+
+     `warn` is the third fixed meaning and is not a dimmer red: it marks work
+     that is unfinished rather than wrong — the tree's WIP dot today, and the
+     ffmpeg notice, the retryable-failure chip and the marginal-saving figure
+     as those surfaces arrive. It must stay distinct from `danger`. */
   --color-good: #5f9e6e;
   --color-danger: #c25a4a;
+  --color-warn: #c9963f;
 
   --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system,
     sans-serif;
   --font-mono: "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace,
     monospace;
 
-  /* Locked decision 25's sizing scale, written down where the palette is so
-     it is not three numbers living only in one component's head. The `cva`
-     variants in `components/ui/button.tsx` are the enforcement; nothing in
-     the app is allowed a fourth height. */
+  /* Locked decision 25's type scale, inventoried from all twelve screens of
+     the drawing rather than invented here. It is deliberately in pixels: the
+     drawing thinks in pixels, and a name like `sm` would have to mean one
+     thing in `--font-ui` and another in `--font-mono` when in fact 12px is
+     12px in both. The family is chosen separately, by `font-mono`.
+
+     The closed set is 10 · 11 · 12 · 13 · 14 · 15 · 16 · 26 · 28. A size
+     outside it does not exist; that, and not the specific numbers, is what
+     this decision has always been for.
+
+     10 and 11 were forbidden before M2.8b — `.font-mono` hard-set every mono
+     element to 12px and the decision said "mono never goes below 12px". The
+     drawing uses both throughout, for section headings, badges, the menu
+     shortcut column and metadata, and the drawing is the specification. */
+  --text-10: 10px;
+  --text-11: 11px;
+  --text-12: 12px;
+  --text-13: 13px;
+  --text-14: 14px;
+  --text-15: 15px;
+  --text-16: 16px;
+  --text-26: 26px;
+  --text-28: 28px;
+
+  /* The height scale, inventoried the same way. Ten values, in five families
+     — see decision 25. `components/ui/button.tsx`'s `cva` variants are the
+     enforcement for the four that carry a surface; the rest are named here so
+     that a component reaching for one is reaching for something written down.
+
+     A control with a surface at rest: */
+  --height-control-xs: 26px;
   --height-control-sm: 28px;
   --height-control: 32px;
   --height-control-lg: 38px;
+  /* A sub-control inside another control — transparent until hover: */
+  --height-sub-xs: 16px;
+  --height-sub-sm: 18px;
+  --height-sub: 20px;
+  /* One segment of a segmented control: */
+  --height-segment: 24px;
+  /* A menu row, and the triage hotkey buttons that share its height: */
+  --height-row-menu: 30px;
+  /* The fullscreen culler's hotkeys — larger because the surface is. M4. */
+  --height-row-culler: 34px;
 }
 
-/* The fixed set, contrast-checked against the greys above rather than trusted
-   to a free colour picker. `-d` is the deep variant borders and rests use;
-   the bright one carries selection, focus, active tab, drop acceptance and
-   scrubber position. Moss is a yellow-green, kept clear of `--color-good`.
+/* The fixed set — the drawing's four, replacing M2.5a's six (decision 24).
+   Teal is byte-identical in both sets and carried over untouched; Slate,
+   Violet, Rose, Moss and Amber are gone.
+
+   `-d` is the deep variant borders and rests use; the bright one carries
+   selection, focus, active tab, drop acceptance and the panel drag handles.
+   `-t` / `-t2` are the same hue at 15% and 26% — the fill those states sit
+   on. All four values are written out per accent rather than derived, so a
+   `color-mix` chain can never quietly resolve against the wrong hue.
 
    Each accent is scoped to **any** element carrying the attribute, not only
    `:root`. The root is where `state/ui.ts` sets it, and that is the whole
    theme; but Settings draws a swatch per accent, and a swatch has to be able
    to paint itself in a hue that is not the one currently chosen. Scoped to
    `:root` alone, every swatch inherited the active accent and the picker
-   showed six identical dots. */
-:root[data-accent="slate"],
-[data-accent="slate"] {
-  --color-accent: #8ba6cc;
-  --color-accent-d: #47597a;
+   showed four identical dots. */
+:root[data-accent="azure"],
+[data-accent="azure"] {
+  --color-accent: #6f9bdb;
+  --color-accent-d: #3f5c85;
+  --color-accent-t: rgba(111, 155, 219, 0.15);
+  --color-accent-t2: rgba(111, 155, 219, 0.26);
+}
+:root[data-accent="steel"],
+[data-accent="steel"] {
+  --color-accent: #8d9aab;
+  --color-accent-d: #4e5765;
+  --color-accent-t: rgba(141, 154, 171, 0.15);
+  --color-accent-t2: rgba(141, 154, 171, 0.26);
 }
 :root[data-accent="teal"],
 [data-accent="teal"] {
   --color-accent: #58b3a7;
   --color-accent-d: #2c6660;
+  --color-accent-t: rgba(88, 179, 167, 0.15);
+  --color-accent-t2: rgba(88, 179, 167, 0.26);
 }
-:root[data-accent="violet"],
-[data-accent="violet"] {
-  --color-accent: #a68ce2;
-  --color-accent-d: #574a8c;
-}
-:root[data-accent="rose"],
-[data-accent="rose"] {
-  --color-accent: #dc8199;
-  --color-accent-d: #7d4353;
-}
-:root[data-accent="moss"],
-[data-accent="moss"] {
-  --color-accent: #9bb268;
-  --color-accent-d: #56663a;
-}
-:root[data-accent="amber"],
-[data-accent="amber"] {
-  --color-accent: #d9954b;
-  --color-accent-d: #8a5c26;
+:root[data-accent="indigo"],
+[data-accent="indigo"] {
+  --color-accent: #8b8fd9;
+  --color-accent-d: #4d5085;
+  --color-accent-t: rgba(139, 143, 217, 0.15);
+  --color-accent-t2: rgba(139, 143, 217, 0.26);
 }
 
 @layer base {
@@ -148,11 +212,15 @@
     user-select: text;
   }
 
-  /* Mono is 12px wherever it appears, so a filename, a count and a duration
-     all sit on the same baseline grid. */
-  .font-mono {
-    font-size: 12px;
-  }
+  /* `.font-mono` used to hard-set `font-size: 12px`, so mono was one size
+     everywhere and 10px and 11px were unreachable. The drawing uses four mono
+     sizes — 10px section headings, 11px badges and metadata, 12px for data,
+     13px in dense tables — so the size now travels with the call site, from
+     the `--text-*` scale above. `font-mono` sets the family and nothing else.
+
+     The consequence to know about: a `font-mono` element with no size class
+     inherits 14px from `body`, which is never right. Every mono call site
+     carries its own size. */
 
   /* Anything clickable shows a pointer — locked decision 25's addition.
      Every interactive control in the app is a real `<button>` (native, or
@@ -162,17 +230,25 @@
      once. Disabled buttons keep the browser default rather than reading as
      pressable. The grid's tiles are recycled DOM nodes, not buttons, so
      `.tile` carries its own `cursor: pointer` below; drag handles carry
-     their own resize cursor for the same reason — a handle is not a click. */
+     their own resize cursor for the same reason — a handle is not a click.
+
+     **The scrubber left the exception list in M2.8**, per the drawing: it is
+     clicked to jump as well as dragged, so it is a control. Scrollbars are
+     still the exception — they are dragged only. */
   button:not(:disabled) {
     cursor: pointer;
   }
 
-  /* A reserved channel, not a bar floating over the content.
-     `--color-ground` is darker than every panel surface, so the track reads
-     as a groove cut into the chrome and the space above and below the thumb
-     is visibly the scrollbar's own. The thumb fills the channel's whole
-     width — square, no inset — so there is one shape, not a pill inside a
-     box. Same treatment on the grid's scrubber, in `.scrubber` below.
+  /* A reserved channel, not a bar floating over the content. `--color-sunk`
+     is darker than the page behind it, so the track reads as a groove cut
+     into the chrome and the space above and below the thumb is visibly the
+     scrollbar's own. The thumb fills the channel's whole width — square, no
+     inset — so there is one shape, not a pill inside a box. Same treatment
+     on the grid's scrubber, in `.scrubber` below.
+
+     *(This was `--color-ground` until M2.8b, which is the page's own colour —
+     so the groove was only as deep as the border beside it. `--sunk` exists
+     for exactly this and the drawing uses it here, at line 31.)*
 
      16px — a step up from M2.5a.1's 12px, per decision 25. */
   ::-webkit-scrollbar {
@@ -181,7 +257,7 @@
   }
   ::-webkit-scrollbar-track,
   ::-webkit-scrollbar-corner {
-    background: var(--color-ground);
+    background: var(--color-sunk);
   }
   ::-webkit-scrollbar-thumb {
     background: var(--color-line);
@@ -223,8 +299,12 @@
    M2.5a.2 removes it rather than qualifying it further. */
 
 .scrubber {
-  background: var(--color-ground);
+  background: var(--color-sunk);
   border-left: 1px solid var(--color-line-soft);
+  /* It is clicked to jump as well as dragged, so it is a control and shows a
+     pointer. M2.8 removed it from decision 25's scrollbar exception, per the
+     drawing (line 477); scrollbars themselves stay excepted. */
+  cursor: pointer;
 }
 
 .scrubber-thumb {
@@ -296,7 +376,7 @@
   top: 0;
   left: 0;
   overflow: hidden;
-  border-radius: 4px;
+  border-radius: 5px;
   border: 2px solid transparent;
   background: var(--color-raised);
   cursor: pointer;
@@ -307,8 +387,18 @@
   border-color: var(--color-fg-dim);
 }
 
-/* **One visual state for selection** — locked decision 26. A filled accent
-   border, and nothing else on the tile competing with it.
+/* **One treatment for selection, made of marks that always travel together**
+   — locked decision 26 as M2.8 amended it. The drawing's treatment is three:
+   an accent border, an accent wash over the media, and a tick badge in the
+   top-left corner.
+
+   Only the border and the wash are here. The wash is at `--act`'s 15%, mixed
+   into `raised` rather than laid over the image, and **that is not what the
+   drawing draws** — the drawing (line 425) puts an `--act` overlay *above*
+   the thumbnail, where this sits beneath it and is therefore invisible on any
+   tile whose image has loaded. Making it correct needs an overlay node in
+   `TilePool`, as does the tick badge, and a node is markup rather than a
+   token. **Both are M2.8c's**, listed in that milestone's opening entry.
 
    There is deliberately no rule for the shift-click anchor. It is invisible
    bookkeeping: drawing it put a second ring on a tile that meant something
@@ -316,7 +406,7 @@
    unreadable. `TilePool` no longer tracks it either. */
 .tile.is-selected {
   border-color: var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent) 18%, var(--color-raised));
+  background: color-mix(in srgb, var(--color-accent) 15%, var(--color-raised));
 }
 
 .tile-img {
@@ -350,19 +440,19 @@
 .tile-badge {
   position: absolute;
   font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: 11px;
+  line-height: 19px;
   background: rgba(8, 9, 11, 0.8);
   border-radius: 4px;
-  padding: 0 5px;
+  padding: 0 6px;
   color: #fff;
   font-variant-numeric: tabular-nums;
   pointer-events: none;
 }
 
 .tile-dur {
-  bottom: 5px;
-  right: 5px;
+  bottom: 6px;
+  right: 6px;
   display: none;
 }
 
@@ -370,11 +460,17 @@
   display: block;
 }
 
+/* `rgba(8,9,11,.72)` rather than the duration badge's `.8`: the drawing gives
+   the favourite mark a slightly lighter plate, since it sits over the corner
+   of an image rather than over a number. The glyph is still the `★`
+   character; the drawing draws lucide's `star` in a 22×22 plate, which is a
+   node swap in `TilePool` and therefore M2.8c's. */
 .tile-fav {
-  top: 5px;
-  right: 5px;
+  top: 6px;
+  right: 6px;
   color: var(--color-accent);
-  padding: 0 4px;
+  background: rgba(8, 9, 11, 0.72);
+  padding: 0 5px;
   display: none;
 }
 

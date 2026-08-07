@@ -444,7 +444,7 @@ function Gallery({
           </div>
           {!ui.navFolded && (
             <Resizer
-              label="Navigation panel width"
+              label="Navigation Panel Width"
               side="left"
               value={ui.navWidth}
               min={NAV_MIN}
@@ -538,7 +538,7 @@ function Gallery({
               <div className="flex h-11 shrink-0 border-t border-line bg-panel">
                 <footer className="flex h-full min-w-0 flex-1 items-center gap-2 px-3">
                   <Button size="sm" onClick={selection.selectAll}>
-                    Select all
+                    Select All
                   </Button>
                   <Button size="sm" onClick={selection.clear}>
                     Clear
@@ -548,7 +548,7 @@ function Gallery({
                     size="sm"
                     onClick={() => dialogs.moveItems([...selection.selected])}
                   >
-                    Move to…
+                    Move To…
                   </Button>
                   <Button
                     size="sm"
@@ -560,7 +560,7 @@ function Gallery({
                   {/* Status, not instruction — the one place a live count
                       could be, previously spent on "Right-click for more",
                       a tutorial you read once (DESIGN.md §2, decision 28). */}
-                  <span className="ml-auto truncate pl-2 font-mono tabular-nums text-fg">
+                  <span className="ml-auto truncate pl-2 font-mono text-12 tabular-nums text-fg">
                     {formatCount(selection.count)} selected
                   </span>
                 </footer>
@@ -578,7 +578,7 @@ function Gallery({
 
         {!maximised && ui.paneOpen && (
           <Resizer
-            label="Pane width"
+            label="Pane Width"
             side="right"
             value={ui.paneWidth}
             min={PANE_MIN}
@@ -663,13 +663,13 @@ function Gallery({
 function emptyLabel(scope: Scope): string {
   switch (scope.kind) {
     case "favourites":
-      return "Nothing favourited yet.";
+      return "Nothing Favourited Yet";
     case "sorting":
       // The library root *is* the Sorting Box, so empty means filed, not
       // missing — DESIGN.md §4.
-      return "Nothing to sort.";
+      return "Nothing To Sort";
     default:
-      return "Nothing here yet.";
+      return "Nothing Here Yet";
   }
 }
 
@@ -740,7 +740,7 @@ function Banners({
       )}
 
       {info && !info.ffmpeg && (
-        <div className="border-b border-line bg-raised px-3 py-2 text-[13px] text-fg-mid">
+        <div className="border-b border-line bg-raised px-3 py-2 text-13 text-fg-mid">
           No ffmpeg in <span className="font-mono">tools/</span> or on PATH — videos
           index, but get no poster frame or scrub strip.
         </div>
@@ -752,7 +752,7 @@ function Banners({
 function Welcome({ library }: { library: LibraryController }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-5 bg-ground px-8 text-center">
-      <h1 className="text-[24px] font-semibold tracking-tight">GGallery</h1>
+      <h1 className="text-26 font-semibold tracking-[-0.02em]">GGallery</h1>
       <p className="max-w-[46ch] leading-relaxed text-fg-mid">
         Choose the folder that holds your media. Everything the app writes goes into a{" "}
         <span className="font-mono text-fg">.ggallery</span> folder inside it.
@@ -764,12 +764,12 @@ function Welcome({ library }: { library: LibraryController }) {
         onClick={library.choose}
         disabled={library.loading}
       >
-        {library.loading ? "Opening…" : "Choose library folder"}
+        {library.loading ? "Opening…" : "Choose Library Folder"}
       </Button>
 
       {library.remembered && (
         <Button size="sm" onClick={() => library.open(library.remembered as string)}>
-          <span className="font-mono">reopen {library.remembered}</span>
+          <>Reopen <span className="font-mono">{library.remembered}</span></>
         </Button>
       )}
 

@@ -21,7 +21,7 @@ export function ProgressScreen({
   return (
     <div className="flex h-full flex-col items-center justify-center gap-6 bg-ground px-8 py-10 text-fg">
       <div className="flex w-full max-w-[480px] flex-col gap-4">
-        <h1 className="text-[22px] font-semibold tracking-tight">
+        <h1 className="text-26 font-semibold tracking-[-0.02em]">
           {phase === "renaming" ? "Renaming" : "Indexing"}
         </h1>
 
@@ -54,7 +54,7 @@ function RenameBar({ progress }: { progress: ImportProgress | null }) {
           style={{ width: `${pct}%` }}
         />
       </div>
-      <p className="font-mono tabular-nums text-fg-dim">
+      <p className="font-mono text-12 tabular-nums text-fg-dim">
         {formatCount(done)} / {formatCount(total)}
         {progress && progress.errors > 0 && (
           <span className="text-danger"> · {formatCount(progress.errors)} errors</span>
@@ -67,7 +67,7 @@ function RenameBar({ progress }: { progress: ImportProgress | null }) {
 function IndexBar({ progress }: { progress: Progress | null }) {
   const remaining = (progress?.pending ?? 0) + (progress?.running ?? 0);
   return (
-    <div className="flex flex-col gap-1 font-mono tabular-nums text-fg-dim">
+    <div className="flex flex-col gap-1 font-mono text-12 tabular-nums text-fg-dim">
       <p>
         {formatCount(progress?.itemsChecked ?? 0)} checked ·{" "}
         {formatCount(progress?.queued ?? 0)} queued from inbox

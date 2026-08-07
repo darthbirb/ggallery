@@ -42,9 +42,9 @@ export function FolderMenu({
 
       <MenuSeparator />
 
-      <MenuItem onSelect={() => dialogs.newFolder(folder)}>New folder inside…</MenuItem>
+      <MenuItem onSelect={() => dialogs.newFolder(folder)}>New Folder Inside…</MenuItem>
       <MenuItem onSelect={() => dialogs.renameFolder(folder)}>Rename…</MenuItem>
-      <MenuItem onSelect={() => dialogs.moveFolder(folder)}>Move to…</MenuItem>
+      <MenuItem onSelect={() => dialogs.moveFolder(folder)}>Move To…</MenuItem>
 
       <MenuSeparator />
 
@@ -76,12 +76,12 @@ export function FolderMenu({
       {/* `FolderNode` doesn't carry which archetype (if any) this folder is
           on, so this is always offered rather than conditionally hidden —
           it is a harmless no-op on a folder with nothing to remove. */}
-      <MenuItem onSelect={() => ops.removeArchetype(folder.id)}>Remove archetype</MenuItem>
+      <MenuItem onSelect={() => ops.removeArchetype(folder.id)}>Remove Archetype</MenuItem>
 
       <MenuItem
         onSelect={() => ops.setFolderFavorite(folder.id, folder.title, !folder.favorite)}
       >
-        {folder.favorite ? "Unpin from the top" : "Pin to the top"}
+        {folder.favorite ? "Unpin From The Top" : "Pin To The Top"}
       </MenuItem>
       <MenuItem onSelect={() => ops.setFolderCover(folder.id, null)}>
         Clear cover
@@ -105,7 +105,7 @@ export function FolderTreeBackgroundMenu() {
     <>
       <MenuLabel>Folders</MenuLabel>
       <MenuItem onSelect={() => dialogs.newFolder(null)}>
-        New folder at the top level
+        New Folder At The Top Level
       </MenuItem>
     </>
   );

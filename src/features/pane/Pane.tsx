@@ -106,8 +106,8 @@ export function PaneStrip({
       className="flex h-full w-11 shrink-0 flex-col border-l border-line bg-panel"
     >
       <div className="flex h-11 shrink-0 items-center justify-center border-b border-line-soft">
-        <Tooltip label="Show the pane" side="left">
-          <IconButton aria-label="Show the pane" onClick={() => onOpen(mode)}>
+        <Tooltip label="Show The Pane" side="left">
+          <IconButton aria-label="Show The Pane" onClick={() => onOpen(mode)}>
             <PanelRightOpen />
           </IconButton>
         </Tooltip>

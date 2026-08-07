@@ -70,16 +70,16 @@ describe("the pane header", () => {
 
   it("keeps maximise, fold and the mode switcher as labelled controls", () => {
     renderPane();
-    expect(screen.getByRole("button", { name: "Fill the window" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Hide the pane" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Fill The Window" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hide The Pane" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Grid" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Folders" })).toBeInTheDocument();
   });
 
   it("still shows the window controls with nothing selected", () => {
     renderPane({ slots: [{ key: "primary", itemId: null }] });
-    expect(screen.getByText("Nothing selected.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Hide the pane" })).toBeInTheDocument();
+    expect(screen.getByText("Nothing Selected")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hide The Pane" })).toBeInTheDocument();
   });
 
   it("switches to Grid mode, which renders its own frame rather than staying inert", () => {
@@ -100,7 +100,7 @@ describe("the pane header", () => {
 describe("Grid and Folders modes actually render", () => {
   it("Grid mode shows an empty state rather than nothing", async () => {
     renderPane({ mode: "grid" });
-    expect(await screen.findByText("Nothing here yet.")).toBeInTheDocument();
+    expect(await screen.findByText("Nothing Here Yet")).toBeInTheDocument();
   });
 
   it("Folders mode shows the top-level tree with a New folder tile", async () => {
@@ -120,6 +120,6 @@ describe("Grid and Folders modes actually render", () => {
       ],
     });
     expect(await screen.findByText("trips")).toBeInTheDocument();
-    expect(screen.getByText(/New folder in/)).toBeInTheDocument();
+    expect(screen.getByText(/New Folder In/)).toBeInTheDocument();
   });
 });

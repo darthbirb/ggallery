@@ -37,8 +37,8 @@ export function ReviewScreen({
     <div className="flex h-full flex-col items-center justify-center gap-6 bg-ground px-8 py-10 text-fg">
       <div className="flex w-full max-w-[560px] flex-col gap-5">
         <div className="flex flex-col gap-1">
-          <h1 className="text-[22px] font-semibold tracking-tight">Review</h1>
-          <p className="truncate font-mono text-fg-dim" title={path}>
+          <h1 className="text-26 font-semibold tracking-[-0.02em]">Review</h1>
+          <p className="truncate font-mono text-14 text-fg-dim" title={path}>
             {path}
           </p>
         </div>
@@ -63,7 +63,7 @@ export function ReviewScreen({
           lands in the Sorting Box, ready to be filed.
         </p>
 
-        <table className="w-full border-collapse text-left font-mono">
+        <table className="w-full border-collapse text-left font-mono text-12">
           <tbody>
             {report.byKind.map((kind) => (
               <tr key={kind.kind} className="border-b border-line-soft/60">
@@ -89,7 +89,7 @@ export function ReviewScreen({
 
         <Label
           htmlFor="backup-confirmed"
-          className="items-start gap-2.5 rounded-[5px] border border-line bg-raised px-3 py-2.5 text-[14px] text-fg"
+          className="items-start gap-2.5 rounded-[5px] border border-line bg-raised px-3 py-2.5 text-14 text-fg"
         >
           <Checkbox
             id="backup-confirmed"

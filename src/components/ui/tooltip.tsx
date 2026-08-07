@@ -37,7 +37,7 @@ export function TooltipContent({
         collisionPadding={8}
         className={cn(
           "surface-in z-50 max-w-[36ch] rounded-[4px] border border-line bg-raised px-2 py-1",
-          "text-[13px] text-fg shadow-[0_8px_20px_rgba(0,0,0,0.45)]",
+          "text-13 text-fg shadow-[0_8px_20px_rgba(0,0,0,0.45)]",
           className,
         )}
         {...rest}

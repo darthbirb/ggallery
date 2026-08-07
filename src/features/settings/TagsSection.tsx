@@ -72,9 +72,9 @@ export function TagsSection({ onChanged }: TagsSectionProps) {
     <>
       <Input
         value={filter}
-        aria-label="Filter tags"
+        aria-label="Filter Tags"
         onChange={(event) => setFilter(event.target.value)}
-        placeholder="Filter…"
+        placeholder="Filter Tags…"
         className="mb-3"
       />
 
@@ -89,7 +89,7 @@ export function TagsSection({ onChanged }: TagsSectionProps) {
           {tags.map((tag) => (
             <tr key={tag.id} className="border-t border-line-soft/60">
               {tag.key !== null && (
-                <td className="py-1 pr-1 font-mono text-fg-dim">{tag.key}:</td>
+                <td className="py-1 pr-1 font-mono text-12 text-fg-dim">{tag.key}:</td>
               )}
               <td className="py-1 pr-2" colSpan={tag.key === null ? 2 : 1}>
                 <Input
@@ -100,7 +100,7 @@ export function TagsSection({ onChanged }: TagsSectionProps) {
                   className="border-transparent bg-transparent hover:border-line"
                 />
               </td>
-              <td className="py-1 pr-2 font-mono text-fg-dim">
+              <td className="py-1 pr-2 font-mono text-12 text-fg-dim">
                 {formatCount(tag.usageCount)}
               </td>
               <td className="py-1">
@@ -134,7 +134,7 @@ export function TagsSection({ onChanged }: TagsSectionProps) {
           body={`It is used ${formatCount(removing.usageCount)} time${
             removing.usageCount === 1 ? "" : "s"
           }, and comes off everything it is on. This one is not undoable.`}
-          confirmLabel="Delete tag"
+          confirmLabel="Delete Tag"
           danger
           onConfirm={() => {
             const tag = removing;

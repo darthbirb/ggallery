@@ -45,7 +45,7 @@ describe("archetypes", () => {
   it("creates one from the name typed in", async () => {
     renderWithProviders(<ArchetypesSection onChanged={vi.fn()} />);
     await userEvent.type(
-      await screen.findByLabelText("New archetype name"),
+      await screen.findByLabelText("New Archetype Name"),
       "Person{Enter}",
     );
     await waitFor(() => expect(mocked.createArchetype).toHaveBeenCalledWith("Person"));
@@ -54,8 +54,8 @@ describe("archetypes", () => {
   it("adds a field straight away when no folder uses the archetype", async () => {
     await open();
 
-    await userEvent.type(screen.getByLabelText("New label key"), "country");
-    await userEvent.click(screen.getByRole("button", { name: "Add label" }));
+    await userEvent.type(screen.getByLabelText("New Label Key"), "country");
+    await userEvent.click(screen.getByRole("button", { name: "Add Label" }));
 
     await waitFor(() =>
       expect(mocked.addArchetypeField).toHaveBeenCalledWith(3, "country", false),
@@ -66,8 +66,8 @@ describe("archetypes", () => {
     mocked.countFoldersUsingArchetype.mockResolvedValue(3);
     await open();
 
-    await userEvent.type(screen.getByLabelText("New label key"), "country");
-    await userEvent.click(screen.getByRole("button", { name: "Add label" }));
+    await userEvent.type(screen.getByLabelText("New Label Key"), "country");
+    await userEvent.click(screen.getByRole("button", { name: "Add Label" }));
 
     // "3 folders use this archetype. Add the new label to them?" — named, and
     // answerable both ways.
@@ -83,10 +83,10 @@ describe("archetypes", () => {
     mocked.countFoldersUsingArchetype.mockResolvedValue(2);
     await open();
 
-    await userEvent.type(screen.getByLabelText("New label key"), "country");
-    await userEvent.click(screen.getByRole("button", { name: "Add label" }));
+    await userEvent.type(screen.getByLabelText("New Label Key"), "country");
+    await userEvent.click(screen.getByRole("button", { name: "Add Label" }));
     await userEvent.click(
-      await screen.findByRole("button", { name: /Just the archetype/ }),
+      await screen.findByRole("button", { name: /Just The Archetype/ }),
     );
 
     await waitFor(() =>
@@ -104,7 +104,7 @@ describe("archetypes", () => {
     await userEvent.click(screen.getByRole("button", { name: "Remove city" }));
 
     expect(await screen.findByText(/Alps, Borneo/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Remove the field" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove The Field" }));
 
     await waitFor(() =>
       expect(mocked.removeArchetypeField).toHaveBeenCalledWith(3, "city"),
@@ -126,7 +126,7 @@ describe("archetypes", () => {
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(await screen.findByText(/keep the labels they already have/)).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Delete archetype" }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete Archetype" }));
     await waitFor(() => expect(mocked.deleteArchetype).toHaveBeenCalledWith(3));
   });
 });

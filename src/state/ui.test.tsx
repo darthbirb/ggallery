@@ -48,12 +48,12 @@ function renderUi() {
 }
 
 describe("the accent", () => {
-  it("defaults to Slate and lands on the root as data-accent", async () => {
+  it("defaults to Azure and lands on the root as data-accent", async () => {
     renderUi();
     await waitFor(() =>
-      expect(document.documentElement.dataset.accent).toBe("slate"),
+      expect(document.documentElement.dataset.accent).toBe("azure"),
     );
-    expect(screen.getByTestId("accent")).toHaveTextContent("slate");
+    expect(screen.getByTestId("accent")).toHaveTextContent("azure");
   });
 
   it("swaps wholesale when another is chosen", async () => {
@@ -63,15 +63,15 @@ describe("the accent", () => {
   });
 
   it("comes back from stored preferences", async () => {
-    mocked.uiPrefs.mockResolvedValue({ accent: "violet" });
+    mocked.uiPrefs.mockResolvedValue({ accent: "indigo" });
     renderUi();
-    await waitFor(() => expect(document.documentElement.dataset.accent).toBe("violet"));
+    await waitFor(() => expect(document.documentElement.dataset.accent).toBe("indigo"));
   });
 
   it("ignores an accent that is not in the fixed set", async () => {
     mocked.uiPrefs.mockResolvedValue({ accent: "chartreuse" });
     renderUi();
-    await waitFor(() => expect(screen.getByTestId("accent")).toHaveTextContent("slate"));
+    await waitFor(() => expect(screen.getByTestId("accent")).toHaveTextContent("azure"));
   });
 });
 

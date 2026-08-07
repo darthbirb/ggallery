@@ -45,7 +45,7 @@ export function DialogContent({
       data-slot="dialog-content"
       className={cn(
         "surface-in fixed left-1/2 top-1/2 z-50 flex max-h-[86vh] -translate-x-1/2 -translate-y-1/2 flex-col",
-        "overflow-hidden rounded-[8px] border border-line bg-panel text-[14px] text-fg",
+        "overflow-hidden rounded-[8px] border border-line bg-panel text-14 text-fg",
         "shadow-[0_28px_70px_rgba(0,0,0,0.6)]",
         // Radix focuses the panel when a dialog opens; a ring around the
         // whole thing is not what "where am I" should mean. The controls

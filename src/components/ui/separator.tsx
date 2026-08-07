@@ -19,7 +19,7 @@ export function Separator({
       decorative={decorative}
       className={cn(
         "shrink-0 bg-line-soft",
-        orientation === "vertical" ? "h-5 w-px" : "h-px w-full",
+        orientation === "vertical" ? "h-[22px] w-px" : "h-px w-full",
         className,
       )}
       {...rest}

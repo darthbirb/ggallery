@@ -139,7 +139,7 @@ export function StatusesSection({ onChanged }: StatusesSectionProps) {
                   className="border-transparent bg-transparent hover:border-line"
                 />
               </td>
-              <td className="py-1.5 pr-2 font-mono text-fg-dim">{status.key}</td>
+              <td className="py-1.5 pr-2 font-mono text-12 text-fg-dim">{status.key}</td>
               <td className="py-1.5">
                 <span className="flex items-center justify-end gap-1">
                   <IconButton
@@ -173,17 +173,17 @@ export function StatusesSection({ onChanged }: StatusesSectionProps) {
       <div className="mt-3 flex items-center gap-2">
         <input
           type="color"
-          aria-label="New status colour"
+          aria-label="New Status Colour"
           value={newColour}
           onChange={(event) => setNewColour(event.target.value)}
           className="size-8 shrink-0 cursor-pointer rounded-[4px] border border-line bg-transparent p-0"
         />
         <Input
           value={newLabel}
-          aria-label="New status name"
+          aria-label="New Status Name"
           onChange={(event) => setNewLabel(event.target.value)}
           onKeyDown={(event) => event.key === "Enter" && create()}
-          placeholder="＋ new status"
+          placeholder="＋ New Status"
           className="flex-1 border-dashed bg-transparent"
         />
         <Button onClick={create}>
@@ -192,7 +192,7 @@ export function StatusesSection({ onChanged }: StatusesSectionProps) {
         </Button>
       </div>
 
-      <p className="mt-3 text-[13px] text-fg-dim">
+      <p className="mt-3 text-13 text-fg-dim">
         The tree marks <span className="text-fg-mid">wip</span> with a dot, and
         nothing else.
       </p>
@@ -249,7 +249,7 @@ function ReassignDialog({
         them another one instead:
       </p>
       <Select value={choice} onValueChange={setChoice}>
-        <SelectTrigger autoFocus aria-label="Reassign to">
+        <SelectTrigger autoFocus aria-label="Reassign To">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

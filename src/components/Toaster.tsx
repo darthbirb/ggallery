@@ -15,7 +15,7 @@ import { X } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { useToasts } from "../state/toasts";
-import { Button, IconButton } from "./ui/button";
+import { Button } from "./ui/button";
 
 /** Long enough to read a sentence and reach the button without hurrying;
  *  toasts with nothing to undo go sooner. */
@@ -46,7 +46,7 @@ export function Toaster() {
           className="surface-in flex items-center gap-2.5 rounded-[6px] border border-line bg-panel px-3 py-2 shadow-[0_16px_40px_rgba(0,0,0,0.55)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)]"
         >
           <RadixToast.Title
-            className={`min-w-0 flex-1 truncate text-[14px] ${
+            className={`min-w-0 flex-1 truncate text-14 ${
               toast.tone === "danger" && !toast.undone ? "text-danger" : "text-fg"
             }`}
           >
@@ -74,10 +74,14 @@ export function Toaster() {
             </RadixToast.Action>
           )}
 
+          {/* The drawing's toast dismiss is a 24px sub-control with no
+              surface, not a full icon button — it sits beside Undo, which is
+              the control the toast is actually offering, and a second framed
+              button next to it competes for that. */}
           <RadixToast.Close asChild>
-            <IconButton aria-label="Dismiss">
+            <Button variant="subtle" size="sub-lg" aria-label="Dismiss">
               <X />
-            </IconButton>
+            </Button>
           </RadixToast.Close>
         </RadixToast.Root>
       ))}

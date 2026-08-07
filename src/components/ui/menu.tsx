@@ -24,24 +24,27 @@ import { cn } from "../../lib/utils";
  * the keyboard and the mouse alike, so a second mark would be two answers to
  * one question. Nothing else in the app opts out of the focus ring.
  */
+/* `bg-raised`, not `bg-panel`: the drawing floats every menu, toast and
+   popover one step lighter than the panel it opens over, so a surface that
+   is *above* the interface is lighter than the interface. */
 export const menuSurface = cn(
-  "surface-in z-50 min-w-[212px] overflow-hidden rounded-[6px] border border-line bg-panel p-1 outline-none",
+  "surface-in z-50 min-w-[230px] overflow-hidden rounded-[6px] border border-line bg-raised p-[5px] outline-none",
   "shadow-[0_16px_40px_rgba(0,0,0,0.55)]",
 );
 
 export const menuItem = cn(
-  "relative flex h-8 cursor-pointer select-none items-center gap-2 rounded-[4px] px-2.5 text-[14px] outline-none",
+  "relative flex h-[30px] cursor-pointer select-none items-center gap-2 rounded-[4px] px-2.5 text-13 outline-none",
   "data-[highlighted]:bg-hover data-[highlighted]:text-fg",
   "data-[disabled]:pointer-events-none data-[disabled]:opacity-35",
 );
 
 export const menuLabel = cn(
-  "px-2.5 pb-1 pt-2 font-mono text-[12px] uppercase tracking-[0.1em] text-fg-dim",
+  "px-2.5 pb-[5px] pt-1.5 font-mono text-10 font-semibold uppercase tracking-[0.12em] text-fg-dim",
 );
 
-export const menuSeparator = "-mx-1 my-1 h-px bg-line-soft";
+export const menuSeparator = "-mx-[5px] my-1 h-px bg-line-soft";
 
 /** Right-aligned keyboard equivalent. Never the only path to the action —
  *  locked decision 23. */
 export const menuShortcut =
-  "ml-auto pl-4 font-mono text-[12px] tabular-nums text-fg-dim";
+  "ml-auto pl-4 font-mono text-11 tabular-nums text-fg-dim";

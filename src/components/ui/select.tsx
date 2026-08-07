@@ -21,9 +21,9 @@ export function SelectTrigger({
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       className={cn(
-        "flex h-8 w-full items-center justify-between gap-2 rounded-[4px] border border-line bg-ground px-2",
-        "text-left text-[14px] text-fg transition-[border-color] duration-100",
-        "hover:border-fg-dim data-[state=open]:border-accent-d",
+        "flex h-8 w-full items-center justify-between gap-2 rounded-[4px] border border-line bg-ground px-2.5",
+        "text-left text-13 text-fg transition-[border-color] duration-100",
+        "hover:border-fg-dim data-[state=open]:border-accent",
         "disabled:pointer-events-none disabled:opacity-40",
         className,
       )}

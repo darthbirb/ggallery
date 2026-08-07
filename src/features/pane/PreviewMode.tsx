@@ -117,7 +117,7 @@ export function PreviewMode({
       {empty ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center text-fg-dim">
           <ImageOff className="size-7" />
-          <p>Nothing selected.</p>
+          <p>Nothing Selected</p>
         </div>
       ) : (
         <>
@@ -140,7 +140,7 @@ export function PreviewMode({
           </div>
 
           <Resizer
-            label="Filmstrip height"
+            label="Filmstrip Height"
             side="bottom"
             value={filmstripHeight}
             min={FILMSTRIP_MIN}
@@ -166,10 +166,10 @@ export function PreviewMode({
 function Slot({ itemId, refreshToken }: { itemId: number | null; refreshToken: number }) {
   const detail = useItemDetail(itemId, refreshToken);
   if (!detail) {
-    return <div className="min-h-0 rounded-[4px] bg-ground" />;
+    return <div className="min-h-0 rounded-[4px] bg-sunk" />;
   }
   return (
-    <div className="min-h-0 overflow-hidden rounded-[4px] bg-ground">
+    <div className="min-h-0 overflow-hidden rounded-[4px] bg-sunk">
       <ItemView item={detail} />
     </div>
   );

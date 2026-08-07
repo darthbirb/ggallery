@@ -75,11 +75,11 @@ describe("destructive operations", () => {
 
     await userEvent.click(screen.getByText("delete"));
 
-    expect(await screen.findByText("Deleted 2 items")).toBeInTheDocument();
+    expect(await screen.findByText("Deleted 2 Items")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Undo" }));
 
     await waitFor(() => expect(mocked.undoBatch).toHaveBeenCalledWith("batch-delete"));
-    expect(await screen.findByText("Restored 2 items")).toBeInTheDocument();
+    expect(await screen.findByText("Restored 2 Items")).toBeInTheDocument();
   });
 
   it("move names the destination and undoes its own batch", async () => {
@@ -88,7 +88,7 @@ describe("destructive operations", () => {
 
     await userEvent.click(screen.getByText("move"));
 
-    expect(await screen.findByText("Moved 2 items to Trips")).toBeInTheDocument();
+    expect(await screen.findByText("Moved 2 Items To Trips")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Undo" }));
     await waitFor(() => expect(mocked.undoBatch).toHaveBeenCalledWith("batch-move"));
   });
@@ -112,7 +112,7 @@ describe("destructive operations", () => {
 
     await userEvent.click(screen.getByText("rename folder"));
 
-    expect(await screen.findByText("Renamed Trips to Journeys")).toBeInTheDocument();
+    expect(await screen.findByText("Renamed Trips To Journeys")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Undo" }));
     await waitFor(() => expect(mocked.undoBatch).toHaveBeenCalledWith("batch-rename"));
   });
@@ -154,7 +154,7 @@ describe("non-destructive operations", () => {
 
     await userEvent.click(screen.getByText("copy path"));
 
-    expect(await screen.findByText("Path copied")).toBeInTheDocument();
+    expect(await screen.findByText("Path Copied")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
   });
 

@@ -112,7 +112,7 @@ export function DialogsProvider({
 
       {request?.kind === "moveFolder" && (
         <FolderPickerDialog
-          title={`Move ${request.folder.title} to…`}
+          title={`Move ${request.folder.title} To…`}
           folders={folders}
           // A folder cannot be moved inside itself, and the picker says so by
           // not offering it rather than by failing afterwards.
@@ -304,7 +304,7 @@ function NewFolderDialog({
     <Dialog
       open
       onOpenChange={(open) => !open && onClose()}
-      title={`New folder in ${parent ? parent.title : "the top level"}`}
+      title={`New Folder In ${parent ? parent.title : "the top level"}`}
       width={430}
       footer={
         <>
@@ -400,7 +400,7 @@ export function FolderPickerDialog({
       <Input
         autoFocus
         value={filter}
-        placeholder="Filter by title or path…"
+        placeholder="Filter By Title Or Path…"
         onChange={(event) => setFilter(event.target.value)}
         className="mb-2"
       />
@@ -431,7 +431,7 @@ export function FolderPickerDialog({
             style={{ paddingLeft: 10 + Math.max(folder.depth - 1, 0) * 14 }}
           >
             <span className="truncate text-fg">{folder.title}</span>
-            <span className="ml-auto shrink-0 truncate font-mono text-fg-dim">
+            <span className="ml-auto shrink-0 truncate font-mono text-11 text-fg-dim">
               {pathFor(folder)}
             </span>
           </button>
@@ -476,7 +476,7 @@ function TagDialog({
     <Dialog
       open
       onOpenChange={(open) => !open && onClose()}
-      title={count === 1 ? "Tag this item" : `Tag ${count} items`}
+      title={count === 1 ? "Tag This Item" : `Tag ${count} Items`}
       description="A flag is a word on its own. A label is key: value."
       width={430}
       footer={
@@ -498,7 +498,7 @@ function TagDialog({
         }}
       />
       {key && (
-        <p className="mt-1.5 text-[13px] text-fg-dim">
+        <p className="mt-1.5 text-13 text-fg-dim">
           Label <span className="text-fg-mid">{key}</span> ={" "}
           <span className="text-fg-mid">{value || "—"}</span>
         </p>

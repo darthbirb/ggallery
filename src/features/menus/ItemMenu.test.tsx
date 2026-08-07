@@ -63,14 +63,14 @@ describe("the item menu", () => {
     openItemMenu();
 
     for (const label of [
-      "Show in the pane",
+      "Show In The Pane",
       "Favourite",
-      "Add tag…",
-      "Move to…",
-      "Reveal in Explorer",
-      "Open with the default app",
-      "Copy file",
-      "Copy path",
+      "Add Tag…",
+      "Move To…",
+      "Reveal In Explorer",
+      "Open With The Default App",
+      "Copy File",
+      "Copy The Full Path",
       "Delete…",
     ]) {
       expect(
@@ -88,7 +88,7 @@ describe("the item menu", () => {
   it("offers to remove the favourite when the item already has one", async () => {
     openItemMenu({ favorite: true });
     await userEvent.click(
-      await screen.findByRole("menuitem", { name: /Remove favourite/ }),
+      await screen.findByRole("menuitem", { name: /Remove Favourite/ }),
     );
     await waitFor(() => expect(mocked.setItemsFavorite).toHaveBeenCalledWith([7], false));
   });
@@ -96,21 +96,21 @@ describe("the item menu", () => {
   it("reveals, opens and copies the item it was opened on", async () => {
     openItemMenu();
     await userEvent.click(
-      await screen.findByRole("menuitem", { name: /Reveal in Explorer/ }),
+      await screen.findByRole("menuitem", { name: /Reveal In Explorer/ }),
     );
     await waitFor(() => expect(mocked.revealItem).toHaveBeenCalledWith(7));
   });
 
   it("copies the file, not just its path", async () => {
     openItemMenu();
-    await userEvent.click(await screen.findByRole("menuitem", { name: /Copy file/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Copy File/ }));
     await waitFor(() => expect(mocked.copyItemFile).toHaveBeenCalledWith(7));
   });
 
   it("sets the item as the current folder's cover", async () => {
     openItemMenu();
     await userEvent.click(
-      await screen.findByRole("menuitem", { name: /Set as Trips.+cover/ }),
+      await screen.findByRole("menuitem", { name: /Set As Trips.+Cover/ }),
     );
     await waitFor(() => expect(mocked.setFolderCover).toHaveBeenCalledWith(1, 7));
   });
@@ -118,9 +118,9 @@ describe("the item menu", () => {
   it("hides the single-item operations for a multi-item selection", async () => {
     openItemMenu({ itemIds: [7, 8, 9] });
 
-    expect(await screen.findByRole("menuitem", { name: /Move to…/ })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: /Reveal in Explorer/ })).toBeNull();
-    expect(screen.queryByRole("menuitem", { name: /Copy path/ })).toBeNull();
+    expect(await screen.findByRole("menuitem", { name: /Move To…/ })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /Reveal In Explorer/ })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: /Copy The Full Path/ })).toBeNull();
   });
 
   it("confirms before deleting, then deletes the whole selection", async () => {
@@ -159,7 +159,7 @@ describe("the empty-space menu", () => {
       { selection },
     );
 
-    await userEvent.click(await screen.findByRole("menuitem", { name: /Select all/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Select All/ }));
     expect(selection.selectAll).toHaveBeenCalled();
   });
 
@@ -188,7 +188,7 @@ describe("the empty-space menu", () => {
     );
 
     await userEvent.click(
-      await screen.findByRole("menuitem", { name: /Invert selection/ }),
+      await screen.findByRole("menuitem", { name: /Invert Selection/ }),
     );
     expect(selection.invert).toHaveBeenCalled();
   });
@@ -215,7 +215,7 @@ describe("the empty-space menu", () => {
     );
 
     await userEvent.click(
-      await screen.findByRole("menuitem", { name: /New folder in Trips…/ }),
+      await screen.findByRole("menuitem", { name: /New Folder In Trips…/ }),
     );
     expect(onNewFolder).toHaveBeenCalled();
   });

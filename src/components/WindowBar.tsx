@@ -66,7 +66,7 @@ export function WindowBar() {
           grab. Double-clicking beside them (the spacer below) maximises. */}
       <div className="flex shrink-0 items-center gap-1.5 pl-2 pr-3">
         <Mark className="size-4" />
-        <span className="text-[13px] font-semibold tracking-tight text-fg">GGallery</span>
+        <span className="text-13 font-semibold tracking-tight text-fg">GGallery</span>
       </div>
 
       <div
@@ -80,7 +80,7 @@ export function WindowBar() {
           <Minus className="size-3.5" />
         </CaptionButton>
         <CaptionButton
-          aria-label={maximised ? "Restore down" : "Maximise"}
+          aria-label={maximised ? "Restore Down" : "Maximise"}
           onClick={() => void win?.toggleMaximize()}
         >
           {maximised ? <Copy className="size-3.5" /> : <Square className="size-3" />}

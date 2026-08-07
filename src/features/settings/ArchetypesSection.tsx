@@ -151,7 +151,7 @@ export function ArchetypesSection({ onChanged }: ArchetypesSectionProps) {
               className={cn(
                 "h-8 w-full rounded-[4px] border px-2 text-left",
                 archetype.id === selectedId
-                  ? "border-accent-d bg-accent/15 text-accent"
+                  ? "border-accent-d bg-accent-t text-accent"
                   : "border-transparent text-fg-mid hover:bg-hover hover:text-fg",
               )}
             >
@@ -163,10 +163,10 @@ export function ArchetypesSection({ onChanged }: ArchetypesSectionProps) {
           )}
           <Input
             value={newName}
-            aria-label="New archetype name"
+            aria-label="New Archetype Name"
             onChange={(event) => setNewName(event.target.value)}
             onKeyDown={(event) => event.key === "Enter" && createArchetype()}
-            placeholder="＋ new archetype"
+            placeholder="＋ New Archetype"
             className="mt-1 border-dashed bg-transparent"
           />
         </div>
@@ -186,7 +186,7 @@ export function ArchetypesSection({ onChanged }: ArchetypesSectionProps) {
                 <Input
                   defaultValue={selected.name}
                   key={selected.id}
-                  aria-label="Archetype name"
+                  aria-label="Archetype Name"
                   onBlur={(event) => {
                     const value = event.target.value.trim();
                     if (value && value !== selected.name) {
@@ -202,7 +202,7 @@ export function ArchetypesSection({ onChanged }: ArchetypesSectionProps) {
 
               <table className="w-full border-collapse text-left">
                 <thead>
-                  <tr className="font-mono uppercase tracking-[0.1em] text-fg-dim">
+                  <tr className="font-mono text-10 font-semibold uppercase tracking-[0.12em] text-fg-dim">
                     <th className="py-1 pr-2 font-normal">key</th>
                     <th className="py-1"></th>
                   </tr>
@@ -210,7 +210,7 @@ export function ArchetypesSection({ onChanged }: ArchetypesSectionProps) {
                 <tbody>
                   {selected.fields.map((field, index) => (
                     <tr key={field.key} className="border-t border-line-soft/60">
-                      <td className="py-1 pr-2 font-mono">{field.key}</td>
+                      <td className="py-1 pr-2 font-mono text-12">{field.key}</td>
                       <td className="py-1">
                         <span className="flex items-center justify-end gap-1">
                           <IconButton
@@ -251,13 +251,13 @@ export function ArchetypesSection({ onChanged }: ArchetypesSectionProps) {
               <div className="flex items-center gap-2">
                 <Input
                   value={newFieldKey}
-                  aria-label="New label key"
+                  aria-label="New Label Key"
                   onChange={(event) => setNewFieldKey(event.target.value)}
                   onKeyDown={(event) => event.key === "Enter" && askAddField()}
-                  placeholder="label key"
+                  placeholder="Label Key"
                   className="flex-1"
                 />
-                <Button onClick={askAddField}>Add label</Button>
+                <Button onClick={askAddField}>Add Label</Button>
               </div>
             </div>
           )}
@@ -272,7 +272,7 @@ export function ArchetypesSection({ onChanged }: ArchetypesSectionProps) {
           width={430}
           footer={
             <>
-              <Button onClick={() => addField(false)}>Just the archetype</Button>
+              <Button onClick={() => addField(false)}>Just The Archetype</Button>
               <Button variant="accent" onClick={() => addField(true)}>
                 Add to all {addingField.count}
               </Button>
@@ -295,7 +295,7 @@ export function ArchetypesSection({ onChanged }: ArchetypesSectionProps) {
           body={`This deletes the value it holds on: ${removingField.usage
             .map((folder) => folder.title)
             .join(", ")}.`}
-          confirmLabel="Remove the field"
+          confirmLabel="Remove The Field"
           danger
           onConfirm={() => {
             const key = removingField.key;
@@ -311,7 +311,7 @@ export function ArchetypesSection({ onChanged }: ArchetypesSectionProps) {
           onOpenChange={(open) => !open && setDeletingArchetype(null)}
           title={`Delete ${deletingArchetype.name}?`}
           body="Folders using it keep the labels they already have — only the template goes."
-          confirmLabel="Delete archetype"
+          confirmLabel="Delete Archetype"
           danger
           onConfirm={() => {
             const id = deletingArchetype.id;

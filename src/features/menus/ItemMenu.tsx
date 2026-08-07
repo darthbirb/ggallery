@@ -46,7 +46,7 @@ export function ItemMenu({ itemIds, item, folder, onPreview }: ItemMenuProps) {
 
       {single && (
         <MenuItem onSelect={() => onPreview(single.id)} shortcut="Enter">
-          Show in the pane
+          Show In The Pane
         </MenuItem>
       )}
 
@@ -54,17 +54,17 @@ export function ItemMenu({ itemIds, item, folder, onPreview }: ItemMenuProps) {
         onSelect={() => ops.setFavorite(itemIds, makeFavorite)}
         shortcut="F"
       >
-        {makeFavorite ? "Favourite" : "Remove favourite"}
+        {makeFavorite ? "Favourite" : "Remove Favourite"}
       </MenuItem>
-      <MenuItem onSelect={() => dialogs.tagItems(itemIds)}>Add tag…</MenuItem>
+      <MenuItem onSelect={() => dialogs.tagItems(itemIds)}>Add Tag…</MenuItem>
 
       <MenuSeparator />
 
-      <MenuItem onSelect={() => dialogs.moveItems(itemIds)}>Move to…</MenuItem>
+      <MenuItem onSelect={() => dialogs.moveItems(itemIds)}>Move To…</MenuItem>
 
       {single && folder && (
         <MenuItem onSelect={() => ops.setFolderCover(folder.id, single.id)}>
-          Set as {folder.title}&rsquo;s cover
+          Set As {folder.title}&rsquo;s Cover
         </MenuItem>
       )}
 
@@ -73,15 +73,15 @@ export function ItemMenu({ itemIds, item, folder, onPreview }: ItemMenuProps) {
       {single && (
         <>
           <MenuItem onSelect={() => ops.revealItem(single.id)}>
-            Reveal in Explorer
+            Reveal In Explorer
           </MenuItem>
           <MenuItem onSelect={() => ops.openItem(single.id)}>
-            Open with the default app
+            Open With The Default App
           </MenuItem>
           <MenuItem onSelect={() => ops.copyItemFile(single.id)} shortcut="Ctrl+C">
-            Copy file
+            Copy File
           </MenuItem>
-          <MenuItem onSelect={() => ops.copyItemPath(single.id)}>Copy path</MenuItem>
+          <MenuItem onSelect={() => ops.copyItemPath(single.id)}>Copy The Full Path</MenuItem>
           <MenuSeparator />
         </>
       )}
@@ -125,28 +125,28 @@ export function EmptyMenu({
   return (
     <>
       <MenuItem onSelect={onSelectAll} disabled={!hasItems} shortcut="Ctrl+A">
-        Select all
+        Select All
       </MenuItem>
       <MenuItem onSelect={onInvert} disabled={!hasItems}>
-        Invert selection
+        Invert Selection
       </MenuItem>
       <MenuItem onSelect={onClear} disabled={!hasSelection} shortcut="Esc">
-        Clear selection
+        Clear Selection
       </MenuItem>
 
       <MenuSeparator />
 
       <MenuItem onSelect={onNewFolder}>
-        New folder in {folder ? folder.title : "the top level"}…
+        New Folder In {folder ? folder.title : "The Top Level"}…
       </MenuItem>
 
       <MenuSeparator />
 
       <MenuItem onSelect={onToggleBand}>
-        {bandExpanded ? "Collapse folder details" : "Expand folder details"}
+        {bandExpanded ? "Collapse Folder Details" : "Expand Folder Details"}
       </MenuItem>
       <MenuItem onSelect={onTogglePane}>
-        {paneOpen ? "Hide the pane" : "Show the pane"}
+        {paneOpen ? "Hide The Pane" : "Show The Pane"}
       </MenuItem>
     </>
   );

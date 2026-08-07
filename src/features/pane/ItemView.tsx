@@ -178,7 +178,7 @@ function ImageView({ item, source }: { item: ItemDetail; source: string }) {
           type="button"
           aria-label={`Zoom ${Math.round(zoom * 100)}% — click to fit`}
           onClick={reset}
-          className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full border border-line-soft bg-ground/90 py-0.5 pl-2 pr-1.5 font-mono text-[12px] tabular-nums text-fg hover:border-fg-dim hover:bg-ground"
+          className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full border border-line-soft bg-sunk/85 py-0.5 pl-2 pr-1.5 font-mono text-12 tabular-nums text-fg hover:border-fg-dim hover:bg-sunk"
         >
           {Math.round(zoom * 100)}%
           <X className="size-3 text-fg-dim" />
@@ -253,17 +253,17 @@ function VideoView({ item, source }: { item: ItemDetail; source: string }) {
           {playing ? <Pause /> : <Play />}
         </IconButton>
 
-        <Tooltip label="Back one frame" side="top">
+        <Tooltip label="Back One Frame" side="top">
           <IconButton
-            aria-label="Back one frame"
+            aria-label="Back One Frame"
             onClick={() => seek(position - FRAME_STEP)}
           >
             <ChevronFirst />
           </IconButton>
         </Tooltip>
-        <Tooltip label="Forward one frame" side="top">
+        <Tooltip label="Forward One Frame" side="top">
           <IconButton
-            aria-label="Forward one frame"
+            aria-label="Forward One Frame"
             onClick={() => seek(position + FRAME_STEP)}
           >
             <ChevronLast />
@@ -280,14 +280,14 @@ function VideoView({ item, source }: { item: ItemDetail; source: string }) {
           onValueChange={([next]) => seek(next)}
         />
 
-        <span className="shrink-0 font-mono tabular-nums text-fg-dim">
+        <span className="shrink-0 font-mono text-12 tabular-nums text-fg-dim">
           {formatDuration(position * 1000)} / {formatDuration(duration * 1000)}
         </span>
 
         <DropdownMenu
           align="end"
           trigger={
-            <Button size="sm" aria-label="Playback speed">
+            <Button size="sm" aria-label="Playback Speed">
               {speed}×
             </Button>
           }

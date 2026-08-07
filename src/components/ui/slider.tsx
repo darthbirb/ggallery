@@ -22,7 +22,7 @@ export function Slider({
     >
       <SliderPrimitive.Track
         data-slot="slider-track"
-        className="relative h-1 w-full grow overflow-hidden rounded-full bg-line"
+        className="relative h-1 w-full grow overflow-hidden rounded-full bg-raised"
       >
         <SliderPrimitive.Range
           data-slot="slider-range"
@@ -32,10 +32,13 @@ export function Slider({
       <SliderPrimitive.Thumb
         data-slot="slider-thumb"
         // 14px: small enough to stay dense, big enough to grab without
-        // aiming, and it has a border at rest like everything else.
+        // aiming. The drawing makes the thumb `--fg` inside a 2px ring of the
+        // panel behind it, not accent-on-accent — so the thumb stays legible
+        // where it overlaps its own filled range, which an accent thumb on an
+        // accent range does not.
         className={cn(
-          "block size-[14px] rounded-full border border-accent-d bg-accent",
-          "transition-[border-color] duration-100 hover:border-accent",
+          "block size-[14px] rounded-full border-2 border-panel bg-fg",
+          "transition-[border-color] duration-100",
           "focus-visible:outline-offset-2",
         )}
       />

@@ -104,8 +104,8 @@ describe("inline folder creation", () => {
     const folders = [node({ id: 1, title: "trips" })];
     renderFoldersMode(folders);
 
-    await userEvent.click(await screen.findByText(/New folder in the top level/));
-    const input = screen.getByPlaceholderText("Folder name");
+    await userEvent.click(await screen.findByText(/New Folder In the top level/));
+    const input = screen.getByPlaceholderText("Folder Name");
     await userEvent.type(input, "beach{Enter}");
 
     await waitFor(() =>
@@ -120,8 +120,8 @@ describe("inline folder creation", () => {
     const folders = [node({ id: 1, title: "trips" })];
     renderFoldersMode(folders);
 
-    await userEvent.click(await screen.findByText(/New folder in the top level/));
-    await userEvent.type(screen.getByPlaceholderText("Folder name"), "beach");
+    await userEvent.click(await screen.findByText(/New Folder In the top level/));
+    await userEvent.type(screen.getByPlaceholderText("Folder Name"), "beach");
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
 
     await waitFor(() => expect(mocked.createFolder).toHaveBeenCalledTimes(1));
@@ -131,7 +131,7 @@ describe("inline folder creation", () => {
     const folders = [node({ id: 1, title: "trips" })];
     renderFoldersMode(folders);
 
-    await userEvent.type(screen.getByPlaceholderText("Filter by title or path…"), "roo");
+    await userEvent.type(screen.getByPlaceholderText("Filter By Title Or Path…"), "roo");
     const createRow = await screen.findByText(/Create/);
     expect(createRow.textContent).toContain("roo");
     expect(createRow.textContent).toContain("the top level");

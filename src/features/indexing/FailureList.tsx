@@ -47,7 +47,7 @@ export function FailureList({ failures, onRetry, onClose }: FailureListProps) {
       </header>
 
       {byError.length > 1 && (
-        <ul className="flex flex-wrap gap-x-4 gap-y-1 px-3 pb-2 font-mono text-fg-dim">
+        <ul className="flex flex-wrap gap-x-4 gap-y-1 px-3 pb-2 font-mono text-11 text-fg-dim">
           {byError.map(([error, count]) => (
             <li key={error}>
               <span className="text-fg-mid">{count}×</span> {error}
@@ -61,23 +61,23 @@ export function FailureList({ failures, onRetry, onClose }: FailureListProps) {
           <tbody>
             {failures.slice(0, MAX_ROWS).map((failure) => (
               <tr key={failure.jobId} className="border-b border-line-soft/60">
-                <td className="max-w-0 truncate px-3 py-1 font-mono text-fg">
+                <td className="max-w-0 truncate px-3 py-1 font-mono text-13 text-fg">
                   {failure.name}
                 </td>
-                <td className="whitespace-nowrap px-2 py-1 font-mono text-fg-dim">
+                <td className="whitespace-nowrap px-2 py-1 font-mono text-11 text-fg-dim">
                   {failure.stage}
                 </td>
-                <td className="whitespace-nowrap px-2 py-1 text-right font-mono tabular-nums text-fg-dim">
+                <td className="whitespace-nowrap px-2 py-1 text-right font-mono text-11 tabular-nums text-fg-dim">
                   {failure.sizeBytes === null ? "" : formatBytes(failure.sizeBytes)}
                 </td>
-                <td className="px-3 py-1 text-[13px] text-danger">{failure.error}</td>
+                <td className="px-3 py-1 font-mono text-12 text-danger">{failure.error}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
         {failures.length > MAX_ROWS && (
-          <p className="px-3 py-2 font-mono text-fg-dim">
+          <p className="px-3 py-2 font-mono text-11 text-fg-dim">
             …and {formatCount(failures.length - MAX_ROWS)} more.
           </p>
         )}

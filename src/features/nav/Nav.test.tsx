@@ -140,7 +140,7 @@ describe("the tree", () => {
       ],
     });
 
-    expect(screen.getAllByTitle("Work in progress")).toHaveLength(1);
+    expect(screen.getAllByTitle("Work In Progress")).toHaveLength(1);
   });
 
   it("opens a folder as a folder-scoped view", async () => {
@@ -284,7 +284,7 @@ describe("folding", () => {
     renderNav({ onFoldedChange });
 
     await userEvent.click(
-      screen.getByRole("button", { name: "Hide the navigation panel" }),
+      screen.getByRole("button", { name: "Hide The Navigation Panel" }),
     );
     expect(onFoldedChange).toHaveBeenCalledWith(true);
   });
@@ -295,7 +295,7 @@ describe("folding", () => {
     expect(screen.getByRole("button", { name: "Sorting Box" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Favourites" })).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Show the navigation panel" }),
+      screen.getByRole("button", { name: "Show The Navigation Panel" }),
     ).toBeInTheDocument();
   });
 });
